@@ -1,5 +1,6 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import ChartInsight from '@/components/ChartInsight';
 
 const GaugeChart = ({
   metaRealizado,
@@ -132,7 +133,7 @@ const GaugeChart = ({
 };
 
 const MonthChart = () => {
-  const { monthData } = useCurrentProject();
+  const { monthData, info } = useCurrentProject();
   const { selectedMonthIndex, setSelectedMonthIndex } = useReportInteraction();
 
   const totalPrev = monthData.reduce((s, d) => s + d.previsto, 0);
@@ -199,6 +200,7 @@ const MonthChart = () => {
           ✕ Limpar seleção
         </button>
       )}
+      <ChartInsight chartType="month" data={monthData} projectInfo={info} />
     </div>
   );
 };

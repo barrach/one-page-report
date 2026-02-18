@@ -1,12 +1,13 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import ChartInsight from '@/components/ChartInsight';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell, ReferenceLine,
 } from 'recharts';
 
 const FiveWeekChart = () => {
-  const { weeklyData } = useCurrentProject();
+  const { weeklyData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
 
   const handleClick = (data: any) => {
@@ -59,6 +60,7 @@ const FiveWeekChart = () => {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <ChartInsight chartType="fiveweek" data={weeklyData} projectInfo={info} />
     </div>
   );
 };

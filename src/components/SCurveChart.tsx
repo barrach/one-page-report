@@ -1,5 +1,6 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import ChartInsight from '@/components/ChartInsight';
 import { useMemo } from 'react';
 import {
   LineChart,
@@ -15,7 +16,7 @@ import {
 } from 'recharts';
 
 const SCurveChart = () => {
-  const { sCurveData, statusDateIndex } = useCurrentProject();
+  const { sCurveData, statusDateIndex, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
@@ -130,6 +131,7 @@ const SCurveChart = () => {
           ✕ Limpar seleção: {selectedDate}
         </button>
       )}
+      <ChartInsight chartType="scurve" data={sCurveData} projectInfo={info} />
     </div>
   );
 };

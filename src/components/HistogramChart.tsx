@@ -1,12 +1,13 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import ChartInsight from '@/components/ChartInsight';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, LabelList, Cell, ReferenceLine,
 } from 'recharts';
 
 const HistogramChart = () => {
-  const { histogramData } = useCurrentProject();
+  const { histogramData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
 
   const data = (histogramData || []).filter(h => h.date);
@@ -89,6 +90,7 @@ const HistogramChart = () => {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      <ChartInsight chartType="histogram" data={data} projectInfo={info} />
     </div>
   );
 };
