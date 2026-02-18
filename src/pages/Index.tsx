@@ -160,12 +160,9 @@ const Index = () => {
           <FiveWeekChart />
         </div>
 
-        {/* Row 2: Histograma */}
-        <HistogramChart />
-
-        {/* Row 3: Resultado Semanal + Mês */}
+        {/* Row 2: Histograma + Mês */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <WeeklyResultTable />
+          <HistogramChart />
           <MonthChart />
         </div>
 
