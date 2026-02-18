@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface ProjectInfo {
   projeto: string;
@@ -79,12 +79,10 @@ export interface Project {
   scheduleData: ScheduleRow[];
 }
 
-const createDefaultProject = (id: string, name: string): Project => ({
-  id,
-  name,
+const defaultProjectData: Omit<Project, 'id' | 'name'> = {
   statusDateIndex: 0,
   info: {
-    projeto: name,
+    projeto: '',
     cliente: '',
     gestor: '',
     inicio: '',
@@ -110,9 +108,17 @@ const createDefaultProject = (id: string, name: string): Project => ({
   observations: [{ id: 1, text: '' }],
   histogramData: [{ date: '', semana: '', previsto: 0, real: 0 }],
   scheduleData: [{ id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
+};
+
+const createDefaultProject = (id: string, name: string): Project => ({
+  id,
+  name,
+  ...defaultProjectData,
+  info: { ...defaultProjectData.info, projeto: name },
 });
 
-const defaultProject: Project = {
+// Seed project for new installations
+const seedProject: Project = {
   id: 'guaxe',
   name: 'GUAXE',
   statusDateIndex: 1,
@@ -165,16 +171,64 @@ const defaultProject: Project = {
   scheduleData: [{ id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
 };
 
+// DB helpers
+const dbToProject = (row: { id: string; name: string; data: Record<string, unknown> }): Project => {
+  const d = row.data as Partial<Project>;
+  return {
+    id: row.id,
+    name: row.name,
+    statusDateIndex: d.statusDateIndex ?? 0,
+    info: d.info ?? { ...defaultProjectData.info, projeto: row.name },
+    weeklyData: d.weeklyData ?? defaultProjectData.weeklyData,
+    sCurveData: d.sCurveData ?? defaultProjectData.sCurveData,
+    monthData: d.monthData ?? defaultProjectData.monthData,
+    actions: d.actions ?? defaultProjectData.actions,
+    observations: d.observations ?? defaultProjectData.observations,
+    histogramData: d.histogramData ?? defaultProjectData.histogramData,
+    scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
+  };
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const projectToDb = (p: Project): any => ({
+  id: p.id,
+  name: p.name,
+  data: {
+    statusDateIndex: p.statusDateIndex,
+    info: p.info,
+    weeklyData: p.weeklyData,
+    sCurveData: p.sCurveData,
+    monthData: p.monthData,
+    actions: p.actions,
+    observations: p.observations,
+    histogramData: p.histogramData,
+    scheduleData: p.scheduleData,
+  },
+});
+
 const updateSelectedProject = (projects: Project[], selectedId: string, updater: (p: Project) => Partial<Project>) => {
   return projects.map(p => p.id === selectedId ? { ...p, ...updater(p) } : p);
+};
+
+// Debounce helper for saving to DB
+const saveTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+const debouncedSave = (project: Project, delay = 800) => {
+  if (saveTimers[project.id]) clearTimeout(saveTimers[project.id]);
+  saveTimers[project.id] = setTimeout(async () => {
+    await supabase
+      .from('projects')
+      .upsert([projectToDb(project)], { onConflict: 'id' });
+  }, delay);
 };
 
 interface ProjectStoreState {
   projects: Project[];
   selectedProjectId: string;
+  loading: boolean;
+  loadProjects: () => Promise<void>;
   selectProject: (id: string) => void;
-  addProject: (name: string) => void;
-  deleteProject: (id: string) => void;
+  addProject: (name: string) => Promise<void>;
+  deleteProject: (id: string) => Promise<void>;
   setInfo: (info: Partial<ProjectInfo>) => void;
   setStatusDateIndex: (index: number) => void;
   setWeeklyData: (data: WeekData[]) => void;
@@ -198,146 +252,228 @@ interface ProjectStoreState {
   removeScheduleRow: (index: number) => void;
 }
 
-export const useProjectStore = create<ProjectStoreState>()(
-  persist(
-    (set) => ({
-      projects: [defaultProject],
-      selectedProjectId: 'guaxe',
+export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
+  projects: [seedProject],
+  selectedProjectId: 'guaxe',
+  loading: false,
 
-      selectProject: (id) => set({ selectedProjectId: id }),
+  loadProjects: async () => {
+    set({ loading: true });
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, name, data')
+      .order('created_at', { ascending: true });
 
-      addProject: (name) => {
-        const id = name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now();
-        const newProject = createDefaultProject(id, name);
-        set((s) => ({
-          projects: [...s.projects, newProject],
-          selectedProjectId: id,
-        }));
-      },
+    if (error || !data || data.length === 0) {
+      // Seed the default project if DB is empty
+      await supabase.from('projects').upsert([projectToDb(seedProject)], { onConflict: 'id' });
+      set({ projects: [seedProject], selectedProjectId: 'guaxe', loading: false });
+      return;
+    }
 
-      deleteProject: (id) => set((s) => {
-        if (s.projects.length <= 1) return s;
-        const filtered = s.projects.filter(p => p.id !== id);
-        return {
-          projects: filtered,
-          selectedProjectId: s.selectedProjectId === id ? filtered[0].id : s.selectedProjectId,
-        };
-      }),
+    const projects = (data as Array<{ id: string; name: string; data: Record<string, unknown> }>).map(dbToProject);
+    const currentId = get().selectedProjectId;
+    const validId = projects.find(p => p.id === currentId) ? currentId : projects[0].id;
+    set({ projects, selectedProjectId: validId, loading: false });
+  },
 
-      setInfo: (info) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          info: { ...p.info, ...info },
-          name: info.projeto || p.name,
-        })),
-      })),
+  selectProject: (id) => set({ selectedProjectId: id }),
 
-      setStatusDateIndex: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ statusDateIndex: index })),
-      })),
+  addProject: async (name) => {
+    const id = name.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now();
+    const newProject = createDefaultProject(id, name);
+    await supabase.from('projects').insert([projectToDb(newProject)]);
+    set((s) => ({
+      projects: [...s.projects, newProject],
+      selectedProjectId: id,
+    }));
+  },
 
-      setWeeklyData: (data) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ weeklyData: data })),
-      })),
+  deleteProject: async (id) => {
+    const s = get();
+    if (s.projects.length <= 1) return;
+    await supabase.from('projects').delete().eq('id', id);
+    const filtered = s.projects.filter(p => p.id !== id);
+    set({
+      projects: filtered,
+      selectedProjectId: s.selectedProjectId === id ? filtered[0].id : s.selectedProjectId,
+    });
+  },
 
-      setSCurveData: (data) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ sCurveData: data })),
-      })),
+  setInfo: (info) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      info: { ...p.info, ...info },
+      name: info.projeto || p.name,
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      setMonthData: (data) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ monthData: data })),
-      })),
+  setStatusDateIndex: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ statusDateIndex: index }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      addWeek: () => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          weeklyData: [...p.weeklyData, { date: '', previsto: 0, real: 0 }],
-        })),
-      })),
+  setWeeklyData: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ weeklyData: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      removeWeek: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          weeklyData: p.weeklyData.filter((_, i) => i !== index),
-        })),
-      })),
+  setSCurveData: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ sCurveData: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      addSCurvePoint: () => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          sCurveData: [...p.sCurveData, { date: '', previsto: 0, real: 0, tendencia: 0 }],
-        })),
-      })),
+  setMonthData: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ monthData: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      removeSCurvePoint: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          sCurveData: p.sCurveData.filter((_, i) => i !== index),
-        })),
-      })),
+  addWeek: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      weeklyData: [...p.weeklyData, { date: '', previsto: 0, real: 0 }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      setActions: (actions) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ actions })),
-      })),
+  removeWeek: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      weeklyData: p.weeklyData.filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      addAction: () => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          actions: [...p.actions, { id: p.actions.length + 1, problema: '', causa: '', solucao: '' }],
-        })),
-      })),
+  addSCurvePoint: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      sCurveData: [...p.sCurveData, { date: '', previsto: 0, real: 0, tendencia: 0 }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      removeAction: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          actions: p.actions.filter((_, i) => i !== index).map((a, i) => ({ ...a, id: i + 1 })),
-        })),
-      })),
+  removeSCurvePoint: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      sCurveData: p.sCurveData.filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      setObservations: (obs) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ observations: obs })),
-      })),
+  setActions: (actions) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ actions }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      addObservation: () => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          observations: [...p.observations, { id: p.observations.length + 1, text: '' }],
-        })),
-      })),
+  addAction: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      actions: [...p.actions, { id: p.actions.length + 1, problema: '', causa: '', solucao: '' }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      removeObservation: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          observations: p.observations.filter((_, i) => i !== index).map((o, i) => ({ ...o, id: i + 1 })),
-        })),
-      })),
+  removeAction: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      actions: p.actions.filter((_, i) => i !== index).map((a, i) => ({ ...a, id: i + 1 })),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      setHistogramData: (data) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ histogramData: data })),
-      })),
+  setObservations: (obs) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ observations: obs }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      addHistogramPoint: () => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          histogramData: [...(p.histogramData || []), { date: '', semana: '', previsto: 0, real: 0 }],
-        })),
-      })),
+  addObservation: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      observations: [...p.observations, { id: p.observations.length + 1, text: '' }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      removeHistogramPoint: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          histogramData: (p.histogramData || []).filter((_, i) => i !== index),
-        })),
-      })),
+  removeObservation: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      observations: p.observations.filter((_, i) => i !== index).map((o, i) => ({ ...o, id: i + 1 })),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      setScheduleData: (data) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, () => ({ scheduleData: data })),
-      })),
+  setHistogramData: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ histogramData: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      addScheduleRow: () => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          scheduleData: [...(p.scheduleData || []), { id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
-        })),
-      })),
+  addHistogramPoint: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      histogramData: [...(p.histogramData || []), { date: '', semana: '', previsto: 0, real: 0 }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
 
-      removeScheduleRow: (index) => set((s) => ({
-        projects: updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-          scheduleData: (p.scheduleData || []).filter((_, i) => i !== index),
-        })),
-      })),
-    }),
-    { name: 'project-store' }
-  )
-);
+  removeHistogramPoint: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      histogramData: (p.histogramData || []).filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setScheduleData: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ scheduleData: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  addScheduleRow: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      scheduleData: [...(p.scheduleData || []), { id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  removeScheduleRow: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      scheduleData: (p.scheduleData || []).filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+}));
 
 export const useCurrentProject = () => {
   const projects = useProjectStore(s => s.projects);
