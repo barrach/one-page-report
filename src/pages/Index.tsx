@@ -145,7 +145,7 @@ const Index = () => {
               </div>
             </DialogContent>
           </Dialog>
-          <ProjectSelector />
+          <ProjectSelector showCreate />
         </div>
       </div>
 
