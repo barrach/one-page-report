@@ -50,6 +50,25 @@ Indique se a meta está sendo atingida, qual semana teve melhor/pior desempenho 
 Dados mensais por semana (previsto × real):
 ${JSON.stringify(data)}
 Gere uma observação analítica concisa sobre o desempenho mensal.`;
+    } else if (chartType === "executive") {
+      systemPrompt = `Você é um analista sênior de gestão de projetos especialista em engenharia e obras industriais.
+Analise todos os indicadores do projeto (Curva-S, visão semanal, histograma de MOD, resultado mensal, ações e observações) e gere um RESUMO EXECUTIVO completo em português.
+O resumo deve ter 4-5 parágrafos curtos cobrindo: situação geral do projeto, desempenho de avanço físico, desempenho de mão de obra, principais riscos/ações e perspectiva de conclusão.
+Seja direto, analítico e use linguagem executiva. Use bullet points quando apropriado para facilitar a leitura.`;
+      userPrompt = `Projeto: ${projectInfo?.projeto || 'N/A'} | Cliente: ${(projectInfo as any)?.cliente || 'N/A'}
+Gestor: ${(projectInfo as any)?.gestor || 'N/A'}
+Avanço Previsto: ${projectInfo?.avancoPrev || 0}% | Avanço Real: ${projectInfo?.avancoReal || 0}%
+IDP: ${projectInfo?.avancoPrev ? ((projectInfo.avancoReal / projectInfo.avancoPrev) * 100).toFixed(1) : 0}%
+Início: ${(projectInfo as any)?.inicio || 'N/A'} | Término Previsto: ${(projectInfo as any)?.terminoPrev || 'N/A'}
+
+Dados da Curva-S: ${JSON.stringify(data?.sCurveData || [])}
+Visão Semanal (últimas semanas): ${JSON.stringify(data?.weeklyData || [])}
+Histograma MOD: ${JSON.stringify(data?.histogramData || [])}
+Resultado Mensal: ${JSON.stringify(data?.monthData || [])}
+Ações em andamento: ${JSON.stringify(data?.actions || [])}
+Observações: ${JSON.stringify(data?.observations || [])}
+
+Gere um resumo executivo completo e estruturado do projeto.`;
     } else {
       throw new Error("chartType inválido");
     }
@@ -61,12 +80,12 @@ Gere uma observação analítica concisa sobre o desempenho mensal.`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: chartType === "executive" ? "google/gemini-2.5-flash" : "google/gemini-3-flash-preview",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        max_tokens: 200,
+        max_tokens: chartType === "executive" ? 800 : 200,
       }),
     });
 

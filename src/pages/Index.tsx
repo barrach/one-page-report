@@ -1,9 +1,8 @@
 import { Link } from 'react-router-dom';
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
 import SCurveChart from '@/components/SCurveChart';
-import WeeklyResultTable from '@/components/WeeklyResultTable';
 import FiveWeekChart from '@/components/FiveWeekChart';
 import MonthChart from '@/components/MonthChart';
 import ActionsTable from '@/components/ActionsTable';
@@ -11,8 +10,10 @@ import ObservationsSection from '@/components/ObservationsSection';
 import HistogramChart from '@/components/HistogramChart';
 import ScheduleTable from '@/components/ScheduleTable';
 import ProjectSelector from '@/components/ProjectSelector';
+import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore } from '@/store/projectStore';
-import { FileText, Database, Download } from 'lucide-react';
+import { useThemeStore, initTheme } from '@/hooks/use-theme';
+import { FileText, Database, Download, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -25,6 +26,11 @@ const Index = () => {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const { projects, selectedProjectId, selectProject } = useProjectStore();
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([]);
+  const { theme, toggleTheme } = useThemeStore();
+
+  useEffect(() => {
+    initTheme();
+  }, []);
 
   const toggleExportProject = (id: string) => {
     setSelectedExportIds((prev) =>
@@ -116,6 +122,15 @@ const Index = () => {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {/* Dark mode toggle */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
+            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+          >
+            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+          </button>
+
           <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
             <DialogTrigger asChild>
               <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
@@ -153,6 +168,9 @@ const Index = () => {
       <div ref={reportRef} className="p-3 sm:p-5 md:p-6 max-w-[1440px] mx-auto space-y-4">
         {/* Header with KPI cards */}
         <ReportHeader />
+
+        {/* Executive Summary AI */}
+        <ExecutiveSummary />
 
         {/* Row 1: Curva S + 5 Semanas side-by-side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

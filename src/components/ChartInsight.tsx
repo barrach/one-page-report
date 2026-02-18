@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 
 interface ChartInsightProps {
   chartType: 'fiveweek' | 'scurve' | 'histogram' | 'month';
@@ -10,7 +11,10 @@ interface ChartInsightProps {
 }
 
 const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
-  const [insight, setInsight] = useState<string | null>(null);
+  const { aiInsights } = useCurrentProject();
+  const setAiInsight = useProjectStore(s => s.setAiInsight);
+  const savedInsight = aiInsights?.[chartType] ?? null;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
@@ -34,7 +38,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
         throw new Error(result.error);
       }
 
-      setInsight(result.insight);
+      setAiInsight(chartType, result.insight);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao gerar observação');
     } finally {
@@ -42,7 +46,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
     }
   };
 
-  if (!insight && !loading && !error) {
+  if (!savedInsight && !loading && !error) {
     return (
       <button
         onClick={generateInsight}
@@ -70,7 +74,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
               {error}
             </div>
           ) : (
-            <p className="text-xs text-foreground leading-relaxed">{insight}</p>
+            <p className="text-xs text-foreground leading-relaxed">{savedInsight}</p>
           )}
         </div>
         {!loading && (
