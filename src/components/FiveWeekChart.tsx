@@ -38,7 +38,7 @@ const FiveWeekChart = () => {
               <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
             )}
 
-            <Bar dataKey="previsto" name="Previsto" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="previsto" name="Previsto" radius={[4, 4, 0, 0]} fill="hsl(var(--chart-previsto))">
               {weeklyData.map((entry, i) => (
                 <Cell key={i}
                   fill={selectedDate === null || selectedDate === entry.date
@@ -47,7 +47,7 @@ const FiveWeekChart = () => {
                 />
               ))}
             </Bar>
-            <Bar dataKey="real" name="Real" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="real" name="Real" radius={[4, 4, 0, 0]} fill="hsl(var(--chart-real))">
               {weeklyData.map((entry, i) => (
                 <Cell key={i}
                   fill={selectedDate === null || selectedDate === entry.date
