@@ -77,6 +77,7 @@ export interface Project {
   observations: Observation[];
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
+  aiInsights?: Record<string, string>; // chartType -> insight text
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -186,6 +187,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     observations: d.observations ?? defaultProjectData.observations,
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
+    aiInsights: (d.aiInsights as Record<string, string>) ?? {},
   };
 };
 
@@ -203,6 +205,7 @@ const projectToDb = (p: Project): any => ({
     observations: p.observations,
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
+    aiInsights: p.aiInsights || {},
   },
 });
 
@@ -250,6 +253,7 @@ interface ProjectStoreState {
   setScheduleData: (data: ScheduleRow[]) => void;
   addScheduleRow: () => void;
   removeScheduleRow: (index: number) => void;
+  setAiInsight: (chartType: string, insight: string) => void;
 }
 
 export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
@@ -468,6 +472,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   removeScheduleRow: (index) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       scheduleData: (p.scheduleData || []).filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setAiInsight: (chartType, insight) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      aiInsights: { ...(p.aiInsights || {}), [chartType]: insight },
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);

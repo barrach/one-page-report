@@ -1,9 +1,9 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
-import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3 } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
 import { motion } from 'framer-motion';
+
 
 const KpiCard = ({
   label,
@@ -63,6 +63,13 @@ const ReportHeader = () => {
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
   const desvioVariant = desvio < -5 ? 'danger' : desvio < 0 ? 'warning' : 'success';
 
+  // Health badge
+  const healthConfig = idp >= 95
+    ? { label: 'No Prazo', Icon: ShieldCheck, cls: 'bg-success/20 text-success border-success/30' }
+    : idp >= 80
+    ? { label: 'Em Risco', Icon: ShieldAlert, cls: 'bg-warning/20 text-warning border-warning/30' }
+    : { label: 'Atrasado', Icon: ShieldX, cls: 'bg-destructive/20 text-destructive border-destructive/30' };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: -8 }}
@@ -80,6 +87,13 @@ const ReportHeader = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Health badge */}
+          {info.avancoPrev > 0 && (
+            <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${healthConfig.cls}`}>
+              <healthConfig.Icon className="h-3.5 w-3.5" />
+              {healthConfig.label}
+            </div>
+          )}
           {hasFilter && (
             <Button
               size="sm"
