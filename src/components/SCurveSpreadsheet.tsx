@@ -27,22 +27,29 @@ const SCurveSpreadsheet = () => {
     if (!pasteText.trim()) return;
     const allCells = pasteText.trim().split('\n').map(l => l.split('\t'));
     let dateValues: string[] = [], prevValues: string[] = [], realValues: string[] = [], tendValues: string[] = [];
-    const lp = { dates: /^(métrica|data|nome|lb|date)/i, prev: /prev.*acum|prev\./i, real: /real.*acum|real\./i, tend: /tend[eê]ncia/i };
+    let replValues: string[] = [];
+    const lp = { dates: /^(métrica|data|nome|lb|date)/i, prev: /prev.*acum|linha.*base|prev\./i, real: /real.*acum|real\./i, tend: /tend[eê]ncia/i, repl: /replanejado/i };
     let usedLabels = false;
     for (const cells of allCells) {
       const first = cells[0]?.trim() || '';
       if (lp.dates.test(first)) { dateValues = cells.slice(1); usedLabels = true; }
+      else if (lp.repl.test(first)) { replValues = cells.slice(1); usedLabels = true; }
       else if (lp.prev.test(first)) { prevValues = cells.slice(1); usedLabels = true; }
       else if (lp.real.test(first)) { realValues = cells.slice(1); usedLabels = true; }
       else if (lp.tend.test(first)) { tendValues = cells.slice(1); usedLabels = true; }
     }
     if (!usedLabels && allCells.length >= 2) {
-      dateValues = allCells[0]; prevValues = allCells[1] || []; realValues = allCells[2] || []; tendValues = allCells[3] || [];
+      dateValues = allCells[0]; prevValues = allCells[1] || []; realValues = allCells[2] || []; tendValues = allCells[3] || []; replValues = allCells[4] || [];
     }
     if (dateValues.length === 0) return;
     const newData: SCurvePoint[] = dateValues.map((date, i) => ({
-      date: date.trim(), previsto: parseNumber(prevValues[i]), real: parseNumber(realValues[i]), tendencia: parseNumber(tendValues[i]),
+      date: date.trim(),
+      previsto: parseNumber(prevValues[i]),
+      real: parseNumber(realValues[i]),
+      tendencia: parseNumber(tendValues[i]),
+      ...(replValues[i] !== undefined && replValues[i] !== '' ? { replanejado: parseNumber(replValues[i]) } : {}),
     })).filter(p => p.date !== '');
+    if (replValues.some(v => v !== undefined && v !== '')) setShowReplanejado(true);
     if (newData.length > 0) { setSCurveData(newData); setShowPaste(false); setPasteText(''); }
   }, [pasteText, setSCurveData]);
 

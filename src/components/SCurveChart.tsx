@@ -118,6 +118,11 @@ const SCurveChart = () => {
           <Line type="monotone" dataKey="tendencia" name="Tendência"
             stroke="hsl(var(--chart-tendencia))" strokeWidth={2.5} strokeDasharray="6 4"
             dot={createDot('hsl(var(--chart-tendencia))')} activeDot={{ r: 5 }} connectNulls={false} />
+          {sCurveData.some(p => p.replanejado != null) && (
+            <Line type="monotone" dataKey="replanejado" name="Replanejado"
+              stroke="hsl(var(--destructive))" strokeWidth={2.5} strokeDasharray="4 3"
+              dot={createDot('hsl(var(--destructive))')} activeDot={{ r: 5 }} connectNulls={false} />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
