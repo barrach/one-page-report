@@ -53,7 +53,7 @@ const SCurveChart = () => {
   };
 
   const chartContent = (height: string) => (
-    <div className={height}>
+    <div className={height} style={{ minHeight: 0 }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}

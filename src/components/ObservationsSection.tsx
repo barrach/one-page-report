@@ -1,5 +1,28 @@
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { Trash2, Plus } from 'lucide-react';
+import { useEffect, useRef } from 'react';
+
+const AutoTextarea = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.style.height = 'auto';
+      ref.current.style.height = `${ref.current.scrollHeight}px`;
+    }
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      className="flex-1 bg-transparent border-none outline-none text-sm focus:ring-0 resize-none overflow-hidden leading-snug"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      rows={1}
+    />
+  );
+};
 
 const ObservationsSection = () => {
   const { observations } = useCurrentProject();
@@ -29,10 +52,9 @@ const ObservationsSection = () => {
         {observations.map((o, i) => (
           <li key={i} className={`flex gap-2 items-start group rounded-lg px-3 py-2 transition-colors ${o.text ? 'bg-secondary/50' : 'hover:bg-muted/30'}`}>
             <span className="font-bold text-primary text-sm mt-0.5 min-w-[20px]">{o.id}.</span>
-            <input
-              className="flex-1 bg-transparent border-none outline-none text-sm focus:ring-0"
+            <AutoTextarea
               value={o.text}
-              onChange={(e) => updateObs(i, e.target.value)}
+              onChange={(v) => updateObs(i, v)}
               placeholder="Adicione uma observação..."
             />
             <button
@@ -49,3 +71,4 @@ const ObservationsSection = () => {
 };
 
 export default ObservationsSection;
+

@@ -28,10 +28,11 @@ const ChartExpandModal = ({ title, subtitle, children, expandedHeight = 'h-[70vh
         >
           <div
             className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col"
+            style={{ height: '80vh' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-start justify-between px-6 pt-5 pb-3 border-b border-border">
+            <div className="flex items-start justify-between px-6 pt-5 pb-3 border-b border-border flex-shrink-0">
               <div>
                 <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h2>
                 <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>
@@ -44,8 +45,8 @@ const ChartExpandModal = ({ title, subtitle, children, expandedHeight = 'h-[70vh
               </button>
             </div>
 
-            {/* Chart */}
-            <div className={`${expandedHeight} px-6 py-4`}>
+            {/* Chart — explicit flex-1 so ResponsiveContainer gets a real height */}
+            <div className="flex-1 min-h-0 px-6 py-4">
               {children}
             </div>
           </div>
