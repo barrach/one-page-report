@@ -4,11 +4,9 @@ import ChartInsight from '@/components/ChartInsight';
 
 const GaugeChart = ({
   metaRealizado,
-  avancoPrev,
   selectedIndex,
 }: {
   metaRealizado: number;
-  avancoPrev: number;
   selectedIndex: number | null;
 }) => {
   const { monthData } = useCurrentProject();
@@ -23,7 +21,8 @@ const GaugeChart = ({
   const segments = monthData.filter(m => m.previsto > 0);
   const totalSegments = segments.reduce((s, seg) => s + seg.previsto, 0);
 
-  const needlePercent = avancoPrev > 0 ? Math.min(1, Math.max(0, metaRealizado / avancoPrev)) : 0;
+  // Needle position based on metaRealizado relative to totalSegments (gauge scale)
+  const needlePercent = totalSegments > 0 ? Math.min(1, Math.max(0, metaRealizado / totalSegments)) : 0;
   const needleAngle = Math.PI - needlePercent * Math.PI;
   const needleLength = outerR - 15;
   const needleEnd = {
@@ -146,7 +145,7 @@ const MonthChart = () => {
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={info.avancoReal} avancoPrev={info.avancoPrev} selectedIndex={selectedMonthIndex} />
+      <GaugeChart metaRealizado={info.avancoReal} selectedIndex={selectedMonthIndex} />
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
@@ -164,7 +163,6 @@ const MonthChart = () => {
                   {d.label}
                 </th>
               ))}
-              <th className="px-3 py-1.5 text-center rounded-tr-lg">TOTAL</th>
             </tr>
           </thead>
           <tbody>
@@ -177,7 +175,6 @@ const MonthChart = () => {
                   {d.previsto}
                 </td>
               ))}
-              <td className="px-3 py-1.5 text-center font-bold">{totalPrev.toFixed(1)}%</td>
             </tr>
             <tr>
               <td className="px-3 py-1.5 font-semibold text-muted-foreground">REAL.</td>
@@ -188,7 +185,6 @@ const MonthChart = () => {
                   {d.real || '—'}
                 </td>
               ))}
-              <td className="px-3 py-1.5 text-center font-bold">{totalReal.toFixed(1)}%</td>
             </tr>
           </tbody>
         </table>
