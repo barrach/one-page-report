@@ -9,6 +9,7 @@ const SCurveSpreadsheet = () => {
   const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [showReplanejado, setShowReplanejado] = useState(false);
 
   const updateCell = (colIndex: number, field: keyof SCurvePoint, value: string) => {
     const updated = sCurveData.map((p, i) =>
@@ -49,7 +50,15 @@ const SCurveSpreadsheet = () => {
     <div className="bg-card rounded-lg p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-foreground">Dados da Curva S</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
+          <Button
+            size="sm"
+            variant={showReplanejado ? 'default' : 'outline'}
+            onClick={() => setShowReplanejado(!showReplanejado)}
+            className="gap-1"
+          >
+            {showReplanejado ? '✓' : '+'} Replanejado
+          </Button>
           <Button size="sm" variant="outline" onClick={() => setShowPaste(!showPaste)} className="gap-1">
             <ClipboardPaste className="h-4 w-4" /> Colar do Excel
           </Button>
@@ -93,15 +102,16 @@ const SCurveSpreadsheet = () => {
               ))}
             </tr>
             {[
-              { label: 'Prev. Acum. %', field: 'previsto' as const },
+              { label: 'Linha base %', field: 'previsto' as const },
               { label: 'Real Acum. %', field: 'real' as const },
               { label: 'Tendência %', field: 'tendencia' as const },
+              ...(showReplanejado ? [{ label: 'Replanejado %', field: 'replanejado' as const }] : []),
             ].map(({ label, field }) => (
               <tr key={field}>
                 <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
                 {sCurveData.map((point, i) => (
                   <td key={i} className="border border-border px-1 py-1">
-                    <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={point[field]} onChange={(e) => updateCell(i, field, e.target.value)} />
+                    <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={point[field] ?? ''} onChange={(e) => updateCell(i, field, e.target.value)} />
                   </td>
                 ))}
               </tr>

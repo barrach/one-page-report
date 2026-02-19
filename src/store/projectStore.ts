@@ -24,6 +24,11 @@ export interface SCurvePoint {
   previsto: number;
   real: number;
   tendencia: number;
+  replanejado?: number;
+}
+
+export interface SCurveSettings {
+  showReplanejado: boolean;
 }
 
 export interface MonthWeekData {
