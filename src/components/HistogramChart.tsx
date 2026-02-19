@@ -59,6 +59,25 @@ const HistogramChart = () => {
                 {value === 'previsto' ? 'MOD Prevista' : 'MOD Real'}
               </span>
             )}
+            wrapperStyle={{ paddingTop: 8 }}
+            content={({ payload }) => (
+              <div className="flex gap-4 justify-center pt-2">
+                {(payload || []).map((entry, i) => {
+                  const isReal = entry.dataKey === 'real';
+                  const color = isReal
+                    ? 'hsl(var(--chart-real))'
+                    : 'hsl(var(--chart-previsto))';
+                  return (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
+                      <span className="text-xs text-muted-foreground">
+                        {isReal ? 'MOD Real' : 'MOD Prevista'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           />
 
           {selectedDate && data.some(d => d.date === selectedDate) && (
