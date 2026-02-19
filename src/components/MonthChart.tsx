@@ -4,9 +4,11 @@ import ChartInsight from '@/components/ChartInsight';
 
 const GaugeChart = ({
   metaRealizado,
+  avancoPrev,
   selectedIndex,
 }: {
   metaRealizado: number;
+  avancoPrev: number;
   selectedIndex: number | null;
 }) => {
   const { monthData } = useCurrentProject();
@@ -21,7 +23,7 @@ const GaugeChart = ({
   const segments = monthData.filter(m => m.previsto > 0);
   const totalSegments = segments.reduce((s, seg) => s + seg.previsto, 0);
 
-  const needlePercent = totalSegments > 0 ? Math.min(1, Math.max(0, metaRealizado / totalSegments)) : 0;
+  const needlePercent = avancoPrev > 0 ? Math.min(1, Math.max(0, metaRealizado / avancoPrev)) : 0;
   const needleAngle = Math.PI - needlePercent * Math.PI;
   const needleLength = outerR - 15;
   const needleEnd = {
@@ -144,7 +146,7 @@ const MonthChart = () => {
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={totalReal} selectedIndex={selectedMonthIndex} />
+      <GaugeChart metaRealizado={info.avancoReal} avancoPrev={info.avancoPrev} selectedIndex={selectedMonthIndex} />
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
