@@ -109,7 +109,7 @@ const SCurveChart = () => {
             <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
           )}
 
-          <Line type="monotone" dataKey="previsto" name="Previsto"
+          <Line type="monotone" dataKey="previsto" name="Linha de base"
             stroke="hsl(var(--chart-previsto))" strokeWidth={2.5}
             dot={createDot('hsl(var(--chart-previsto))')} activeDot={{ r: 5 }} />
           <Line type="monotone" dataKey="real" name="Real"
