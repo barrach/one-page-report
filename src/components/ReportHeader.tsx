@@ -58,17 +58,24 @@ const ReportHeader = () => {
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
-  // Se houver dados de replanejado na data de status, usar como referência em vez do previsto
+  // Pega o ponto da data de status na Curva S
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusPoint = sCurveData[cutIndex];
+
+  // Avanço Real: usa o valor da Curva S na data de status (se disponível), senão usa info manual
+  const avancoReal = (statusPoint?.real != null && statusPoint.real > 0)
+    ? statusPoint.real
+    : info.avancoReal;
+
+  // Replanejado: se houver, usar como referência de comparação em vez do previsto
   const hasReplanejado = sCurveData.some(p => p.replanejado != null && p.replanejado !== 0);
   const refPrev = hasReplanejado && statusPoint?.replanejado != null
     ? statusPoint.replanejado
-    : info.avancoPrev;
+    : (statusPoint?.previsto != null && statusPoint.previsto > 0 ? statusPoint.previsto : info.avancoPrev);
   const refLabel = hasReplanejado ? 'replan.' : 'prev.';
 
-  const desvio = info.avancoReal - refPrev;
-  const idp = refPrev > 0 ? ((info.avancoReal / refPrev) * 100) : 0;
+  const desvio = avancoReal - refPrev;
+  const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
 
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
   const desvioVariant = desvio < -5 ? 'danger' : desvio < 0 ? 'warning' : 'success';
@@ -152,14 +159,14 @@ const ReportHeader = () => {
               <BarChart3 className="h-4 w-4 text-primary-foreground/60" />
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-3xl font-bold text-primary-foreground">{info.avancoReal}%</span>
+              <span className="text-3xl font-bold text-primary-foreground">{avancoReal}%</span>
               <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
             </div>
             <div className="relative">
               <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${info.avancoReal}%` }}
+                  animate={{ width: `${avancoReal}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="h-full bg-primary-foreground rounded-full"
                 />
@@ -179,7 +186,7 @@ const ReportHeader = () => {
 
           <KpiCard
             label="Avanço Real"
-            value={`${info.avancoReal}%`}
+            value={`${avancoReal}%`}
             subValue="progresso atual"
             icon={BarChart3}
             variant="primary"
