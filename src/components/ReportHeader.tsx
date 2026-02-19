@@ -54,11 +54,21 @@ const KpiCard = ({
 };
 
 const ReportHeader = () => {
-  const { info } = useCurrentProject();
+  const { info, sCurveData, statusDateIndex } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
-  const desvio = info.avancoReal - info.avancoPrev;
-  const idp = info.avancoPrev > 0 ? ((info.avancoReal / info.avancoPrev) * 100) : 0;
+
+  // Se houver dados de replanejado na data de status, usar como referência em vez do previsto
+  const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
+  const statusPoint = sCurveData[cutIndex];
+  const hasReplanejado = sCurveData.some(p => p.replanejado != null && p.replanejado !== 0);
+  const refPrev = hasReplanejado && statusPoint?.replanejado != null
+    ? statusPoint.replanejado
+    : info.avancoPrev;
+  const refLabel = hasReplanejado ? 'replan.' : 'prev.';
+
+  const desvio = info.avancoReal - refPrev;
+  const idp = refPrev > 0 ? ((info.avancoReal / refPrev) * 100) : 0;
 
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
   const desvioVariant = desvio < -5 ? 'danger' : desvio < 0 ? 'warning' : 'success';
@@ -143,7 +153,7 @@ const ReportHeader = () => {
             </div>
             <div className="flex items-end justify-between">
               <span className="text-3xl font-bold text-primary-foreground">{info.avancoReal}%</span>
-              <span className="text-sm text-primary-foreground/60 pb-1">/ {info.avancoPrev}% prev.</span>
+              <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
             </div>
             <div className="relative">
               <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
@@ -154,15 +164,15 @@ const ReportHeader = () => {
                   className="h-full bg-primary-foreground rounded-full"
                 />
               </div>
-              {/* Previsto marker */}
+              {/* Marker */}
               <div
                 className="absolute top-0 h-2.5 w-0.5 bg-warning rounded-full"
-                style={{ left: `${Math.min(info.avancoPrev, 100)}%` }}
+                style={{ left: `${Math.min(refPrev, 100)}%` }}
               />
             </div>
             <div className="flex justify-between text-[10px] text-primary-foreground/50">
               <span>0%</span>
-              <span className="text-warning font-medium">Prev: {info.avancoPrev}%</span>
+              <span className="text-warning font-medium">{hasReplanejado ? 'Replan' : 'Prev'}: {refPrev}%</span>
               <span>100%</span>
             </div>
           </div>
@@ -179,7 +189,7 @@ const ReportHeader = () => {
           <KpiCard
             label="Desvio"
             value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(2)}%`}
-            subValue={desvio < 0 ? 'abaixo do previsto' : 'acima do previsto'}
+            subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
             icon={DesvioIcon}
             variant={desvioVariant}
             index={2}
