@@ -13,7 +13,8 @@ import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
-import { FileText, Database, Download, Moon, Sun } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { FileText, Database, Download, Moon, Sun, Shield, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -27,6 +28,7 @@ const Index = () => {
   const { projects, selectedProjectId, selectProject } = useProjectStore();
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([]);
   const { theme, toggleTheme } = useThemeStore();
+  const { role, signOut } = useAuth();
 
   useEffect(() => {
     initTheme();
@@ -114,10 +116,18 @@ const Index = () => {
               <FileText className="h-3.5 w-3.5" />
               Relatório
             </Link>
-            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <Database className="h-3.5 w-3.5" />
-              Dados
-            </Link>
+            {(role === 'admin' || role === 'gestor') && (
+              <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+                <Database className="h-3.5 w-3.5" />
+                Dados
+              </Link>
+            )}
+            {role === 'admin' && (
+              <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+                <Shield className="h-3.5 w-3.5" />
+                Admin
+              </Link>
+            )}
           </nav>
         </div>
 
@@ -161,10 +171,13 @@ const Index = () => {
             </DialogContent>
           </Dialog>
           <ProjectSelector showCreate />
+          <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={signOut}>
+            <LogOut className="h-3.5 w-3.5" /> Sair
+          </Button>
         </div>
       </div>
 
-      {/* Report content */}
+
       <div ref={reportRef} className="p-3 sm:p-5 md:p-6 max-w-[1440px] mx-auto space-y-4">
         {/* Header with KPI cards */}
         <ReportHeader />
