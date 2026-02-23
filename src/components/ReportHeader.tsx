@@ -117,9 +117,32 @@ const ReportHeader = () => {
   const summaryParts: string[] = [];
   const statusLabel = healthConfig.label;
 
+  // Formata data para dd/mmm
+  const formatDateDDMMM = (dateStr: string) => {
+    if (!dateStr) return '';
+    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return dateStr;
+    return `${String(d.getDate()).padStart(2, '0')}/${months[d.getMonth()]}`;
+  };
+
+  // Calcula semana do ano
+  const getWeekOfYear = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr + 'T00:00:00');
+    if (isNaN(d.getTime())) return '';
+    const start = new Date(d.getFullYear(), 0, 1);
+    const diff = d.getTime() - start.getTime();
+    const oneWeek = 604800000;
+    return `S${Math.ceil((diff / oneWeek) + 1)}`;
+  };
+
   // Propósito do relatório
-  const periodoInfo = [info.inicio, info.terminoPrev || info.terminoLB].filter(Boolean).join(' a ');
-  summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
+  const inicioFmt = formatDateDDMMM(info.inicio);
+  const terminoFmt = formatDateDDMMM(info.terminoPrev || info.terminoLB);
+  const periodoInfo = [inicioFmt, terminoFmt].filter(Boolean).join(' a ');
+  const semanaAtual = info.atualizadoEm ? getWeekOfYear(info.atualizadoEm) : '';
+  summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}${semanaAtual ? ` (${semanaAtual})` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
 
   // Status atual
   summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${avancoReal}% de avanço real contra ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
