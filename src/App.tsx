@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
 import Login from "./pages/Login";
 import Admin from "./pages/Admin";
+import ResetPassword from "./pages/ResetPassword";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { useProjectStore } from "./store/projectStore";
@@ -31,6 +32,7 @@ const AppContent = () => {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={
           <ProtectedRoute>
             <Index />
