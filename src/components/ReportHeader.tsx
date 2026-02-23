@@ -1,7 +1,7 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 
@@ -12,6 +12,7 @@ const KpiCard = ({
   icon: Icon,
   variant = 'default',
   index = 0,
+  trend,
 }: {
   label: string;
   value: string;
@@ -19,6 +20,7 @@ const KpiCard = ({
   icon?: React.ElementType;
   variant?: 'default' | 'success' | 'danger' | 'warning' | 'primary';
   index?: number;
+  trend?: { current: number; previous: number; suffix?: string };
 }) => {
   const gradientMap = {
     default: 'bg-card border',
@@ -45,7 +47,10 @@ const KpiCard = ({
           <Icon className={`h-4 w-4 ${isColored ? 'opacity-60' : 'text-muted-foreground'}`} />
         )}
       </div>
-      <span className={`text-xl font-bold leading-tight ${isColored ? '' : 'text-foreground'}`}>{value}</span>
+      <div className="flex items-end gap-1.5">
+        <span className={`text-xl font-bold leading-tight ${isColored ? '' : 'text-foreground'}`}>{value}</span>
+        {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
+      </div>
       {subValue && (
         <span className={`text-xs ${isColored ? 'opacity-70' : 'text-muted-foreground'}`}>{subValue}</span>
       )}
@@ -53,19 +58,33 @@ const KpiCard = ({
   );
 };
 
+const TrendIndicator = ({ current, previous, suffix = '%' }: { current: number; previous: number; suffix?: string }) => {
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.01) return null;
+  const isUp = diff > 0;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[10px] font-semibold ${isUp ? 'text-success' : 'text-destructive'}`}>
+      {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+      {isUp ? '+' : ''}{diff.toFixed(1)}{suffix}
+    </span>
+  );
+};
+
 const ReportHeader = () => {
-  const { info, sCurveData, statusDateIndex } = useCurrentProject();
+  const { info, sCurveData, statusDateIndex, weeklyData } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
   // Pega o ponto da data de status na Curva S
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusPoint = sCurveData[cutIndex];
+  const prevPoint = cutIndex > 0 ? sCurveData[cutIndex - 1] : null;
 
   // Avanço Real: usa o valor da Curva S na data de status (se disponível), senão usa info manual
   const avancoReal = (statusPoint?.real != null && statusPoint.real > 0)
     ? statusPoint.real
     : info.avancoReal;
+  const prevAvancoReal = prevPoint?.real ?? 0;
 
   // Replanejado: se houver, usar como referência de comparação em vez do previsto
   const hasReplanejado = sCurveData.some(p => p.replanejado != null && p.replanejado !== 0);
@@ -77,6 +96,13 @@ const ReportHeader = () => {
   const desvio = avancoReal - refPrev;
   const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
 
+  // Previous period calcs for trend indicators
+  const prevRefPrev = hasReplanejado && prevPoint?.replanejado != null
+    ? prevPoint.replanejado
+    : (prevPoint?.previsto ?? 0);
+  const prevDesvio = prevAvancoReal - prevRefPrev;
+  const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
+
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
   const desvioVariant = desvio < -5 ? 'danger' : desvio < 0 ? 'warning' : 'success';
 
@@ -86,6 +112,26 @@ const ReportHeader = () => {
     : idp >= 80
     ? { label: 'Em Risco', Icon: ShieldAlert, cls: 'bg-warning/20 text-warning border-warning/30' }
     : { label: 'Atrasado', Icon: ShieldX, cls: 'bg-destructive/20 text-destructive border-destructive/30' };
+
+  // Auto executive summary (2-3 lines)
+  const summaryParts: string[] = [];
+  const statusLabel = healthConfig.label;
+  summaryParts.push(`Projeto ${statusLabel.toLowerCase()} com ${avancoReal}% de avanço real vs ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
+  
+  // Weekly performance
+  const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
+  if (lastWeek && lastWeek.date) {
+    const weekDiff = lastWeek.real - lastWeek.previsto;
+    summaryParts.push(`Semana ${lastWeek.date}: realizado ${lastWeek.real}% vs ${lastWeek.previsto}% previsto (${weekDiff >= 0 ? '+' : ''}${weekDiff.toFixed(1)}pp).`);
+  }
+
+  // Trend
+  if (prevPoint && prevAvancoReal > 0) {
+    const trendDir = desvio > prevDesvio ? 'melhora' : desvio < prevDesvio ? 'piora' : 'estabilidade';
+    summaryParts.push(`Tendência de ${trendDir} em relação ao período anterior.`);
+  }
+
+  const executiveSummaryText = summaryParts.join(' ');
 
   return (
     <motion.div
@@ -147,6 +193,14 @@ const ReportHeader = () => {
         ))}
       </div>
 
+      {/* Executive Summary Strip */}
+      <div className="bg-muted/50 border-x border-border px-5 py-2.5">
+        <p className="text-xs text-foreground leading-relaxed">
+          <span className="font-semibold text-primary mr-1.5">Resumo:</span>
+          {executiveSummaryText}
+        </p>
+      </div>
+
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -159,7 +213,10 @@ const ReportHeader = () => {
               <BarChart3 className="h-4 w-4 text-primary-foreground/60" />
             </div>
             <div className="flex items-end justify-between">
-              <span className="text-3xl font-bold text-primary-foreground">{avancoReal}%</span>
+              <div className="flex items-end gap-2">
+                <span className="text-3xl font-bold text-primary-foreground">{avancoReal}%</span>
+                {prevPoint && <TrendIndicator current={avancoReal} previous={prevAvancoReal} />}
+              </div>
               <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
             </div>
             <div className="relative">
@@ -191,6 +248,7 @@ const ReportHeader = () => {
             icon={BarChart3}
             variant="primary"
             index={1}
+            trend={prevPoint ? { current: avancoReal, previous: prevAvancoReal } : undefined}
           />
 
           <KpiCard
@@ -200,6 +258,7 @@ const ReportHeader = () => {
             icon={DesvioIcon}
             variant={desvioVariant}
             index={2}
+            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: 'pp' } : undefined}
           />
 
           <KpiCard
@@ -208,6 +267,7 @@ const ReportHeader = () => {
             subValue="índice de desempenho"
             variant={idp >= 100 ? 'success' : idp >= 85 ? 'warning' : 'danger'}
             index={3}
+            trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
         </div>
       </div>
