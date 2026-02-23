@@ -116,13 +116,18 @@ const ReportHeader = () => {
   // Auto executive summary (2-3 lines)
   const summaryParts: string[] = [];
   const statusLabel = healthConfig.label;
-  summaryParts.push(`Projeto ${statusLabel.toLowerCase()} com ${avancoReal}% de avanço real vs ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
+
+  // Propósito do relatório
+  summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
+
+  // Status atual
+  summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${avancoReal}% de avanço real contra ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
   
   // Weekly performance
   const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
   if (lastWeek && lastWeek.date) {
     const weekDiff = lastWeek.real - lastWeek.previsto;
-    summaryParts.push(`Semana ${lastWeek.date}: realizado ${lastWeek.real}% vs ${lastWeek.previsto}% previsto (${weekDiff >= 0 ? '+' : ''}${weekDiff.toFixed(1)}pp).`);
+    summaryParts.push(`Na semana ${lastWeek.date}, o realizado foi de ${lastWeek.real}% vs ${lastWeek.previsto}% previsto (${weekDiff >= 0 ? '+' : ''}${weekDiff.toFixed(1)}pp).`);
   }
 
   // Trend
