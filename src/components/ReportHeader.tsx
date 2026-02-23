@@ -3,6 +3,7 @@ import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
 import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { formatDateBR, formatDateShort, getWeekOfYear } from '@/lib/dateUtils';
 
 
 const KpiCard = ({
@@ -117,29 +118,11 @@ const ReportHeader = () => {
   const summaryParts: string[] = [];
   const statusLabel = healthConfig.label;
 
-  // Formata data para dd/mmm
-  const formatDateDDMMM = (dateStr: string) => {
-    if (!dateStr) return '';
-    const months = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
-    const d = new Date(dateStr + 'T00:00:00');
-    if (isNaN(d.getTime())) return dateStr;
-    return `${String(d.getDate()).padStart(2, '0')}/${months[d.getMonth()]}`;
-  };
 
-  // Calcula semana do ano
-  const getWeekOfYear = (dateStr: string) => {
-    if (!dateStr) return '';
-    const d = new Date(dateStr + 'T00:00:00');
-    if (isNaN(d.getTime())) return '';
-    const start = new Date(d.getFullYear(), 0, 1);
-    const diff = d.getTime() - start.getTime();
-    const oneWeek = 604800000;
-    return `S${Math.ceil((diff / oneWeek) + 1)}`;
-  };
 
   // Propósito do relatório
-  const inicioFmt = formatDateDDMMM(info.inicio);
-  const terminoFmt = formatDateDDMMM(info.terminoPrev || info.terminoLB);
+  const inicioFmt = formatDateShort(info.inicio);
+  const terminoFmt = formatDateShort(info.terminoPrev || info.terminoLB);
   const periodoInfo = [inicioFmt, terminoFmt].filter(Boolean).join(' a ');
   const semanaAtual = info.atualizadoEm ? getWeekOfYear(info.atualizadoEm) : '';
   summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}${semanaAtual ? ` (${semanaAtual})` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
@@ -199,7 +182,7 @@ const ReportHeader = () => {
           )}
           <div className="text-right">
             <div className="text-[10px] text-primary-foreground/50 uppercase tracking-wider">Atualizado em</div>
-            <div className="text-xs font-semibold text-primary-foreground">{info.atualizadoEm}</div>
+            <div className="text-xs font-semibold text-primary-foreground">{formatDateBR(info.atualizadoEm)}</div>
           </div>
         </div>
       </div>
@@ -208,9 +191,9 @@ const ReportHeader = () => {
       <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-4 divide-x divide-border">
         {[
           { label: 'Gestor', value: info.gestor, icon: User },
-          { label: 'Início', value: info.inicio, icon: Calendar },
-          { label: 'Término LB', value: info.terminoLB, icon: Calendar },
-          { label: 'Término Prev.', value: info.terminoPrev, icon: Calendar },
+          { label: 'Início', value: formatDateBR(info.inicio), icon: Calendar },
+          { label: 'Término LB', value: formatDateBR(info.terminoLB), icon: Calendar },
+          { label: 'Término Prev.', value: formatDateBR(info.terminoPrev), icon: Calendar },
         ].map(({ label, value, icon: Icon }) => (
           <div key={label} className="flex items-center gap-2 px-4 py-2">
             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
