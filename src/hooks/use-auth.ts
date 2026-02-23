@@ -24,6 +24,13 @@ export const useAuth = create<AuthState>()((set, get) => ({
     if (get().initialized) return;
     set({ initialized: true });
 
+    // Clear session on browser close if "remember me" was not checked
+    window.addEventListener('beforeunload', () => {
+      if (sessionStorage.getItem('megasteam_session_only') === 'true') {
+        localStorage.removeItem('sb-bxmvzxtbjxlicjaewvfg-auth-token');
+      }
+    });
+
     // Listen first
     supabase.auth.onAuthStateChange(async (_event, session) => {
       const user = session?.user ?? null;

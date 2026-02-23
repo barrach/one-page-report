@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -12,6 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
@@ -60,6 +62,11 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setSubmitting(true);
+    if (!rememberMe) {
+      sessionStorage.setItem('megasteam_session_only', 'true');
+    } else {
+      sessionStorage.removeItem('megasteam_session_only');
+    }
     const err = await signIn(email, password);
     if (err) setError(err);
     setSubmitting(false);
@@ -108,6 +115,18 @@ const Login = () => {
             <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
           </div>
 
+          {!setupMode && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+              />
+              <label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer select-none">
+                Permanecer logado
+              </label>
+            </div>
+          )}
           <Button type="submit" className="w-full gap-2" disabled={submitting}>
             {setupMode ? <ShieldCheck className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
             {submitting ? (setupMode ? 'Criando...' : 'Entrando...') : (setupMode ? 'Criar Administrador' : 'Entrar')}
