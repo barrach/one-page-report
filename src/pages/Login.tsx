@@ -5,7 +5,7 @@ import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { LogIn, ShieldCheck } from 'lucide-react';
+import { LogIn, ShieldCheck, ArrowLeft, Mail } from 'lucide-react';
 
 const Login = () => {
   const { user, loading, signIn } = useAuth();
@@ -14,6 +14,8 @@ const Login = () => {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [forgotMode, setForgotMode] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
@@ -72,6 +74,21 @@ const Login = () => {
     setSubmitting(false);
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) {
+      setError(error.message);
+    } else {
+      setResetSent(true);
+    }
+    setSubmitting(false);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-sm">
@@ -89,55 +106,106 @@ const Login = () => {
           </div>
         )}
 
-        <form onSubmit={setupMode ? handleSetup : handleSubmit} className="bg-card rounded-xl p-6 border card-shadow space-y-4">
-          <h2 className="text-lg font-semibold text-foreground text-center flex items-center justify-center gap-2">
-            {setupMode ? <><ShieldCheck className="h-5 w-5" /> Configuração Inicial</> : 'Entrar'}
-          </h2>
-          
-          {setupMode && (
+        {forgotMode ? (
+          <div className="bg-card rounded-xl p-6 border card-shadow space-y-4">
+            <h2 className="text-lg font-semibold text-foreground text-center flex items-center justify-center gap-2">
+              <Mail className="h-5 w-5" /> Redefinir Senha
+            </h2>
             <p className="text-xs text-muted-foreground text-center">
-              Crie o primeiro usuário administrador para começar.
+              Informe seu e-mail para receber o link de redefinição.
             </p>
-          )}
 
-          {error && (
-            <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3 text-center">
-              {error}
-            </div>
-          )}
+            {resetSent ? (
+              <div className="text-sm text-success bg-success/10 rounded-lg p-3 text-center">
+                ✅ E-mail enviado! Verifique sua caixa de entrada.
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                {error && (
+                  <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3 text-center">
+                    {error}
+                  </div>
+                )}
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-1 block">E-mail</label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="seu@email.com" />
+                </div>
+                <Button type="submit" className="w-full gap-2" disabled={submitting}>
+                  <Mail className="h-4 w-4" />
+                  {submitting ? 'Enviando...' : 'Enviar link'}
+                </Button>
+              </form>
+            )}
 
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">E-mail</label>
-            <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="seu@email.com" />
+            <button
+              type="button"
+              onClick={() => { setForgotMode(false); setResetSent(false); setError(''); }}
+              className="flex items-center gap-1 text-sm text-primary hover:underline mx-auto"
+            >
+              <ArrowLeft className="h-3 w-3" /> Voltar ao login
+            </button>
           </div>
-          <div>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">Senha</label>
-            <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
-          </div>
+        ) : (
+          <form onSubmit={setupMode ? handleSetup : handleSubmit} className="bg-card rounded-xl p-6 border card-shadow space-y-4">
+            <h2 className="text-lg font-semibold text-foreground text-center flex items-center justify-center gap-2">
+              {setupMode ? <><ShieldCheck className="h-5 w-5" /> Configuração Inicial</> : 'Entrar'}
+            </h2>
+            
+            {setupMode && (
+              <p className="text-xs text-muted-foreground text-center">
+                Crie o primeiro usuário administrador para começar.
+              </p>
+            )}
 
-          {!setupMode && (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="rememberMe"
-                checked={rememberMe}
-                onCheckedChange={(checked) => setRememberMe(checked === true)}
-              />
-              <label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer select-none">
-                Permanecer logado
-              </label>
+            {error && (
+              <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3 text-center">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">E-mail</label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="seu@email.com" />
             </div>
-          )}
-          <Button type="submit" className="w-full gap-2" disabled={submitting}>
-            {setupMode ? <ShieldCheck className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
-            {submitting ? (setupMode ? 'Criando...' : 'Entrando...') : (setupMode ? 'Criar Administrador' : 'Entrar')}
-          </Button>
+            <div>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Senha</label>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+            </div>
 
-          {!setupMode && (
-            <p className="text-xs text-muted-foreground text-center">
-              Acesso restrito. Solicite credenciais ao administrador.
-            </p>
-          )}
-        </form>
+            {!setupMode && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rememberMe"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  />
+                  <label htmlFor="rememberMe" className="text-sm text-muted-foreground cursor-pointer select-none">
+                    Permanecer logado
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setForgotMode(true); setError(''); }}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Esqueci minha senha
+                </button>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full gap-2" disabled={submitting}>
+              {setupMode ? <ShieldCheck className="h-4 w-4" /> : <LogIn className="h-4 w-4" />}
+              {submitting ? (setupMode ? 'Criando...' : 'Entrando...') : (setupMode ? 'Criar Administrador' : 'Entrar')}
+            </Button>
+
+            {!setupMode && (
+              <p className="text-xs text-muted-foreground text-center">
+                Acesso restrito. Solicite credenciais ao administrador.
+              </p>
+            )}
+          </form>
+        )}
       </div>
     </div>
   );
