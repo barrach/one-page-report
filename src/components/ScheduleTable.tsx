@@ -1,4 +1,5 @@
 import { useCurrentProject } from '@/store/projectStore';
+import { formatDateBR } from '@/lib/dateUtils';
 
 const ScheduleTable = () => {
   const { scheduleData } = useCurrentProject();
@@ -50,10 +51,10 @@ const ScheduleTable = () => {
                   <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${row.desvio < 0 ? 'text-destructive' : row.desvio > 0 ? 'text-success' : ''}`}>
                     {row.desvio !== 0 ? row.desvio.toFixed(2) : '0'}
                   </td>
-                  <td className="px-2 py-1.5 text-center border border-border/30">{row.inicio}</td>
-                  <td className="px-2 py-1.5 text-center border border-border/30">{row.termino}</td>
-                  <td className="px-2 py-1.5 text-center border border-border/30">{row.inicioBase}</td>
-                  <td className="px-2 py-1.5 text-center border border-border/30">{row.terminoBase}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{formatDateBR(row.inicio)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{formatDateBR(row.termino)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{formatDateBR(row.inicioBase)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{formatDateBR(row.terminoBase)}</td>
                 </tr>
               );
             })}
