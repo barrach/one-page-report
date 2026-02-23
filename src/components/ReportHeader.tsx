@@ -118,7 +118,8 @@ const ReportHeader = () => {
   const statusLabel = healthConfig.label;
 
   // Propósito do relatório
-  summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
+  const periodoInfo = [info.inicio, info.terminoPrev || info.terminoLB].filter(Boolean).join(' a ');
+  summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
 
   // Status atual
   summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${avancoReal}% de avanço real contra ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
