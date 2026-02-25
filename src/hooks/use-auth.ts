@@ -24,9 +24,9 @@ export const useAuth = create<AuthState>()((set, get) => ({
     if (get().initialized) return;
     set({ initialized: true });
 
-    // Clear session on browser close if "remember me" was not checked
+    // Store remember-me preference in localStorage for persistence across sessions
     window.addEventListener('beforeunload', () => {
-      if (sessionStorage.getItem('megasteam_session_only') === 'true') {
+      if (localStorage.getItem('megasteam_remember_me') !== 'true') {
         localStorage.removeItem('sb-bxmvzxtbjxlicjaewvfg-auth-token');
       }
     });

@@ -13,7 +13,7 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('megasteam_remember_me') === 'true');
   const [forgotMode, setForgotMode] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [setupMode, setSetupMode] = useState(false);
@@ -64,10 +64,10 @@ const Login = () => {
     e.preventDefault();
     setError('');
     setSubmitting(true);
-    if (!rememberMe) {
-      sessionStorage.setItem('megasteam_session_only', 'true');
+    if (rememberMe) {
+      localStorage.setItem('megasteam_remember_me', 'true');
     } else {
-      sessionStorage.removeItem('megasteam_session_only');
+      localStorage.removeItem('megasteam_remember_me');
     }
     const err = await signIn(email, password);
     if (err) setError(err);
