@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
@@ -14,7 +14,7 @@ import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { useAuth } from '@/hooks/use-auth';
-import { FileText, Database, Download, Moon, Sun, Shield, LogOut } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, LogOut, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -29,6 +29,12 @@ const Index = () => {
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([]);
   const { theme, toggleTheme } = useThemeStore();
   const { role, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
+  }, []);
 
   useEffect(() => {
     initTheme();
@@ -133,6 +139,16 @@ const Index = () => {
 
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Dark mode toggle */}
+          {!isStandalone && (
+            <button
+              onClick={() => navigate('/install')}
+              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
+              title="Instalar no celular"
+            >
+              <Smartphone className="h-3.5 w-3.5" />
+            </button>
+          )}
+
           <button
             onClick={toggleTheme}
             className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
