@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/hooks/use-auth';
 import { Navigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { LogIn, ShieldCheck, ArrowLeft, Mail, UserPlus } from 'lucide-react';
+import { LogIn, ShieldCheck, ArrowLeft, Mail, UserPlus, Eye, EyeOff } from 'lucide-react';
 
 type Mode = 'login' | 'signup' | 'forgot' | 'setup';
 
@@ -19,6 +19,7 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(() => localStorage.getItem('megasteam_remember_me') === 'true');
   const [mode, setMode] = useState<Mode>('login');
   const [signupSuccess, setSignupSuccess] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [setupDone, setSetupDone] = useState(false);
   const [checkingSetup, setCheckingSetup] = useState(true);
@@ -196,7 +197,12 @@ const Login = () => {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-muted-foreground mb-1 block">Senha</label>
-                    <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+                    <div className="relative">
+                      <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} className="pr-10" />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" className="w-full gap-2" disabled={submitting}>
                     <UserPlus className="h-4 w-4" />
@@ -227,7 +233,12 @@ const Login = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Senha</label>
-                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+                  <div className="relative">
+                    <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} className="pr-10" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <Button type="submit" className="w-full gap-2" disabled={submitting}>
                   <ShieldCheck className="h-4 w-4" />
@@ -249,7 +260,12 @@ const Login = () => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-1 block">Senha</label>
-                  <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+                  <div className="relative">
+                    <Input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} className="pr-10" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
