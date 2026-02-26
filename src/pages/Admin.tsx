@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth, AppRole } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
@@ -59,8 +59,12 @@ const Admin = () => {
     setLoadingUsers(false);
   }, [callAdmin]);
 
+  const loadedRef = React.useRef(false);
   useEffect(() => {
-    if (user && role === 'admin') loadUsers();
+    if (user && role === 'admin' && !loadedRef.current) {
+      loadedRef.current = true;
+      loadUsers();
+    }
   }, [user, role, loadUsers]);
 
   if (loading) {
