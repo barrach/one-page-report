@@ -4,10 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect } from "react";
+import { lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
 import Login from "./pages/Login";
-import Admin from "./pages/Admin";
+const Admin = lazy(() => import("./pages/Admin"));
 import ResetPassword from "./pages/ResetPassword";
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
@@ -47,7 +48,9 @@ const AppContent = () => {
         } />
         <Route path="/admin" element={
           <ProtectedRoute allowedRoles={['admin']}>
-            <Admin />
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
+              <Admin />
+            </Suspense>
           </ProtectedRoute>
         } />
         <Route path="*" element={<NotFound />} />
