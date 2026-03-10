@@ -26,8 +26,14 @@ const Login = () => {
 
   useEffect(() => {
     const check = async () => {
-      const { data } = await supabase.from('user_roles').select('id').eq('role', 'admin').limit(1);
-      if (!data || data.length === 0) setMode('setup');
+      try {
+        const res = await supabase.functions.invoke('setup-admin', {
+          body: { action: 'check-setup' },
+        });
+        if (!res.data?.adminExists) setMode('setup');
+      } catch {
+        // If check fails, default to login mode
+      }
       setCheckingSetup(false);
     };
     check();
