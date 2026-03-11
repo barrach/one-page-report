@@ -37,11 +37,18 @@ export interface MonthWeekData {
   real: number;
 }
 
+export type ActionStatus = 'EM ANDAMENTO' | 'CONCLUÍDO' | 'CANCELADO' | 'ATRASADO' | '';
+
 export interface ActionItem {
   id: number;
   problema: string;
   causa: string;
-  solucao: string;
+  impacto: string;
+  atividade: string;
+  responsavel: string;
+  prazo: string;
+  necessidade: string;
+  status: ActionStatus;
 }
 
 export interface Observation {
