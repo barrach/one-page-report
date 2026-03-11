@@ -14,22 +14,7 @@ serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
-    const body = await req.json();
-
-    // Check-setup mode: return only a boolean, no sensitive data
-    if (body.action === "check-setup") {
-      const { data: existingAdmins } = await supabaseAdmin
-        .from("user_roles")
-        .select("id")
-        .eq("role", "admin")
-        .limit(1);
-      return new Response(
-        JSON.stringify({ adminExists: !!(existingAdmins && existingAdmins.length > 0) }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { email, password } = body;
+    const { email, password } = await req.json();
 
     // Check if any admin exists
     const { data: existingAdmins } = await supabaseAdmin.from("user_roles").select("id").eq("role", "admin").limit(1);

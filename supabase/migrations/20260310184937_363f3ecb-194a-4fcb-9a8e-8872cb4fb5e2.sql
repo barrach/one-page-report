@@ -1,1 +1,0 @@
-DROP POLICY "Anyone can check if admin exists" ON public.user_roles;
