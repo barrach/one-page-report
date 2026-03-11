@@ -2,6 +2,12 @@ import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { Trash2, Plus } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 
+const formatDateBR = (iso: string) => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
+
 const AutoTextarea = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -29,7 +35,8 @@ const ObservationsSection = () => {
   const { setObservations, addObservation, removeObservation } = useProjectStore();
 
   const updateObs = (index: number, value: string) => {
-    const updated = observations.map((o, i) => i === index ? { ...o, text: value } : o);
+    const today = new Date().toISOString().split('T')[0];
+    const updated = observations.map((o, i) => i === index ? { ...o, text: value, date: today } : o);
     setObservations(updated);
   };
 
@@ -57,6 +64,11 @@ const ObservationsSection = () => {
               onChange={(v) => updateObs(i, v)}
               placeholder="Adicione uma observação..."
             />
+            {o.date && (
+              <span className="text-[10px] text-muted-foreground whitespace-nowrap mt-1 bg-muted/50 px-1.5 py-0.5 rounded">
+                {formatDateBR(o.date)}
+              </span>
+            )}
             <button
               onClick={() => removeObservation(i)}
               className="text-destructive/30 hover:text-destructive transition-colors mt-0.5 opacity-0 group-hover:opacity-100"
@@ -71,4 +83,3 @@ const ObservationsSection = () => {
 };
 
 export default ObservationsSection;
-

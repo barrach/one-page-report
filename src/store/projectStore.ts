@@ -37,16 +37,24 @@ export interface MonthWeekData {
   real: number;
 }
 
+export type ActionStatus = 'EM ANDAMENTO' | 'CONCLUÍDO' | 'CANCELADO' | 'ATRASADO' | '';
+
 export interface ActionItem {
   id: number;
   problema: string;
   causa: string;
-  solucao: string;
+  impacto: string;
+  atividade: string;
+  responsavel: string;
+  prazo: string;
+  necessidade: string;
+  status: ActionStatus;
 }
 
 export interface Observation {
   id: number;
   text: string;
+  date?: string;
 }
 
 export interface HistogramPoint {
@@ -108,8 +116,8 @@ const defaultProjectData: Omit<Project, 'id' | 'name'> = {
     { label: 'Sem. 5', previsto: 0, real: 0 },
   ],
   actions: [
-    { id: 1, problema: '', causa: '', solucao: '' },
-    { id: 2, problema: '', causa: '', solucao: '' },
+    { id: 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 2, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
   ],
   observations: [{ id: 1, text: '' }],
   histogramData: [{ date: '', semana: '', previsto: 0, real: 0 }],
@@ -163,10 +171,10 @@ const seedProject: Project = {
     { label: 'Sem. 5', previsto: 0, real: 0 },
   ],
   actions: [
-    { id: 1, problema: '', causa: '', solucao: '' },
-    { id: 2, problema: '', causa: '', solucao: '' },
-    { id: 3, problema: '', causa: '', solucao: '' },
-    { id: 4, problema: '', causa: '', solucao: '' },
+    { id: 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 2, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 3, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 4, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
   ],
   observations: [
     { id: 1, text: 'Fase 1 - com o término previsto para o dia 26/02' },
@@ -392,7 +400,7 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
 
   addAction: () => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-      actions: [...p.actions, { id: p.actions.length + 1, problema: '', causa: '', solucao: '' }],
+      actions: [...p.actions, { id: p.actions.length + 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus }],
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
