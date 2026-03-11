@@ -54,6 +54,7 @@ export interface ActionItem {
 export interface Observation {
   id: number;
   text: string;
+  date?: string;
 }
 
 export interface HistogramPoint {
