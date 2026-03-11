@@ -64,7 +64,7 @@ const ActionsTable = () => {
                   <td key={f.key} className="px-1 py-1">
                     <textarea
                       className="w-full bg-transparent border-none outline-none px-2 py-1 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden min-h-[28px]"
-                      value={(a as Record<string, unknown>)[f.key] as string || ''}
+                      value={String((a as unknown as Record<string, unknown>)[f.key] ?? '')}
                       onChange={(e) => {
                         updateAction(i, f.key, e.target.value);
                         e.target.style.height = 'auto';
