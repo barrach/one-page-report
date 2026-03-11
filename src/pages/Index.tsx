@@ -13,8 +13,7 @@ import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
-import { useAuth } from '@/hooks/use-auth';
-import { FileText, Database, Download, Moon, Sun, Shield, LogOut, Smartphone } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
