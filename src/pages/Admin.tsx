@@ -27,7 +27,7 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const Admin = () => {
-  const { user, role, loading, signOut } = useAuth();
+  const { projects } = useProjectStore();
   const { projects } = useProjectStore();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
