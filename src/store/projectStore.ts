@@ -400,7 +400,7 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
 
   addAction: () => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
-      actions: [...p.actions, { id: p.actions.length + 1, problema: '', causa: '', solucao: '' }],
+      actions: [...p.actions, { id: p.actions.length + 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus }],
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
