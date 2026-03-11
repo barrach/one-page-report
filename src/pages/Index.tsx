@@ -207,11 +207,10 @@ const Index = () => {
         {/* Row 4: Cronograma */}
         <ScheduleTable />
 
-        {/* Row 5: Ações + Observações */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ActionsTable />
-          <ObservationsSection />
-        </div>
+        {/* Row 5: Ações (full width) */}
+        <ActionsTable />
+        {/* Row 6: Observações (full width) */}
+        <ObservationsSection />
 
         {/* Footer */}
         <motion.div
