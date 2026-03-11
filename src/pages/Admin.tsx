@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, AppRole } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
 import { Navigate, Link } from 'react-router-dom';
