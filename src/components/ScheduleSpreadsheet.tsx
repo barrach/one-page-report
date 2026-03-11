@@ -83,6 +83,7 @@ const ScheduleSpreadsheet = () => {
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
               <th className="px-1 py-1.5 text-center border border-border w-10" title="Destaque">✦</th>
               <th className="px-1 py-1.5 text-center border border-border w-8" title="Negrito">N</th>
+              <th className="px-1 py-1.5 text-center border border-border w-8" title="Caminho Crítico">CC</th>
               <th className="px-2 py-1.5 text-center border border-border w-12">Id</th>
               <th className="px-2 py-1.5 text-left border border-border min-w-[200px]">Nome da Tarefa</th>
               <th className="px-2 py-1.5 text-center border border-border w-16">Prev. %</th>
