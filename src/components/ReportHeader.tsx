@@ -206,7 +206,9 @@ const ReportHeader = () => {
       </div>
 
       {/* Executive Summary Strip */}
-      <div className="bg-muted/50 border-x border-border px-5 py-2.5">
+      <div className={`bg-muted/50 border-x border-border px-5 py-2.5 border-l-4 ${
+        idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
+      }`}>
         <p className="text-xs text-foreground leading-relaxed">
           <span className="font-semibold text-primary mr-1.5">Resumo:</span>
           {executiveSummaryText}
