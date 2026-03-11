@@ -206,7 +206,9 @@ const ReportHeader = () => {
       </div>
 
       {/* Executive Summary Strip */}
-      <div className="bg-muted/50 border-x border-border px-5 py-2.5">
+      <div className={`bg-muted/50 border-x border-border px-5 py-2.5 border-l-4 ${
+        idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
+      }`}>
         <p className="text-xs text-foreground leading-relaxed">
           <span className="font-semibold text-primary mr-1.5">Resumo:</span>
           {executiveSummaryText}
@@ -253,15 +255,28 @@ const ReportHeader = () => {
             </div>
           </div>
 
-          <KpiCard
-            label="Avanço Real"
-            value={`${avancoReal}%`}
-            subValue="progresso atual"
-            icon={BarChart3}
-            variant="primary"
-            index={1}
-            trend={prevPoint ? { current: avancoReal, previous: prevAvancoReal } : undefined}
-          />
+          {(() => {
+            const terminoStr = info.terminoPrev || info.terminoLB;
+            let diasRestantes = 0;
+            let prazoLabel = '—';
+            if (terminoStr) {
+              const hoje = new Date();
+              const termino = new Date(terminoStr);
+              diasRestantes = Math.ceil((termino.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+              prazoLabel = diasRestantes >= 0 ? `${diasRestantes}d` : `${Math.abs(diasRestantes)}d atrás`;
+            }
+            const prazoVariant = diasRestantes < 0 ? 'danger' : diasRestantes <= 30 ? 'warning' : 'success';
+            return (
+              <KpiCard
+                label="Prazo Restante"
+                value={prazoLabel}
+                subValue={terminoStr ? `término: ${formatDateShort(terminoStr)}` : 'sem data'}
+                icon={Calendar}
+                variant={prazoVariant as 'success' | 'warning' | 'danger'}
+                index={1}
+              />
+            );
+          })()}
 
           <KpiCard
             label="Desvio"
