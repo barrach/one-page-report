@@ -190,7 +190,7 @@ const Admin = () => {
                           ))}
                         </SelectContent>
                       </Select>
-                      {u.user_id !== user?.id && (
+                      {(
                         <Button size="sm" variant="destructive" className="h-8" onClick={() => handleDelete(u.user_id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
