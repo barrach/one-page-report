@@ -76,6 +76,7 @@ export interface ScheduleRow {
   terminoBase: string;
   highlight?: boolean;
   bold?: boolean;
+  criticalPath?: boolean;
 }
 
 export interface Project {

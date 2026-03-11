@@ -109,6 +109,11 @@ const ScheduleSpreadsheet = () => {
                     setScheduleData(data.map((r, j) => j === i ? { ...r, bold: !!checked } : r));
                   }} />
                 </td>
+                <td className="border border-border px-1 py-0.5 text-center">
+                  <Checkbox checked={!!row.criticalPath} onCheckedChange={(checked) => {
+                    setScheduleData(data.map((r, j) => j === i ? { ...r, criticalPath: !!checked } : r));
+                  }} />
+                </td>
                 <td className="border border-border px-1 py-0.5">
                   <input className="w-full text-center bg-transparent outline-none text-xs" value={row.id} onChange={(e) => updateRow(i, 'id', e.target.value)} />
                 </td>
