@@ -83,6 +83,7 @@ const ScheduleSpreadsheet = () => {
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
               <th className="px-1 py-1.5 text-center border border-border w-10" title="Destaque">✦</th>
               <th className="px-1 py-1.5 text-center border border-border w-8" title="Negrito">N</th>
+              <th className="px-1 py-1.5 text-center border border-border w-8" title="Caminho Crítico">CC</th>
               <th className="px-2 py-1.5 text-center border border-border w-12">Id</th>
               <th className="px-2 py-1.5 text-left border border-border min-w-[200px]">Nome da Tarefa</th>
               <th className="px-2 py-1.5 text-center border border-border w-16">Prev. %</th>
@@ -106,6 +107,11 @@ const ScheduleSpreadsheet = () => {
                 <td className="border border-border px-1 py-0.5 text-center">
                   <Checkbox checked={!!row.bold} onCheckedChange={(checked) => {
                     setScheduleData(data.map((r, j) => j === i ? { ...r, bold: !!checked } : r));
+                  }} />
+                </td>
+                <td className="border border-border px-1 py-0.5 text-center">
+                  <Checkbox checked={!!row.criticalPath} onCheckedChange={(checked) => {
+                    setScheduleData(data.map((r, j) => j === i ? { ...r, criticalPath: !!checked } : r));
                   }} />
                 </td>
                 <td className="border border-border px-1 py-0.5">
