@@ -255,15 +255,28 @@ const ReportHeader = () => {
             </div>
           </div>
 
-          <KpiCard
-            label="Avanço Real"
-            value={`${avancoReal}%`}
-            subValue="progresso atual"
-            icon={BarChart3}
-            variant="primary"
-            index={1}
-            trend={prevPoint ? { current: avancoReal, previous: prevAvancoReal } : undefined}
-          />
+          {(() => {
+            const terminoStr = info.terminoPrev || info.terminoLB;
+            let diasRestantes = 0;
+            let prazoLabel = '—';
+            if (terminoStr) {
+              const hoje = new Date();
+              const termino = new Date(terminoStr);
+              diasRestantes = Math.ceil((termino.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+              prazoLabel = diasRestantes >= 0 ? `${diasRestantes}d` : `${Math.abs(diasRestantes)}d atrás`;
+            }
+            const prazoVariant = diasRestantes < 0 ? 'danger' : diasRestantes <= 30 ? 'warning' : 'success';
+            return (
+              <KpiCard
+                label="Prazo Restante"
+                value={prazoLabel}
+                subValue={terminoStr ? `término: ${formatDateShort(terminoStr)}` : 'sem data'}
+                icon={Calendar}
+                variant={prazoVariant as 'success' | 'warning' | 'danger'}
+                index={1}
+              />
+            );
+          })()}
 
           <KpiCard
             label="Desvio"
