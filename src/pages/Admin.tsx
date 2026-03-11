@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth, AppRole } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
-import { Navigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, FileText, Database, Shield, LogOut } from 'lucide-react';
+import { Plus, Trash2, FileText, Database, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+
+type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
 
 interface UserRow {
   user_id: string;
@@ -26,7 +27,6 @@ const roleLabels: Record<AppRole, string> = {
 };
 
 const Admin = () => {
-  const { user, role, loading, signOut } = useAuth();
   const { projects } = useProjectStore();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
@@ -61,22 +61,11 @@ const Admin = () => {
 
   const loadedRef = React.useRef(false);
   useEffect(() => {
-    if (user && role === 'admin' && !loadedRef.current) {
+    if (!loadedRef.current) {
       loadedRef.current = true;
       loadUsers();
     }
-  }, [user, role, loadUsers]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
-  if (!user) return <Navigate to="/login" replace />;
-  if (role !== 'admin') return <Navigate to="/" replace />;
+  }, [loadUsers]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,9 +136,6 @@ const Admin = () => {
             </Link>
           </nav>
         </div>
-        <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={signOut}>
-          <LogOut className="h-3.5 w-3.5" /> Sair
-        </Button>
       </div>
 
       <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
@@ -203,7 +189,7 @@ const Admin = () => {
                           ))}
                         </SelectContent>
                       </Select>
-                      {u.user_id !== user?.id && (
+                      {(
                         <Button size="sm" variant="destructive" className="h-8" onClick={() => handleDelete(u.user_id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
