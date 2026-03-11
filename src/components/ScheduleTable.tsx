@@ -1,12 +1,10 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { formatDateBR } from '@/lib/dateUtils';
-import GanttChart from '@/components/GanttChart';
 
 const ScheduleTable = () => {
-  const { scheduleData, info } = useCurrentProject();
+  const { scheduleData } = useCurrentProject();
 
   const data = (scheduleData || []).filter(r => r.tarefa);
-  const hasCritical = data.some(r => r.criticalPath);
 
   if (data.length === 0) {
     return (
@@ -21,21 +19,9 @@ const ScheduleTable = () => {
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Cronograma</h3>
-        {hasCritical && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold bg-destructive/15 text-destructive border border-destructive/20">
-            ● Caminho Crítico destacado
-          </span>
-        )}
-      </div>
+      <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
       <p className="text-xs text-muted-foreground mb-4">Status das atividades planejadas</p>
-
-      {/* Gantt Chart */}
-      <GanttChart data={data} statusDate={info.atualizadoEm} />
-
-      {/* Table */}
-      <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0 mt-4">
+      <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
         <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[700px]">
           <thead>
             <tr className="bg-table-header text-table-header-foreground">
@@ -53,21 +39,13 @@ const ScheduleTable = () => {
           <tbody>
             {data.map((row, i) => {
               const isHeader = row.tarefa === row.tarefa.toUpperCase() && row.tarefa.length > 3;
-              const isCritical = !!row.criticalPath;
               return (
                 <tr
                   key={i}
-                  className={`border-b border-border/30 ${
-                    isHeader ? 'bg-muted/50 font-bold' : i % 2 === 0 ? '' : 'bg-table-row-alt'
-                  } ${row.highlight ? 'bg-warning/15 ring-1 ring-warning/30 ring-inset' : ''} ${
-                    isCritical ? 'bg-destructive/5 border-l-2 border-l-destructive' : ''
-                  }`}
+                  className={`border-b border-border/30 ${isHeader ? 'bg-muted/50 font-bold' : i % 2 === 0 ? '' : 'bg-table-row-alt'} ${row.highlight ? 'bg-warning/15 ring-1 ring-warning/30 ring-inset' : ''}`}
                 >
                   <td className="px-2 py-1.5 text-center border border-border/30 text-muted-foreground">{row.id}</td>
-                  <td className={`px-2 py-1.5 border border-border/30 ${row.bold ? 'font-bold' : ''} ${isCritical ? 'text-destructive font-semibold' : ''}`}>
-                    {isCritical && <span className="inline-block w-1.5 h-1.5 rounded-full bg-destructive mr-1.5 align-middle" />}
-                    {row.tarefa}
-                  </td>
+                  <td className={`px-2 py-1.5 border border-border/30 ${row.bold ? 'font-bold' : ''}`}>{row.tarefa}</td>
                   <td className={`px-2 py-1.5 text-center border border-border/30 ${row.bold ? 'font-bold' : ''}`}>{row.previsto > 0 ? `${row.previsto.toFixed(2)}%` : '0%'}</td>
                   <td className={`px-2 py-1.5 text-center border border-border/30 ${row.bold ? 'font-bold' : ''}`}>{row.trabalhoConcluido > 0 ? `${row.trabalhoConcluido}%` : '0%'}</td>
                   <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${row.desvio < 0 ? 'text-destructive' : row.desvio > 0 ? 'text-success' : ''}`}>
