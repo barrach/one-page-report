@@ -137,9 +137,6 @@ const Admin = () => {
             </Link>
           </nav>
         </div>
-        <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={signOut}>
-          <LogOut className="h-3.5 w-3.5" /> Sair
-        </Button>
       </div>
 
       <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
