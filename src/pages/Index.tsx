@@ -152,7 +152,15 @@ const Index = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           {/* Dark mode toggle */}
           {!isStandalone && (
-            <button
+          <button
+            onClick={togglePresentation}
+            className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
+            title="Modo apresentação"
+          >
+            <Presentation className="h-3.5 w-3.5" />
+          </button>
+
+          <button
               onClick={() => navigate('/install')}
               className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
               title="Instalar no celular"
