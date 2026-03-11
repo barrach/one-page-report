@@ -171,10 +171,10 @@ const seedProject: Project = {
     { label: 'Sem. 5', previsto: 0, real: 0 },
   ],
   actions: [
-    { id: 1, problema: '', causa: '', solucao: '' },
-    { id: 2, problema: '', causa: '', solucao: '' },
-    { id: 3, problema: '', causa: '', solucao: '' },
-    { id: 4, problema: '', causa: '', solucao: '' },
+    { id: 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 2, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 3, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 4, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
   ],
   observations: [
     { id: 1, text: 'Fase 1 - com o término previsto para o dia 26/02' },
