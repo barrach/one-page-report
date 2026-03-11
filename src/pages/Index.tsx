@@ -27,7 +27,6 @@ const Index = () => {
   const { projects, selectedProjectId, selectProject } = useProjectStore();
   const [selectedExportIds, setSelectedExportIds] = useState<string[]>([]);
   const { theme, toggleTheme } = useThemeStore();
-  const { role, signOut } = useAuth();
   const navigate = useNavigate();
   const [isStandalone, setIsStandalone] = useState(false);
 
