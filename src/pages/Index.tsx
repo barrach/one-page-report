@@ -181,9 +181,6 @@ const Index = () => {
             </DialogContent>
           </Dialog>
           <ProjectSelector showCreate />
-          <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={signOut}>
-            <LogOut className="h-3.5 w-3.5" /> Sair
-          </Button>
         </div>
       </div>
 
