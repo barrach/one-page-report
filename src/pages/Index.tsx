@@ -125,120 +125,122 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className={`min-h-screen bg-background ${presentationMode ? 'overflow-auto' : ''}`}>
       {/* Top navigation bar */}
-      <div className="gradient-primary px-3 sm:px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
-        <div className="flex items-center gap-3 sm:gap-5">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
+      {!presentationMode && (
+        <div className="gradient-primary px-3 sm:px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
+          <div className="flex items-center gap-3 sm:gap-5">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
+              <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
+            </div>
+            <nav className="flex gap-1">
+              <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
+                <FileText className="h-3.5 w-3.5" />
+                Relatório
+              </Link>
+              <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+                <Database className="h-3.5 w-3.5" />
+                Dados
+              </Link>
+              <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+                <Shield className="h-3.5 w-3.5" />
+                Admin
+              </Link>
+            </nav>
           </div>
-          <nav className="flex gap-1">
-            <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
-              <FileText className="h-3.5 w-3.5" />
-              Relatório
-            </Link>
-            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <Database className="h-3.5 w-3.5" />
-              Dados
-            </Link>
-            <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <Shield className="h-3.5 w-3.5" />
-              Admin
-            </Link>
-          </nav>
-        </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          {/* Dark mode toggle */}
-          {!isStandalone && (
-          <button
-            onClick={togglePresentation}
-            className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-            title="Modo apresentação"
-          >
-            <Presentation className="h-3.5 w-3.5" />
-          </button>
-
-          <button
-              onClick={() => navigate('/install')}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={togglePresentation}
               className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-              title="Instalar no celular"
+              title="Modo apresentação"
             >
-              <Smartphone className="h-3.5 w-3.5" />
+              <Presentation className="h-3.5 w-3.5" />
             </button>
-          )}
 
-          <button
-            onClick={toggleTheme}
-            className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-            title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-          >
-            {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-          </button>
+            {!isStandalone && (
+              <button
+                onClick={() => navigate('/install')}
+                className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
+                title="Instalar no celular"
+              >
+                <Smartphone className="h-3.5 w-3.5" />
+              </button>
+            )}
 
-          <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
-            <DialogTrigger asChild>
-              <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
-                <Download className="h-3.5 w-3.5" />
-                Exportar PDF
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Exportar Relatório em PDF</DialogTitle>
-              </DialogHeader>
-              <p className="text-sm text-muted-foreground mb-3">Selecione os projetos para exportar. Cada projeto será uma página no PDF.</p>
-              <div className="space-y-2 mb-4">
-                {projects.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox checked={selectedExportIds.includes(p.id)} onCheckedChange={() => toggleExportProject(p.id)} />
-                    <span className="text-sm font-medium">{p.name}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancelar</Button>
-                <Button onClick={exportPDF} disabled={exporting || selectedExportIds.length === 0} className="gap-1.5">
-                  <Download className="h-4 w-4" />
-                  {exporting ? 'Exportando...' : `Exportar ${selectedExportIds.length} projeto(s)`}
+            <button
+              onClick={toggleTheme}
+              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
+              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+            >
+              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            </button>
+
+            <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
+                  <Download className="h-3.5 w-3.5" />
+                  Exportar PDF
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <ProjectSelector showCreate />
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Exportar Relatório em PDF</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-muted-foreground mb-3">Selecione os projetos para exportar. Cada projeto será uma página no PDF.</p>
+                <div className="space-y-2 mb-4">
+                  {projects.map((p) => (
+                    <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox checked={selectedExportIds.includes(p.id)} onCheckedChange={() => toggleExportProject(p.id)} />
+                      <span className="text-sm font-medium">{p.name}</span>
+                    </label>
+                  ))}
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancelar</Button>
+                  <Button onClick={exportPDF} disabled={exporting || selectedExportIds.length === 0} className="gap-1.5">
+                    <Download className="h-4 w-4" />
+                    {exporting ? 'Exportando...' : `Exportar ${selectedExportIds.length} projeto(s)`}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <ProjectSelector showCreate />
+          </div>
         </div>
-      </div>
+      )}
 
+      {/* Floating exit button in presentation mode */}
+      {presentationMode && (
+        <button
+          onClick={togglePresentation}
+          className="fixed top-4 right-4 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-foreground/80 text-background text-xs font-semibold hover:bg-foreground transition-colors opacity-0 hover:opacity-100 focus:opacity-100"
+          title="Sair do modo apresentação (ESC)"
+        >
+          <X className="h-3.5 w-3.5" />
+          Sair
+        </button>
+      )}
 
       <div ref={reportRef} className="p-3 sm:p-5 md:p-6 max-w-[1440px] mx-auto space-y-4">
-        {/* Header with KPI cards */}
         <ReportHeader />
-
-        {/* Executive Summary AI */}
         <ExecutiveSummary />
 
-        {/* Row 1: Curva S + 5 Semanas side-by-side */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <SCurveChart />
           <FiveWeekChart />
         </div>
 
-        {/* Row 2: Histograma + Mês */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <HistogramChart />
           <MonthChart />
         </div>
 
-        {/* Row 4: Cronograma */}
         <ScheduleTable />
-
-        {/* Row 5: Ações (full width) */}
         <ActionsTable />
-        {/* Row 6: Observações (full width) */}
         <ObservationsSection />
 
-        {/* Footer */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
