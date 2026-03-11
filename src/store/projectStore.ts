@@ -116,8 +116,8 @@ const defaultProjectData: Omit<Project, 'id' | 'name'> = {
     { label: 'Sem. 5', previsto: 0, real: 0 },
   ],
   actions: [
-    { id: 1, problema: '', causa: '', solucao: '' },
-    { id: 2, problema: '', causa: '', solucao: '' },
+    { id: 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
+    { id: 2, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
   ],
   observations: [{ id: 1, text: '' }],
   histogramData: [{ date: '', semana: '', previsto: 0, real: 0 }],
