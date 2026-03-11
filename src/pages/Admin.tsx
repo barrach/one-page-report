@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { supabase } from '@/integrations/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
-import { Navigate, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, FileText, Database, Shield, LogOut } from 'lucide-react';
+import { Plus, Trash2, FileText, Database, Shield } from 'lucide-react';
 import { toast } from 'sonner';
+
+type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
 
 interface UserRow {
   user_id: string;
