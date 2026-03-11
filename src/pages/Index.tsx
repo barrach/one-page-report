@@ -29,6 +29,24 @@ const Index = () => {
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const [isStandalone, setIsStandalone] = useState(false);
+  const [presentationMode, setPresentationMode] = useState(false);
+
+  const togglePresentation = () => {
+    if (!presentationMode) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    setPresentationMode(!presentationMode);
+  };
+
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement) setPresentationMode(false);
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
