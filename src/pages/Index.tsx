@@ -120,18 +120,14 @@ const Index = () => {
               <FileText className="h-3.5 w-3.5" />
               Relatório
             </Link>
-            {(role === 'admin' || role === 'gestor') && (
-              <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-                <Database className="h-3.5 w-3.5" />
-                Dados
-              </Link>
-            )}
-            {role === 'admin' && (
-              <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-                <Shield className="h-3.5 w-3.5" />
-                Admin
-              </Link>
-            )}
+            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+              <Database className="h-3.5 w-3.5" />
+              Dados
+            </Link>
+            <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+              <Shield className="h-3.5 w-3.5" />
+              Admin
+            </Link>
           </nav>
         </div>
 
