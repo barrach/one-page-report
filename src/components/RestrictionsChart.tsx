@@ -1,5 +1,5 @@
 import { useCurrentProject } from '@/store/projectStore';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import { TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 import ChartExpandModal from './ChartExpandModal';
 
@@ -9,42 +9,44 @@ const RestrictionsChart = () => {
   const total = actions.length;
   const resolvidas = actions.filter(a => a.status === 'CONCLUÍDO').length;
   const pendentes = total - resolvidas;
-  const taxa = total > 0 ? ((resolvidas / total) * 100) : 0;
+  const pctResolvidas = total > 0 ? (resolvidas / total) * 100 : 0;
+  const pctPendentes = total > 0 ? (pendentes / total) * 100 : 0;
+  const taxa = pctResolvidas;
 
-  // Build single-bar data for the chart
   const data = [
-    { name: 'Restrições', resolvidas, pendentes },
+    { name: 'Resolvidas', value: pctResolvidas, fill: 'hsl(var(--success))' },
+    { name: 'Pendentes', value: pctPendentes, fill: 'hsl(var(--destructive))' },
   ];
 
+  const taxaColor = taxa > 80 ? 'text-success' : taxa >= 50 ? 'text-warning' : 'text-destructive';
+
   const TrendIcon = pendentes === 0 ? TrendingUp : pendentes > resolvidas ? TrendingDown : ArrowRight;
-  const trendColor = pendentes === 0
-    ? 'text-green-500'
-    : pendentes > resolvidas
-      ? 'text-red-500'
-      : 'text-yellow-500';
-  const trendText = pendentes === 0
-    ? 'Todas resolvidas'
-    : pendentes > resolvidas
-      ? 'Pendências predominam'
-      : 'Pendências em queda';
+  const trendColor = pendentes === 0 ? 'text-success' : pendentes > resolvidas ? 'text-destructive' : 'text-warning';
+  const trendText = pendentes === 0 ? 'Todas resolvidas' : pendentes > resolvidas ? 'Pendências predominam' : 'Pendências em queda';
+
+  const renderLabel = (props: Record<string, unknown>) => {
+    const { x, y, width, value } = props as { x: number; y: number; width: number; value: number };
+    return (
+      <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight="bold" fill="hsl(var(--foreground))">
+        {`${(value as number).toFixed(0)}%`}
+      </text>
+    );
+  };
 
   const chartContent = (
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} barGap={8} layout="vertical">
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-        <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-        <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} width={80} />
+      <BarChart data={data} barSize={60}>
+        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+        <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
         <Tooltip
-          contentStyle={{
-            backgroundColor: 'hsl(var(--card))',
-            border: '1px solid hsl(var(--border))',
-            borderRadius: '8px',
-            fontSize: '12px',
-          }}
+          formatter={(v: number) => [`${v.toFixed(1)}%`, '']}
+          contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
         />
-        <Legend wrapperStyle={{ fontSize: '11px' }} />
-        <Bar dataKey="resolvidas" name="Resolvidas" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} />
-        <Bar dataKey="pendentes" name="Pendentes" fill="hsl(var(--destructive))" radius={[0, 4, 4, 0]} />
+        <Bar dataKey="value" radius={[6, 6, 0, 0]} isAnimationActive>
+          {data.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+          <LabelList content={renderLabel} />
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );
@@ -61,18 +63,15 @@ const RestrictionsChart = () => {
         </ChartExpandModal>
       </div>
 
-      {/* Taxa de resolução + métricas */}
       <div className="flex items-center gap-4 mb-3 flex-wrap">
         <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-muted/50">
           <span className="text-xs text-muted-foreground font-medium">Taxa de Resolução:</span>
-          <span className={`text-sm font-bold ${taxa >= 70 ? 'text-green-500' : taxa >= 40 ? 'text-yellow-500' : 'text-red-500'}`}>
-            {taxa.toFixed(0)}%
-          </span>
+          <span className={`text-sm font-bold ${taxaColor}`}>{taxa.toFixed(0)}%</span>
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           <span>Total: <strong className="text-foreground">{total}</strong></span>
-          <span>Resolvidas: <strong className="text-green-500">{resolvidas}</strong></span>
-          <span>Pendentes: <strong className="text-red-500">{pendentes}</strong></span>
+          <span>Resolvidas: <strong className="text-success">{resolvidas}</strong></span>
+          <span>Pendentes: <strong className="text-destructive">{pendentes}</strong></span>
         </div>
         <div className={`flex items-center gap-1 text-xs font-medium ${trendColor}`}>
           <TrendIcon className="h-3.5 w-3.5" />
@@ -80,8 +79,7 @@ const RestrictionsChart = () => {
         </div>
       </div>
 
-      {/* Chart */}
-      <div className="flex-1 min-h-[140px]">
+      <div className="flex-1 min-h-[180px]">
         {chartContent}
       </div>
     </div>
