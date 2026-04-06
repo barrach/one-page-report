@@ -4,10 +4,10 @@ import { Trash2, Plus } from 'lucide-react';
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
 const statusColors: Record<string, string> = {
-  'EM ANDAMENTO': 'bg-yellow-400 text-yellow-900',
-  'CONCLUÍDO': 'bg-green-500 text-white',
-  'CANCELADO': 'bg-red-500 text-white',
-  'ATRASADO': 'bg-orange-500 text-white',
+  'EM ANDAMENTO': 'bg-warning text-warning-foreground',
+  'CONCLUÍDO': 'bg-success text-white',
+  'CANCELADO': 'bg-muted text-muted-foreground',
+  'ATRASADO': 'bg-destructive text-white',
 };
 
 const ActionsTable = () => {
@@ -58,7 +58,7 @@ const ActionsTable = () => {
           </thead>
           <tbody>
             {actions.map((a, i) => (
-              <tr key={i} className={`border-b border-border align-top ${i % 2 === 1 ? 'bg-muted/30' : ''}`}>
+              <tr key={i} className={`border-b border-border align-top ${a.status === 'ATRASADO' ? 'bg-destructive/10' : i % 2 === 1 ? 'bg-muted/30' : ''}`}>
                 <td className="px-2 py-2 text-center font-bold text-muted-foreground">{String(a.id).padStart(2, '0')}</td>
                 {fields.map((f) => (
                   <td key={f.key} className="px-1 py-1">
