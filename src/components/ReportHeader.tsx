@@ -246,6 +246,34 @@ const ReportHeader = () => {
             </div>
           </div>
 
+
+          {/* Evolução Semanal - baseado na Curva S (avanço acumulado) */}
+          {(() => {
+            const evolucao = avancoReal - prevAvancoReal;
+            const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
+            const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
+            return (
+              <KpiCard
+                label="Evolução Semanal"
+                value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
+                subValue="vs semana anterior"
+                icon={EvolIcon}
+                valueColor={evolColor}
+                index={1}
+              />
+            );
+          })()}
+
+          <KpiCard
+            label="Desvio"
+            value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}%`}
+            subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
+            icon={DesvioIcon}
+            valueColor={desvio < 0 ? 'text-destructive' : 'text-success'}
+            index={2}
+            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: '%' } : undefined}
+          />
+
           {(() => {
             const terminoStr = info.terminoPrev || info.terminoLB;
             let diasRestantes = 0;
@@ -264,48 +292,19 @@ const ReportHeader = () => {
                 subValue={terminoStr ? `término: ${formatDateShort(terminoStr)}` : 'sem data'}
                 icon={Calendar}
                 valueColor={prazoColor}
-                index={1}
+                index={3}
               />
             );
           })()}
-
-          <KpiCard
-            label="Desvio"
-            value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}%`}
-            subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
-            icon={DesvioIcon}
-            valueColor={desvio < 0 ? 'text-destructive' : 'text-success'}
-            index={2}
-            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: '%' } : undefined}
-          />
 
           <KpiCard
             label="IDP"
             value={`${idp.toFixed(1)}%`}
             subValue="índice de desempenho"
             valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
-            index={3}
+            index={4}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
-
-
-          {/* Evolução Semanal - baseado na Curva S (avanço acumulado) */}
-          {(() => {
-            // Usar dados da Curva S: real atual vs real anterior
-            const evolucao = avancoReal - prevAvancoReal;
-            const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
-            const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
-            return (
-              <KpiCard
-                label="Evolução Semanal"
-                value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
-                subValue="vs semana anterior"
-                icon={EvolIcon}
-                valueColor={evolColor}
-                index={4}
-              />
-            );
-          })()}
         </div>
       </div>
     </motion.div>
