@@ -271,12 +271,12 @@ const ReportHeader = () => {
 
           <KpiCard
             label="Desvio"
-            value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(2)}%`}
+            value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}%`}
             subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
             icon={DesvioIcon}
-            valueColor={desvio < -5 ? 'text-destructive' : desvio < 0 ? 'text-warning' : 'text-success'}
+            valueColor={desvio < 0 ? 'text-destructive' : 'text-success'}
             index={2}
-            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: 'pp' } : undefined}
+            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: '%' } : undefined}
           />
 
           <KpiCard
