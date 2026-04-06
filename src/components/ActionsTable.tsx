@@ -4,10 +4,10 @@ import { Trash2, Plus } from 'lucide-react';
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
 const statusColors: Record<string, string> = {
-  'EM ANDAMENTO': 'bg-yellow-400 text-yellow-900',
-  'CONCLUÍDO': 'bg-green-500 text-white',
-  'CANCELADO': 'bg-red-500 text-white',
-  'ATRASADO': 'bg-orange-500 text-white',
+  'EM ANDAMENTO': 'bg-warning text-warning-foreground',
+  'CONCLUÍDO': 'bg-success text-white',
+  'CANCELADO': 'bg-muted text-muted-foreground',
+  'ATRASADO': 'bg-destructive text-white',
 };
 
 const ActionsTable = () => {
