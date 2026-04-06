@@ -14,6 +14,7 @@ const KpiCard = ({
   index = 0,
   trend,
   valueColor = 'text-primary-foreground',
+  bgOverride,
 }: {
   label: string;
   value: string;
@@ -22,13 +23,14 @@ const KpiCard = ({
   index?: number;
   trend?: { current: number; previous: number; suffix?: string };
   valueColor?: string;
+  bgOverride?: string;
 }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className="gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-1"
+      className={`rounded-xl p-4 card-shadow border-0 flex flex-col gap-1 ${bgOverride || 'gradient-primary'}`}
     >
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
@@ -39,7 +41,7 @@ const KpiCard = ({
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
+        <span className={`text-2xl font-bold leading-tight ${valueColor}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
