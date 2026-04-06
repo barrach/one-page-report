@@ -187,19 +187,6 @@
     background: var(--gradient-warning);
   }
 
-  .kpi-bg-primary {
-    background: hsl(var(--primary) / 0.1);
-  }
-  .kpi-bg-success {
-    background: hsl(var(--success) / 0.12);
-  }
-  .kpi-bg-danger {
-    background: hsl(var(--destructive) / 0.12);
-  }
-  .kpi-bg-warning {
-    background: hsl(var(--warning) / 0.12);
-  }
-
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
