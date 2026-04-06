@@ -49,7 +49,7 @@ const KpiCard = ({
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${isColored ? '' : 'text-foreground'}`}>{value}</span>
+        <span className="text-xl font-extrabold leading-tight text-primary">{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
