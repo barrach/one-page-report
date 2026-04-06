@@ -23,37 +23,51 @@ const KpiCard = ({
   index?: number;
   trend?: { current: number; previous: number; suffix?: string };
 }) => {
-  const gradientMap = {
+  const bgMap = {
     default: 'bg-card border',
-    primary: 'gradient-primary text-primary-foreground border-0',
-    success: 'gradient-success text-success-foreground border-0',
-    danger: 'gradient-danger text-destructive-foreground border-0',
-    warning: 'gradient-warning text-warning-foreground border-0',
+    primary: 'kpi-bg-primary border-0',
+    success: 'kpi-bg-success border-0',
+    danger: 'kpi-bg-danger border-0',
+    warning: 'kpi-bg-warning border-0',
   };
 
-  const isColored = variant !== 'default';
+  const valueColorMap = {
+    default: 'text-foreground',
+    primary: 'text-primary',
+    success: 'text-success',
+    danger: 'text-destructive',
+    warning: 'text-warning',
+  };
+
+  const iconColorMap = {
+    default: 'text-muted-foreground',
+    primary: 'text-primary/60',
+    success: 'text-success/60',
+    danger: 'text-destructive/60',
+    warning: 'text-warning/60',
+  };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className={`rounded-xl p-4 card-shadow flex flex-col gap-1 ${gradientMap[variant]}`}
+      className={`rounded-xl p-4 card-shadow flex flex-col gap-1 ${bgMap[variant]}`}
     >
       <div className="flex items-center justify-between">
-        <span className={`text-[10px] font-semibold uppercase tracking-widest ${isColored ? 'opacity-75' : 'text-muted-foreground'}`}>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
           {label}
         </span>
         {Icon && (
-          <Icon className={`h-4 w-4 ${isColored ? 'opacity-60' : 'text-muted-foreground'}`} />
+          <Icon className={`h-4 w-4 ${iconColorMap[variant]}`} />
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${isColored ? '' : 'text-foreground'}`}>{value}</span>
+        <span className={`text-xl font-bold leading-tight ${valueColorMap[variant]}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
-        <span className={`text-xs ${isColored ? 'opacity-70' : 'text-muted-foreground'}`}>{subValue}</span>
+        <span className="text-xs text-muted-foreground">{subValue}</span>
       )}
     </motion.div>
   );
@@ -219,27 +233,27 @@ const ReportHeader = () => {
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Progress bar card */}
-          <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2 kpi-bg-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
                 % Realizado
               </span>
-              <BarChart3 className="h-4 w-4 text-primary-foreground/60" />
+              <BarChart3 className="h-4 w-4 text-primary/60" />
             </div>
             <div className="flex items-end justify-between">
               <div className="flex items-end gap-2">
-                <span className="text-3xl font-bold text-primary-foreground">{avancoReal}%</span>
+                <span className="text-3xl font-bold text-primary">{avancoReal}%</span>
                 {prevPoint && <TrendIndicator current={avancoReal} previous={prevAvancoReal} />}
               </div>
-              <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
+              <span className="text-sm text-muted-foreground pb-1">/ {refPrev}% {refLabel}</span>
             </div>
             <div className="relative">
-              <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
+              <div className="h-2.5 bg-primary/20 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${avancoReal}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
-                  className="h-full bg-primary-foreground rounded-full"
+                  className="h-full bg-primary rounded-full"
                 />
               </div>
               {/* Marker */}
@@ -248,7 +262,7 @@ const ReportHeader = () => {
                 style={{ left: `${Math.min(refPrev, 100)}%` }}
               />
             </div>
-            <div className="flex justify-between text-[10px] text-primary-foreground/50">
+            <div className="flex justify-between text-[10px] text-muted-foreground">
               <span>0%</span>
               <span className="text-warning font-medium">{hasReplanejado ? 'Replan' : 'Prev'}: {refPrev}%</span>
               <span>100%</span>
