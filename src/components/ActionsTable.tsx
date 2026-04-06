@@ -17,7 +17,7 @@ const fields = [
   { key: 'atividade', label: 'Atividade', minW: 150 },
   { key: 'responsavel', label: 'Responsável', minW: 120 },
   { key: 'prazo', label: 'Prazo', minW: 100 },
-  { key: 'necessidade', label: 'Necessidade', minW: 300 },
+  { key: 'necessidade', label: 'Ação', minW: 300 },
 ] as const;
 
 const cellStyle: React.CSSProperties = {
