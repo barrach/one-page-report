@@ -289,13 +289,10 @@ const ReportHeader = () => {
           />
 
 
-          {/* Evolução Semanal */}
+          {/* Evolução Semanal - baseado na Curva S (avanço acumulado) */}
           {(() => {
-            const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
-            const prevWeek = weeklyData.length >= 2 ? weeklyData[weeklyData.length - 2] : null;
-            const realAtual = lastWeek?.real ?? 0;
-            const realAnterior = prevWeek?.real ?? 0;
-            const evolucao = realAtual - realAnterior;
+            // Usar dados da Curva S: real atual vs real anterior
+            const evolucao = avancoReal - prevAvancoReal;
             const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
             const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
             return (
