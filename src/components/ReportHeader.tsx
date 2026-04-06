@@ -1,7 +1,7 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort, getWeekOfYear } from '@/lib/dateUtils';
 
