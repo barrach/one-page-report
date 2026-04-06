@@ -11,49 +11,39 @@ const KpiCard = ({
   value,
   subValue,
   icon: Icon,
-  variant = 'default',
   index = 0,
   trend,
+  valueColor = 'text-primary-foreground',
 }: {
   label: string;
   value: string;
   subValue?: string;
   icon?: React.ElementType;
-  variant?: 'default' | 'success' | 'danger' | 'warning' | 'primary';
   index?: number;
   trend?: { current: number; previous: number; suffix?: string };
+  valueColor?: string;
 }) => {
-  const gradientMap = {
-    default: 'bg-card border',
-    primary: 'gradient-primary text-primary-foreground border-0',
-    success: 'gradient-success text-success-foreground border-0',
-    danger: 'gradient-danger text-destructive-foreground border-0',
-    warning: 'gradient-warning text-warning-foreground border-0',
-  };
-
-  const isColored = variant !== 'default';
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className={`rounded-xl p-4 card-shadow flex flex-col gap-1 ${gradientMap[variant]}`}
+      className="gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-1"
     >
       <div className="flex items-center justify-between">
-        <span className={`text-[10px] font-semibold uppercase tracking-widest ${isColored ? 'opacity-75' : 'text-muted-foreground'}`}>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
           {label}
         </span>
         {Icon && (
-          <Icon className={`h-4 w-4 ${isColored ? 'opacity-60' : 'text-muted-foreground'}`} />
+          <Icon className="h-4 w-4 text-primary-foreground/50" />
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${isColored ? '' : 'text-foreground'}`}>{value}</span>
+        <span className={`text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
-        <span className={`text-xs ${isColored ? 'opacity-70' : 'text-muted-foreground'}`}>{subValue}</span>
+        <span className="text-xs text-primary-foreground/60">{subValue}</span>
       )}
     </motion.div>
   );
@@ -105,7 +95,7 @@ const ReportHeader = () => {
   const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
 
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
-  const desvioVariant = desvio < -5 ? 'danger' : desvio < 0 ? 'warning' : 'success';
+  
 
   // Health badge
   const healthConfig = idp >= 95
@@ -228,7 +218,7 @@ const ReportHeader = () => {
             </div>
             <div className="flex items-end justify-between">
               <div className="flex items-end gap-2">
-                <span className="text-3xl font-bold text-primary-foreground">{avancoReal}%</span>
+                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : avancoReal >= refPrev * 0.9 ? 'text-warning' : 'text-destructive'}`}>{avancoReal}%</span>
                 {prevPoint && <TrendIndicator current={avancoReal} previous={prevAvancoReal} />}
               </div>
               <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
@@ -265,14 +255,14 @@ const ReportHeader = () => {
               diasRestantes = Math.ceil((termino.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
               prazoLabel = diasRestantes >= 0 ? `${diasRestantes}d` : `${Math.abs(diasRestantes)}d atrás`;
             }
-            const prazoVariant = diasRestantes < 0 ? 'danger' : diasRestantes <= 30 ? 'warning' : 'success';
+            const prazoColor = diasRestantes < 0 ? 'text-destructive' : diasRestantes <= 30 ? 'text-warning' : 'text-success';
             return (
               <KpiCard
                 label="Prazo Restante"
                 value={prazoLabel}
                 subValue={terminoStr ? `término: ${formatDateShort(terminoStr)}` : 'sem data'}
                 icon={Calendar}
-                variant={prazoVariant as 'success' | 'warning' | 'danger'}
+                valueColor={prazoColor}
                 index={1}
               />
             );
@@ -283,7 +273,7 @@ const ReportHeader = () => {
             value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(2)}%`}
             subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
             icon={DesvioIcon}
-            variant={desvioVariant}
+            valueColor={desvio < -5 ? 'text-destructive' : desvio < 0 ? 'text-warning' : 'text-success'}
             index={2}
             trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: 'pp' } : undefined}
           />
@@ -292,7 +282,7 @@ const ReportHeader = () => {
             label="IDP"
             value={`${idp.toFixed(1)}%`}
             subValue="índice de desempenho"
-            variant={idp >= 100 ? 'success' : idp >= 85 ? 'warning' : 'danger'}
+            valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
             index={3}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
@@ -305,7 +295,7 @@ const ReportHeader = () => {
             const realAtual = lastWeek?.real ?? 0;
             const realAnterior = prevWeek?.real ?? 0;
             const evolucao = realAtual - realAnterior;
-            const evolVariant = evolucao > 0 ? 'success' : evolucao < 0 ? 'danger' : 'warning';
+            const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
             const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
             return (
               <KpiCard
@@ -313,7 +303,7 @@ const ReportHeader = () => {
                 value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
                 subValue="vs semana anterior"
                 icon={EvolIcon}
-                variant={evolVariant}
+                valueColor={evolColor}
                 index={4}
               />
             );
