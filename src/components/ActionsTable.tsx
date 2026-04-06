@@ -58,7 +58,7 @@ const ActionsTable = () => {
           </thead>
           <tbody>
             {actions.map((a, i) => (
-              <tr key={i} className={`border-b border-border align-top ${i % 2 === 1 ? 'bg-muted/30' : ''}`}>
+              <tr key={i} className={`border-b border-border align-top ${a.status === 'ATRASADO' ? 'bg-destructive/10' : i % 2 === 1 ? 'bg-muted/30' : ''}`}>
                 <td className="px-2 py-2 text-center font-bold text-muted-foreground">{String(a.id).padStart(2, '0')}</td>
                 {fields.map((f) => (
                   <td key={f.key} className="px-1 py-1">
