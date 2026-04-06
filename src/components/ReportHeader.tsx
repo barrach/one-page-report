@@ -220,7 +220,6 @@ const ReportHeader = () => {
               <div className="flex items-end gap-2">
                 <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : avancoReal >= refPrev * 0.9 ? 'text-warning' : 'text-destructive'}`}>{avancoReal}%</span>
               </div>
-              <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
             </div>
             <div className="relative">
               <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
@@ -236,12 +235,12 @@ const ReportHeader = () => {
                 style={{ left: `${Math.min(refPrev, 100)}%` }}
               />
             </div>
-            <div className="flex justify-between text-[10px] text-primary-foreground/50">
-              <span>0%</span>
+            <div className="flex justify-between text-[10px]">
+              <span className="text-primary-foreground/50">0%</span>
               <span className={`font-semibold ${desvio > 0 ? 'text-success' : desvio === 0 ? 'text-warning' : 'text-destructive'}`}>
-                {desvio >= 0 ? '+' : ''}{desvio.toFixed(1)} p.p. vs {hasReplanejado ? 'replanejado' : 'previsto'}
+                {desvio >= 0 ? '+' : ''}{desvio.toFixed(1)} p.p.
               </span>
-              <span>100%</span>
+              <span className="text-primary-foreground/50">100%</span>
             </div>
           </div>
 
