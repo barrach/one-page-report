@@ -296,6 +296,28 @@ const ReportHeader = () => {
             index={3}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
+
+
+          {/* Evolução Semanal */}
+          {(() => {
+            const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
+            const prevWeek = weeklyData.length >= 2 ? weeklyData[weeklyData.length - 2] : null;
+            const realAtual = lastWeek?.real ?? 0;
+            const realAnterior = prevWeek?.real ?? 0;
+            const evolucao = realAtual - realAnterior;
+            const evolVariant = evolucao > 0 ? 'success' : evolucao < 0 ? 'danger' : 'warning';
+            const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
+            return (
+              <KpiCard
+                label="Evolução Semanal"
+                value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
+                subValue="vs semana anterior"
+                icon={EvolIcon}
+                variant={evolVariant}
+                index={4}
+              />
+            );
+          })()}
         </div>
       </div>
     </motion.div>
