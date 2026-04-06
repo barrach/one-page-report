@@ -219,7 +219,6 @@ const ReportHeader = () => {
             <div className="flex items-end justify-between">
               <div className="flex items-end gap-2">
                 <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : avancoReal >= refPrev * 0.9 ? 'text-warning' : 'text-destructive'}`}>{avancoReal}%</span>
-                {prevPoint && <TrendIndicator current={avancoReal} previous={prevAvancoReal} />}
               </div>
               <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
             </div>
@@ -240,7 +239,9 @@ const ReportHeader = () => {
             </div>
             <div className="flex justify-between text-[10px] text-primary-foreground/50">
               <span>0%</span>
-              <span className="text-warning font-medium">{hasReplanejado ? 'Replan' : 'Prev'}: {refPrev}%</span>
+              <span className={`font-semibold ${desvio < 0 ? 'text-destructive' : 'text-success'}`}>
+                {desvio >= 0 ? '+' : ''}{desvio.toFixed(1)}%
+              </span>
               <span>100%</span>
             </div>
           </div>
