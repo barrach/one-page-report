@@ -1,7 +1,7 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort, getWeekOfYear } from '@/lib/dateUtils';
 
@@ -217,7 +217,7 @@ const ReportHeader = () => {
 
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Progress bar card */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
@@ -296,6 +296,28 @@ const ReportHeader = () => {
             index={3}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
+
+
+          {/* Evolução Semanal */}
+          {(() => {
+            const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
+            const prevWeek = weeklyData.length >= 2 ? weeklyData[weeklyData.length - 2] : null;
+            const realAtual = lastWeek?.real ?? 0;
+            const realAnterior = prevWeek?.real ?? 0;
+            const evolucao = realAtual - realAnterior;
+            const evolVariant = evolucao > 0 ? 'success' : evolucao < 0 ? 'danger' : 'warning';
+            const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
+            return (
+              <KpiCard
+                label="Evolução Semanal"
+                value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
+                subValue="vs semana anterior"
+                icon={EvolIcon}
+                variant={evolVariant}
+                index={4}
+              />
+            );
+          })()}
         </div>
       </div>
     </motion.div>
