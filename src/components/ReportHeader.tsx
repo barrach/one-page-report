@@ -218,7 +218,7 @@ const ReportHeader = () => {
             </div>
             <div className="flex items-end justify-between">
               <div className="flex items-end gap-2">
-                <span className="text-3xl font-bold text-primary-foreground">{avancoReal}%</span>
+                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : avancoReal >= refPrev * 0.9 ? 'text-warning' : 'text-destructive'}`}>{avancoReal}%</span>
                 {prevPoint && <TrendIndicator current={avancoReal} previous={prevAvancoReal} />}
               </div>
               <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
