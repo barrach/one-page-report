@@ -240,6 +240,7 @@ const Index = () => {
 
         <ScheduleTable />
         <ActionsTable />
+        <RestrictionsChart />
         <ObservationsSection />
 
         <motion.div
