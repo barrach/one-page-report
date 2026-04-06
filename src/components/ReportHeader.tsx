@@ -11,49 +11,39 @@ const KpiCard = ({
   value,
   subValue,
   icon: Icon,
-  variant = 'default',
   index = 0,
   trend,
+  valueColor = 'text-primary-foreground',
 }: {
   label: string;
   value: string;
   subValue?: string;
   icon?: React.ElementType;
-  variant?: 'default' | 'success' | 'danger' | 'warning' | 'primary';
   index?: number;
   trend?: { current: number; previous: number; suffix?: string };
+  valueColor?: string;
 }) => {
-  const gradientMap = {
-    default: 'bg-card border',
-    primary: 'gradient-primary text-primary-foreground border-0',
-    success: 'gradient-success text-success-foreground border-0',
-    danger: 'gradient-danger text-destructive-foreground border-0',
-    warning: 'gradient-warning text-warning-foreground border-0',
-  };
-
-  const isColored = variant !== 'default';
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className={`rounded-xl p-4 card-shadow flex flex-col gap-1 ${gradientMap[variant]}`}
+      className="gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-1"
     >
       <div className="flex items-center justify-between">
-        <span className={`text-[10px] font-semibold uppercase tracking-widest ${isColored ? 'opacity-75' : 'text-muted-foreground'}`}>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
           {label}
         </span>
         {Icon && (
-          <Icon className={`h-4 w-4 ${isColored ? 'opacity-60' : 'text-muted-foreground'}`} />
+          <Icon className="h-4 w-4 text-primary-foreground/50" />
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${isColored ? '' : 'text-foreground'}`}>{value}</span>
+        <span className={`text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
-        <span className={`text-xs ${isColored ? 'opacity-70' : 'text-muted-foreground'}`}>{subValue}</span>
+        <span className="text-xs text-primary-foreground/60">{subValue}</span>
       )}
     </motion.div>
   );
