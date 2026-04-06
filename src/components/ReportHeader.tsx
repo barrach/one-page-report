@@ -255,14 +255,14 @@ const ReportHeader = () => {
               diasRestantes = Math.ceil((termino.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
               prazoLabel = diasRestantes >= 0 ? `${diasRestantes}d` : `${Math.abs(diasRestantes)}d atrás`;
             }
-            const prazoVariant = diasRestantes < 0 ? 'danger' : diasRestantes <= 30 ? 'warning' : 'success';
+            const prazoColor = diasRestantes < 0 ? 'text-destructive' : diasRestantes <= 30 ? 'text-warning' : 'text-success';
             return (
               <KpiCard
                 label="Prazo Restante"
                 value={prazoLabel}
                 subValue={terminoStr ? `término: ${formatDateShort(terminoStr)}` : 'sem data'}
                 icon={Calendar}
-                variant={prazoVariant as 'success' | 'warning' | 'danger'}
+                valueColor={prazoColor}
                 index={1}
               />
             );
@@ -273,7 +273,7 @@ const ReportHeader = () => {
             value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(2)}%`}
             subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
             icon={DesvioIcon}
-            variant={desvioVariant}
+            valueColor={desvio < -5 ? 'text-destructive' : desvio < 0 ? 'text-warning' : 'text-success'}
             index={2}
             trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: 'pp' } : undefined}
           />
@@ -282,7 +282,7 @@ const ReportHeader = () => {
             label="IDP"
             value={`${idp.toFixed(1)}%`}
             subValue="índice de desempenho"
-            variant={idp >= 100 ? 'success' : idp >= 85 ? 'warning' : 'danger'}
+            valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
             index={3}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
@@ -295,7 +295,7 @@ const ReportHeader = () => {
             const realAtual = lastWeek?.real ?? 0;
             const realAnterior = prevWeek?.real ?? 0;
             const evolucao = realAtual - realAnterior;
-            const evolVariant = evolucao > 0 ? 'success' : evolucao < 0 ? 'danger' : 'warning';
+            const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
             const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
             return (
               <KpiCard
@@ -303,7 +303,7 @@ const ReportHeader = () => {
                 value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
                 subValue="vs semana anterior"
                 icon={EvolIcon}
-                variant={evolVariant}
+                valueColor={evolColor}
                 index={4}
               />
             );
