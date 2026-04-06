@@ -283,8 +283,9 @@ const ReportHeader = () => {
           <KpiCard
             label="IDP"
             value={`${idp.toFixed(1)}%`}
-            subValue="índice de desempenho"
+            subValue="Meta: 100%"
             valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
+            bgOverride={idp < 90 ? 'bg-destructive/15' : idp <= 100 ? 'bg-warning/15' : 'bg-success/15'}
             index={3}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
