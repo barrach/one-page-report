@@ -239,7 +239,9 @@ const ReportHeader = () => {
             </div>
             <div className="flex justify-between text-[10px] text-primary-foreground/50">
               <span>0%</span>
-              <span className="text-warning font-medium">{hasReplanejado ? 'Replan' : 'Prev'}: {refPrev}%</span>
+              <span className={`font-semibold ${desvio < 0 ? 'text-destructive' : 'text-success'}`}>
+                {desvio >= 0 ? '+' : ''}{desvio.toFixed(1)}%
+              </span>
               <span>100%</span>
             </div>
           </div>
