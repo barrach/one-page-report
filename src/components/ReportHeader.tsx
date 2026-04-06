@@ -217,7 +217,7 @@ const ReportHeader = () => {
 
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Progress bar card */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
