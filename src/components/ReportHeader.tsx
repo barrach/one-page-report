@@ -14,7 +14,6 @@ const KpiCard = ({
   index = 0,
   trend,
   valueColor = 'text-primary-foreground',
-  bgOverride,
 }: {
   label: string;
   value: string;
@@ -23,14 +22,13 @@ const KpiCard = ({
   index?: number;
   trend?: { current: number; previous: number; suffix?: string };
   valueColor?: string;
-  bgOverride?: string;
 }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className={`rounded-xl p-4 card-shadow border-0 flex flex-col gap-1 ${bgOverride || 'gradient-primary'}`}
+      className="gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-1"
     >
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
@@ -41,7 +39,7 @@ const KpiCard = ({
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-2xl font-bold leading-tight ${valueColor}`}>{value}</span>
+        <span className={`text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
@@ -283,9 +281,8 @@ const ReportHeader = () => {
           <KpiCard
             label="IDP"
             value={`${idp.toFixed(1)}%`}
-            subValue="Meta: 100%"
+            subValue="índice de desempenho"
             valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
-            bgOverride={idp < 90 ? 'bg-destructive/15' : idp <= 100 ? 'bg-warning/15' : 'bg-success/15'}
             index={3}
             trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
           />
