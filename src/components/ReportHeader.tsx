@@ -95,7 +95,7 @@ const ReportHeader = () => {
   const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
 
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
-  const desvioVariant = desvio < -5 ? 'danger' : desvio < 0 ? 'warning' : 'success';
+  
 
   // Health badge
   const healthConfig = idp >= 95
