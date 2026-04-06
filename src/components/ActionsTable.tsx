@@ -10,6 +10,16 @@ const statusColors: Record<string, string> = {
   'ATRASADO': 'bg-destructive text-white',
 };
 
+const colWidths: Record<string, string> = {
+  problema: 'min-w-[180px] w-[20%]',
+  causa: 'min-w-[140px] w-[14%]',
+  impacto: 'min-w-[120px] w-[12%]',
+  atividade: 'min-w-[140px] w-[14%]',
+  responsavel: 'min-w-[90px] w-[8%]',
+  prazo: 'min-w-[80px] w-[7%]',
+  necessidade: 'min-w-[180px] w-[18%]',
+};
+
 const ActionsTable = () => {
   const { actions } = useCurrentProject();
   const { setActions, addAction, removeAction } = useProjectStore();
@@ -45,25 +55,31 @@ const ActionsTable = () => {
         </button>
       </div>
       <div className="overflow-x-auto flex-1">
-        <table className="w-full text-xs">
-          <thead>
+        <table className="w-full text-xs border-collapse" style={{ minWidth: 900 }}>
+          <thead className="sticky top-0 z-10">
             <tr className="bg-table-header text-table-header-foreground">
-              <th className="px-2 py-2 text-center w-8 rounded-tl-lg">ID</th>
+              <th className="px-2 py-2.5 text-center w-10 rounded-tl-lg">ID</th>
               {fields.map(f => (
-                <th key={f.key} className="px-2 py-2 text-left whitespace-nowrap">{f.label}</th>
+                <th key={f.key} className={`px-2 py-2.5 text-left ${colWidths[f.key] || ''}`} style={{ whiteSpace: 'normal' }}>{f.label}</th>
               ))}
-              <th className="px-2 py-2 text-center whitespace-nowrap">Status</th>
-              <th className="px-1 py-2 w-7 rounded-tr-lg"></th>
+              <th className="px-2 py-2.5 text-center min-w-[110px] w-[7%]">Status</th>
+              <th className="px-1 py-2.5 w-8 rounded-tr-lg"></th>
             </tr>
           </thead>
           <tbody>
             {actions.map((a, i) => (
-              <tr key={i} className={`border-b border-border align-top ${a.status === 'ATRASADO' ? 'bg-destructive/10' : i % 2 === 1 ? 'bg-muted/30' : ''}`}>
+              <tr
+                key={i}
+                className={`border-b border-border align-top transition-colors hover:bg-muted/40 ${
+                  a.status === 'ATRASADO' ? 'bg-destructive/10' : i % 2 === 1 ? 'bg-muted/20' : ''
+                }`}
+              >
                 <td className="px-2 py-2 text-center font-bold text-muted-foreground">{String(a.id).padStart(2, '0')}</td>
                 {fields.map((f) => (
-                  <td key={f.key} className="px-1 py-1">
+                  <td key={f.key} className={`px-1 py-1 ${colWidths[f.key] || ''}`}>
                     <textarea
-                      className="w-full bg-transparent border-none outline-none px-2 py-1 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden min-h-[28px]"
+                      className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden min-h-[32px]"
+                      style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
                       value={String((a as unknown as Record<string, unknown>)[f.key] ?? '')}
                       onChange={(e) => {
                         updateAction(i, f.key, e.target.value);
