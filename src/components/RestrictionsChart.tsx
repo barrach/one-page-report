@@ -28,38 +28,40 @@ const RestrictionsChart = () => {
     const { x, y, width, value } = props as { x: number; y: number; width: number; value: number };
     return (
       <text x={x + width / 2} y={y - 6} textAnchor="middle" fontSize={12} fontWeight="bold" fill="hsl(var(--foreground))">
-        {`${(value as number).toFixed(0)}%`}
+        {`${value.toFixed(0)}%`}
       </text>
     );
   };
 
-  const chartContent = (
-    <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} barSize={60}>
-        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-        <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
-        <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-        <Tooltip
-          formatter={(v: number) => [`${v.toFixed(1)}%`, '']}
-          contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
-        />
-        <Bar dataKey="value" radius={[6, 6, 0, 0]} isAnimationActive>
-          {data.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
-          <LabelList content={renderLabel} />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
+  if (total === 0) {
+    return (
+      <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col items-center justify-center" style={{ minHeight: 300 }}>
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider mb-2">Restrições Removidas</h3>
+        <p className="text-sm text-muted-foreground">Nenhuma restrição cadastrada</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col">
       <div className="flex items-center justify-between mb-1">
         <div>
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Restrições Removidas</h3>
           <p className="text-xs text-muted-foreground">Acompanhamento de restrições do projeto</p>
         </div>
         <ChartExpandModal title="Restrições Removidas" subtitle="Acompanhamento de restrições do projeto">
-          {chartContent}
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={data} barSize={80}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+              <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+              <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, '']} contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                {data.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+                <LabelList content={renderLabel} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </ChartExpandModal>
       </div>
 
@@ -79,8 +81,20 @@ const RestrictionsChart = () => {
         </div>
       </div>
 
-      <div className="flex-1 min-h-[180px]">
-        {chartContent}
+      {/* Inline chart with fixed minimum height */}
+      <div style={{ width: '100%', height: 300 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} barSize={60}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }} />
+            <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+            <Tooltip formatter={(v: number) => [`${v.toFixed(1)}%`, '']} contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+            <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+              {data.map((entry, i) => <Cell key={i} fill={entry.fill} />)}
+              <LabelList content={renderLabel} />
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
       </div>
     </div>
   );
