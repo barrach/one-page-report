@@ -10,14 +10,21 @@ const statusColors: Record<string, string> = {
   'ATRASADO': 'bg-destructive text-white',
 };
 
-const colWidths: Record<string, string> = {
-  problema: 'min-w-[180px] w-[20%]',
-  causa: 'min-w-[140px] w-[14%]',
-  impacto: 'min-w-[120px] w-[12%]',
-  atividade: 'min-w-[140px] w-[14%]',
-  responsavel: 'min-w-[90px] w-[8%]',
-  prazo: 'min-w-[80px] w-[7%]',
-  necessidade: 'min-w-[180px] w-[18%]',
+const fields = [
+  { key: 'problema', label: 'Restrição / Problema', minW: 250 },
+  { key: 'causa', label: 'Causa Raiz', minW: 200 },
+  { key: 'impacto', label: 'Impacto (SSMA/Prazo)', minW: 150 },
+  { key: 'atividade', label: 'Atividade', minW: 150 },
+  { key: 'responsavel', label: 'Responsável', minW: 120 },
+  { key: 'prazo', label: 'Prazo', minW: 100 },
+  { key: 'necessidade', label: 'Necessidade', minW: 300 },
+] as const;
+
+const cellStyle: React.CSSProperties = {
+  whiteSpace: 'normal',
+  wordBreak: 'break-word',
+  overflowWrap: 'anywhere',
+  verticalAlign: 'top',
 };
 
 const ActionsTable = () => {
@@ -28,16 +35,6 @@ const ActionsTable = () => {
     const updated = actions.map((a, i) => i === index ? { ...a, [field]: value } : a);
     setActions(updated);
   };
-
-  const fields = [
-    { key: 'problema', label: 'Restrição / Problema' },
-    { key: 'causa', label: 'Causa Raiz' },
-    { key: 'impacto', label: 'Impacto (SSMA/Prazo)' },
-    { key: 'atividade', label: 'Atividade' },
-    { key: 'responsavel', label: 'Responsável' },
-    { key: 'prazo', label: 'Prazo' },
-    { key: 'necessidade', label: 'Necessidade' },
-  ] as const;
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
@@ -55,31 +52,31 @@ const ActionsTable = () => {
         </button>
       </div>
       <div className="overflow-x-auto flex-1">
-        <table className="w-full text-xs border-collapse" style={{ minWidth: 900 }}>
+        <table className="w-full text-xs border-collapse" style={{ tableLayout: 'auto' }}>
           <thead className="sticky top-0 z-10">
             <tr className="bg-table-header text-table-header-foreground">
-              <th className="px-2 py-2.5 text-center w-10 rounded-tl-lg">ID</th>
+              <th className="px-3 py-2.5 text-center rounded-tl-lg" style={{ minWidth: 50, ...cellStyle }}>ID</th>
               {fields.map(f => (
-                <th key={f.key} className={`px-2 py-2.5 text-left ${colWidths[f.key] || ''}`} style={{ whiteSpace: 'normal' }}>{f.label}</th>
+                <th key={f.key} className="px-3 py-2.5 text-left" style={{ minWidth: f.minW, ...cellStyle }}>{f.label}</th>
               ))}
-              <th className="px-2 py-2.5 text-center min-w-[110px] w-[7%]">Status</th>
-              <th className="px-1 py-2.5 w-8 rounded-tr-lg"></th>
+              <th className="px-3 py-2.5 text-center" style={{ minWidth: 120, ...cellStyle }}>Status</th>
+              <th className="px-2 py-2.5 rounded-tr-lg" style={{ minWidth: 36 }}></th>
             </tr>
           </thead>
           <tbody>
             {actions.map((a, i) => (
               <tr
                 key={i}
-                className={`border-b border-border align-top transition-colors hover:bg-muted/40 ${
+                className={`border-b border-border transition-colors hover:bg-muted/40 ${
                   a.status === 'ATRASADO' ? 'bg-destructive/10' : i % 2 === 1 ? 'bg-muted/20' : ''
                 }`}
               >
-                <td className="px-2 py-2 text-center font-bold text-muted-foreground">{String(a.id).padStart(2, '0')}</td>
+                <td className="px-3 py-2.5 text-center font-bold text-muted-foreground" style={cellStyle}>{String(a.id).padStart(2, '0')}</td>
                 {fields.map((f) => (
-                  <td key={f.key} className={`px-1 py-1 ${colWidths[f.key] || ''}`}>
+                  <td key={f.key} className="px-1 py-1" style={{ ...cellStyle, minWidth: f.minW }}>
                     <textarea
-                      className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden min-h-[32px]"
-                      style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
+                      className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden"
+                      style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', minHeight: 34 }}
                       value={String((a as unknown as Record<string, unknown>)[f.key] ?? '')}
                       onChange={(e) => {
                         updateAction(i, f.key, e.target.value);
@@ -95,7 +92,7 @@ const ActionsTable = () => {
                     />
                   </td>
                 ))}
-                <td className="px-1 py-1">
+                <td className="px-1 py-1" style={cellStyle}>
                   <select
                     className={`w-full text-xs font-bold px-2 py-1.5 rounded border-none outline-none cursor-pointer ${
                       a.status ? statusColors[a.status] || 'bg-muted' : 'bg-transparent'
@@ -109,7 +106,7 @@ const ActionsTable = () => {
                     ))}
                   </select>
                 </td>
-                <td className="px-1 py-2 text-center">
+                <td className="px-2 py-2.5 text-center" style={cellStyle}>
                   <button
                     onClick={() => removeAction(i)}
                     className="text-destructive/40 hover:text-destructive transition-colors"
