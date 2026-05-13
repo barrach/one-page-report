@@ -58,13 +58,13 @@ const ScheduleTable = () => {
                 level === 4 ? { backgroundColor: '#ffffff', color: '#333333', fontWeight: 400, fontSize: '12px' } :
                               { backgroundColor: '#ffffff', color: '#555555', fontWeight: 400, fontSize: '11px' };
 
-              const desvioColor =
-                row.desvio < 0 ? 'text-destructive' :
-                row.desvio > 0 ? 'text-success' :
-                'text-muted-foreground';
+              const desvioStyle: React.CSSProperties =
+                row.desvio < 0 ? { color: '#dc2626', fontWeight: 600 } :
+                row.desvio > 0 ? { color: '#16a34a', fontWeight: 600 } :
+                                 { color: '#999999' };
 
-              const baselineMissingClass = (v: string) =>
-                v === 'ND' ? 'italic text-muted-foreground' : '';
+              const baselineStyle = (v: string): React.CSSProperties =>
+                v === 'ND' ? { fontStyle: 'italic', color: '#aaaaaa' } : {};
 
               return (
                 <tr
