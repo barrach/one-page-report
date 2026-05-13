@@ -1,8 +1,20 @@
 import { useProjectStore, useCurrentProject, HistogramPoint } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { Plus, Trash2, ClipboardPaste, Upload } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
+const excelSerialToDate = (s: number) => new Date(Math.round((s - 25569) * 86400 * 1000));
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+const parseDateCell = (v: unknown): Date | null => {
+  if (v instanceof Date) return v;
+  if (typeof v === 'number' && v > 1000) return excelSerialToDate(v);
+  return null;
+};
 
 const parseNumber = (val: string): number => {
   if (!val) return 0;
@@ -14,6 +26,87 @@ const HistogramSpreadsheet = () => {
   const { setHistogramData, addHistogramPoint, removeHistogramPoint } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelImport = useCallback(async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      let sheetName = wb.SheetNames.find(n => /frigo\+spci/i.test(n));
+      if (!sheetName) sheetName = wb.SheetNames.find(n => /histogr/i.test(n));
+      if (!sheetName) sheetName = wb.SheetNames[0];
+      if (!sheetName) { toast.error('Erro: nenhuma aba encontrada'); return; }
+
+      const rows: unknown[][] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: null });
+
+      const TARGETS = { dia: 'dia', prev: 'total prevista', real: 'total real' };
+      const found: Record<string, { row: number; col: number }> = {};
+      rows.forEach((r, ri) => {
+        r?.forEach((cell, ci) => {
+          const n = norm(cell);
+          if (!found.dia && n === 'dia') found.dia = { row: ri, col: ci };
+          if (!found.prev && n.includes('total prevista')) found.prev = { row: ri, col: ci };
+          if (!found.real && n.includes('total real')) found.real = { row: ri, col: ci };
+        });
+      });
+      const missing = Object.keys(TARGETS).filter(k => !found[k]);
+      if (missing.length) {
+        const labelMap: Record<string, string> = { dia: 'Dia', prev: 'TOTAL PREVISTA', real: 'TOTAL REAL' };
+        toast.error(`Erro: label não encontrado: ${missing.map(k => labelMap[k]).join(', ')}`);
+        return;
+      }
+
+      const diaRow = rows[found.dia.row] || [];
+      const prevRow = rows[found.prev.row] || [];
+      const realRow = rows[found.real.row] || [];
+
+      // Find first numeric date column at or to the right of the "Dia" label column
+      let startCol = -1;
+      for (let c = found.dia.col + 1; c < diaRow.length; c++) {
+        if (parseDateCell(diaRow[c])) { startCol = c; break; }
+      }
+      if (startCol < 0) { toast.error('Nenhuma data encontrada na linha "Dia"'); return; }
+
+      type Col = { date: string; dateObj: Date; previsto: number; real: number };
+      const cols: Col[] = [];
+      for (let c = startCol; c < diaRow.length; c++) {
+        const d = parseDateCell(diaRow[c]);
+        if (!d) continue;
+        const num = (v: unknown) => (typeof v === 'number' ? v : 0);
+        cols.push({
+          date: formatDDmmm(d),
+          dateObj: d,
+          previsto: num(prevRow[c]),
+          real: num(realRow[c]),
+        });
+      }
+
+      const today = new Date();
+      const filtered = cols.filter(c => !(c.dateObj.getTime() > today.getTime() && c.real === 0 && c.previsto === 0));
+
+      // last week with real > 0
+      let lastRealIdx = -1;
+      filtered.forEach((c, i) => { if (c.real > 0) lastRealIdx = i; });
+
+      let result: Col[];
+      if (lastRealIdx >= 0) {
+        const past = filtered.slice(Math.max(0, lastRealIdx - 5), lastRealIdx + 1);
+        const futureCandidates = filtered.slice(lastRealIdx + 1).filter(c => c.previsto > 0).slice(0, 4);
+        result = [...past, ...futureCandidates];
+      } else {
+        result = filtered.filter(c => c.previsto > 0).slice(0, 10);
+      }
+
+      if (result.length === 0) { toast.error('Nenhuma semana com dados encontrada'); return; }
+      const newData: HistogramPoint[] = result.map(c => ({
+        date: c.date, semana: '', previsto: c.previsto, real: c.real,
+      }));
+      setHistogramData(newData);
+      toast.success(`✓ Histograma importado — ${newData.length} semanas`);
+    } catch (e) {
+      toast.error(`Erro ao importar: ${e instanceof Error ? e.message : 'desconhecido'}`);
+    }
+  }, [setHistogramData]);
   const data = histogramData || [];
 
   const updateCell = (colIndex: number, field: keyof HistogramPoint, value: string) => {
@@ -52,11 +145,21 @@ const HistogramSpreadsheet = () => {
     <div className="bg-card rounded-lg p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-foreground">Histograma (MOD)</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button size="sm" variant="outline" onClick={() => setShowPaste(!showPaste)} className="gap-1">
             <ClipboardPaste className="h-4 w-4" /> Colar do Excel
           </Button>
-          <Button size="sm" onClick={addHistogramPoint} className="gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleExcelImport(f); if (e.target) e.target.value = ''; }}
+          />
+          <Button size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+            <Upload className="h-4 w-4" /> Importar Excel
+          </Button>
+          <Button size="sm" variant="outline" onClick={addHistogramPoint} className="gap-1">
             <Plus className="h-4 w-4" /> Coluna
           </Button>
         </div>
