@@ -145,12 +145,12 @@ const findHistBlock = (ref: SheetRef): HistBlock | null => {
   if (rowDia < 0 || rowPrev < 0 || rowReal < 0 || !hasMODD || !hasMODI) return null;
 
   const realRow = ref.grid[rowReal] || [];
-  let realCount = 0;
+  let realSum = 0;
   for (let j = colDia + 1; j < realRow.length; j++) {
     const v = realRow[j];
-    if (typeof v === 'number' && v > 0) realCount++;
+    if (typeof v === 'number' && isFinite(v) && v > 0) realSum += v;
   }
-  return { ref, rowDia, colDia, rowPrev, rowReal, realCount };
+  return { ref, rowDia, colDia, rowPrev, rowReal, realCount: realSum };
 };
 
 interface CurveExtract {
