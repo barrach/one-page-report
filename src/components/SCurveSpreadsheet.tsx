@@ -16,7 +16,10 @@ const SCurveSpreadsheet = () => {
   const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [showReplanejado, setShowReplanejado] = useState(false);
+  const hasReplanejadoData = sCurveData.some(p => (p.replanejado ?? 0) > 0);
+  const [showReplanejadoManual, setShowReplanejadoManual] = useState(false);
+  const showReplanejado = hasReplanejadoData || showReplanejadoManual;
+  const setShowReplanejado = setShowReplanejadoManual;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExcelImport = useCallback(async (file: File) => {
