@@ -82,13 +82,13 @@ const ScheduleTable = () => {
                   </td>
                   <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.previsto)}</td>
                   <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.trabalhoConcluido)}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${desvioColor}`}>
+                  <td className="px-2 py-1.5 text-center border border-border/30" style={desvioStyle}>
                     {fmtDesvio(row.desvio)}
                   </td>
                   <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.inicio}</td>
                   <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.termino}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${baselineMissingClass(row.inicioBase)}`}>{row.inicioBase}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${baselineMissingClass(row.terminoBase)}`}>{row.terminoBase}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.inicioBase)}>{row.inicioBase}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.terminoBase)}>{row.terminoBase}</td>
                 </tr>
               );
             })}
