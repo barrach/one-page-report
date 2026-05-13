@@ -100,6 +100,7 @@ const ScheduleSpreadsheet = () => {
           <tbody>
             {data.map((row, i) => (
               <tr key={i} className={`border-b border-border ${row.highlight ? 'bg-warning/10' : ''}`}>
+                <td className="border border-border px-1 py-0.5 text-center font-mono text-[10px] text-muted-foreground">{row.outlineNumber || ''}</td>
                 <td className="border border-border px-1 py-0.5 text-center">
                   <Checkbox checked={!!row.highlight} onCheckedChange={(checked) => {
                     setScheduleData(data.map((r, j) => j === i ? { ...r, highlight: !!checked } : r));
@@ -128,7 +129,7 @@ const ScheduleSpreadsheet = () => {
                   <input type="number" step="1" className="w-full text-center bg-transparent outline-none text-xs" value={row.trabalhoConcluido} onChange={(e) => updateRow(i, 'trabalhoConcluido', e.target.value)} />
                 </td>
                 <td className="border border-border px-1 py-0.5">
-                  <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
+                  <input type="number" step="0.01" className={`w-full text-center bg-transparent outline-none text-xs ${row.desvio < 0 ? 'text-destructive' : row.desvio > 0 ? 'text-success' : ''}`} value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
                 </td>
                 {['inicio', 'termino', 'inicioBase', 'terminoBase'].map((field) => (
                   <td key={field} className="border border-border px-1 py-0.5">
