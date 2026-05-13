@@ -13,6 +13,13 @@ const HistogramChart = () => {
 
   const data = (histogramData || []).filter(h => h.date);
 
+  // Boundary between last real week and first future (previsto) week
+  let lastRealIdx = -1;
+  data.forEach((d, i) => { if ((d.real ?? 0) > 0) lastRealIdx = i; });
+  const firstFutureIdx = data.findIndex((d, i) => i > lastRealIdx && (d.previsto ?? 0) > 0);
+  const boundaryLabel =
+    lastRealIdx >= 0 && firstFutureIdx > lastRealIdx ? data[firstFutureIdx].date : null;
+
   const handleClick = (data: any) => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'histogram');
   };
@@ -82,6 +89,15 @@ const HistogramChart = () => {
 
           {selectedDate && data.some(d => d.date === selectedDate) && (
             <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
+          )}
+
+          {boundaryLabel && (
+            <ReferenceLine
+              x={boundaryLabel}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+            />
           )}
 
           <Bar dataKey="previsto" name="previsto" radius={[4, 4, 0, 0]}>
