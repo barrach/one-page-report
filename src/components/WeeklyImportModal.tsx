@@ -196,46 +196,38 @@ const countRealAcu = (grid: Grid, row: number, labelCol: number): number => {
   return c;
 };
 
-// Find ALL valid curve blocks (6 labels in SAME column within 10 rows of each other),
-// across all sheets. Returns the one with most realAcu>0 columns.
+// Anchor on "Tend. Acum. %" (unique label). The other 5 labels must be in the
+// same column, within 10 rows above/below.
 const findBestCurveBlock = (refs: SheetRef[]): CurveBlock | null => {
-  let best: { block: CurveBlock; score: number } | null = null;
-
   for (const ref of refs) {
-    // For each cell == "Data de Corte", check same column for the other 5 labels within 10 rows below/above
-    const datesOcc: CurvePos[] = [];
+    const tendOcc: CurvePos[] = [];
     ref.grid.forEach((row, ri) => {
       row?.forEach((cell, ci) => {
-        if (norm(cell) === CURVE_LABELS.dates) datesOcc.push({ row: ri, col: ci });
+        if (norm(cell) === CURVE_LABELS.tendAcu) tendOcc.push({ row: ri, col: ci });
       });
     });
 
-    for (const dp of datesOcc) {
-      const candidate: Partial<Record<CurveKey, CurvePos>> = { dates: dp };
+    for (const tp of tendOcc) {
+      const candidate: Partial<Record<CurveKey, CurvePos>> = { tendAcu: tp };
       let ok = true;
       (Object.keys(CURVE_LABELS) as CurveKey[]).forEach(k => {
-        if (k === 'dates') return;
+        if (k === 'tendAcu') return;
         const target = CURVE_LABELS[k];
         let found: CurvePos | null = null;
-        // search within +/- 10 rows in same column
         for (let dr = -10; dr <= 10; dr++) {
-          const ri = dp.row + dr;
+          const ri = tp.row + dr;
           if (ri < 0) continue;
-          const cell = (ref.grid[ri] || [])[dp.col];
-          if (norm(cell) === target) { found = { row: ri, col: dp.col }; break; }
+          const cell = (ref.grid[ri] || [])[tp.col];
+          if (norm(cell) === target) { found = { row: ri, col: tp.col }; break; }
         }
         if (!found) ok = false;
         else candidate[k] = found;
       });
       if (!ok) continue;
-      const pos = candidate as Record<CurveKey, CurvePos>;
-      const score = countRealAcu(ref.grid, pos.realAcu.row, dp.col);
-      if (!best || score > best.score) {
-        best = { block: { ref, pos }, score };
-      }
+      return { ref, pos: candidate as Record<CurveKey, CurvePos> };
     }
   }
-  return best?.block ?? null;
+  return null;
 };
 
 interface HistBlock {
