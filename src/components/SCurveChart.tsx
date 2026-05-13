@@ -23,6 +23,9 @@ const fmtPct = (v: number | null | undefined) =>
 const SCurveChart = () => {
   const { sCurveData, statusDateIndex, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+  const isMobile = useIsMobile();
+  const labelInterval = isMobile ? 6 : 3;
+  const labelFontSize = isMobile ? 9 : 11;
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
