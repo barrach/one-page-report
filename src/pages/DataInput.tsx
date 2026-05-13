@@ -3,11 +3,51 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Trash2, Plus, ClipboardPaste, Upload } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
 import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import WeeklyImportModal from '@/components/WeeklyImportModal';
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
+const excelSerialToDate = (s: number) => new Date(Math.round((s - 25569) * 86400 * 1000));
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+const parseDateCell = (dv: unknown): Date | null => {
+  if (dv instanceof Date) return dv;
+  if (typeof dv === 'number' && dv > 1000) return excelSerialToDate(dv);
+  return null;
+};
+
+const extractCurveSheet = async (file: File, labels: Record<string, string>) => {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const sheetName = wb.SheetNames.find(n => norm(n) === norm('Curva S - Geral Projeto'));
+  if (!sheetName) {
+    toast.error("Erro: aba 'Curva S - Geral Projeto' não encontrada");
+    return null;
+  }
+  const data: unknown[][] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: null });
+  const allLabels: Record<string, string> = { __date: 'data de corte', ...labels };
+  const found: Record<string, { row: number; col: number }> = {};
+  data.forEach((r, ri) => {
+    r?.forEach((cell, ci) => {
+      const n = norm(cell);
+      for (const [k, label] of Object.entries(allLabels)) {
+        if (n === label && !found[k]) found[k] = { row: ri, col: ci };
+      }
+    });
+  });
+  const missing = Object.keys(allLabels).filter(k => !found[k]);
+  if (missing.length) {
+    const human: Record<string, string> = { __date: 'Data de Corte', ...labels };
+    toast.error(`Erro: label não encontrado: ${missing.map(k => human[k]).join(', ')}`);
+    return null;
+  }
+  return { data, found };
+};
 
 const formatTimestamp = (iso?: string) => {
   if (!iso) return null;
