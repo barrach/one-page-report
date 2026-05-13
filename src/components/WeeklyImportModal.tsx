@@ -309,6 +309,7 @@ interface CurveExtract {
   ultimaReal: number;
   statusDate: Date;
   realAcuLast: number;
+  prevAcuLast: number;
   hasReplanejado: boolean;
   sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
   weekly: { date: string; previsto: number; real: number }[];
@@ -397,7 +398,7 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       real: round2(m.realAcu * 100),
     }));
 
-  return { block, cols, ultimaReal, statusDate: cols[ultimaReal].date, realAcuLast: round2(cols[ultimaReal].realAcu * 100), hasReplanejado, sCurve, weekly, monthly };
+  return { block, cols, ultimaReal, statusDate: cols[ultimaReal].date, realAcuLast: round2(cols[ultimaReal].realAcu * 100), prevAcuLast: round2(cols[ultimaReal].prevAcu * 100), hasReplanejado, sCurve, weekly, monthly };
 };
 
 interface HistExtract {
@@ -651,7 +652,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     const now = new Date().toISOString();
     let count = 0;
     const currentInfo = projects.find(p => p.id === selectedProjectId)?.info;
-    const infoPatch: Record<string, string> = {};
+    const infoPatch: Record<string, string | number> = {};
     if (curveOk) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length) {
@@ -663,8 +664,10 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       }
       if (c.weekly.length) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
-      // Status date is the source of truth for "atualizadoEm" — always update
+      // Always overwrite: status date + avanço prev/real come from the file
       infoPatch.atualizadoEm = toIsoDate(c.statusDate);
+      infoPatch.avancoPrev = c.prevAcuLast;
+      infoPatch.avancoReal = c.realAcuLast;
     }
     if (histOk) {
       const h = result!.hist as HistExtract;
@@ -759,9 +762,15 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
                           return (
                             <>
-                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground">
+                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground space-y-0.5">
                                 <div>📅 <strong>Data de Status detectada:</strong> {sdFull}</div>
                                 <div>Última semana com Real: <strong>{fmtDDmmm(sd)}</strong> ({realStr}%)</div>
+                                <div className="pt-1 border-t border-success/30 mt-1">
+                                  <div className="font-semibold">Informações do Projeto:</div>
+                                  <div>· Avanço Prev.: <strong>{c.prevAcuLast.toFixed(2).replace('.', ',')}%</strong></div>
+                                  <div>· Avanço Real: <strong>{realStr}%</strong></div>
+                                  <div>· Atualizado em: <strong>{sdFull}</strong></div>
+                                </div>
                               </div>
                               <div className="text-muted-foreground">
                                 Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
