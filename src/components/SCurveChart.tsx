@@ -150,7 +150,11 @@ const SCurveChart = () => {
           <Line type="monotone" dataKey="tendencia" name="Tendência"
             stroke="hsl(var(--chart-tendencia))" strokeWidth={2.5} strokeDasharray="6 4"
             dot={tendenciaDot} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={false} />
-        </LineChart>
+          {hasReplanejado && (
+            <Line type="monotone" dataKey="replanejado" name="Replanejado"
+              stroke="#8b5cf6" strokeWidth={2.5} strokeDasharray="4 4"
+              dot={createDot('#8b5cf6')} activeDot={{ r: 5 }} connectNulls={false} />
+          )}
       </ResponsiveContainer>
     </div>
   );
