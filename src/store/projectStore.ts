@@ -92,6 +92,7 @@ export interface Project {
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
   aiInsights?: Record<string, string>; // chartType -> insight text
+  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string };
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -202,6 +203,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
+    lastImports: (d.lastImports as Project['lastImports']) ?? {},
   };
 };
 
@@ -220,6 +222,7 @@ const projectToDb = (p: Project): any => ({
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
     aiInsights: p.aiInsights || {},
+    lastImports: p.lastImports || {},
   },
 });
 
@@ -268,6 +271,7 @@ interface ProjectStoreState {
   addScheduleRow: () => void;
   removeScheduleRow: (index: number) => void;
   setAiInsight: (chartType: string, insight: string) => void;
+  setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
 }
 
 export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
@@ -495,6 +499,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   setAiInsight: (chartType, insight) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       aiInsights: { ...(p.aiInsights || {}), [chartType]: insight },
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setLastImport: (section, iso) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      lastImports: { ...(p.lastImports || {}), [section]: iso },
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
