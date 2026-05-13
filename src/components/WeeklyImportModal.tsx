@@ -379,22 +379,13 @@ const extractHist = (block: HistBlock): HistExtract | { error: string } => {
   let ultimaReal = -1;
   items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
 
-  let result: { date: Date; prev: number; real: number }[] = [];
-  if (ultimaReal >= 0) {
-    // Past: (ULTIMA_REAL - 5)..ULTIMA_REAL — show prev=0, real=real
-    const past = items
-      .slice(Math.max(0, ultimaReal - 5), ultimaReal + 1)
-      .map(x => ({ date: x.date, prev: 0, real: x.real }));
-    // Future: next 4 after ULTIMA_REAL where prev > 0 — show prev=value, real=0
-    const future = items
-      .slice(ultimaReal + 1)
-      .filter(x => x.prev > 0)
-      .slice(0, 4)
-      .map(x => ({ date: x.date, prev: x.prev, real: 0 }));
-    result = [...past, ...future];
-  } else {
-    result = items.filter(x => x.prev > 0).slice(0, 10).map(x => ({ date: x.date, prev: x.prev, real: 0 }));
-  }
+  // Keep ALL weeks with valid date. Past weeks: prev=0, real=real. Future weeks: prev=prev, real=0.
+  const result = items.map((x, i) => {
+    const isFuture = ultimaReal >= 0 ? i > ultimaReal : x.real === 0;
+    return isFuture
+      ? { date: x.date, prev: x.prev, real: 0 }
+      : { date: x.date, prev: 0, real: x.real };
+  });
 
   const histogram = result.map(c => ({
     date: fmtDDmmm(c.date),

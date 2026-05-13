@@ -45,6 +45,7 @@ const HistogramChart = () => {
             angle={-45}
             textAnchor="end"
             height={60}
+            interval={3}
           />
           <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
           <Tooltip
