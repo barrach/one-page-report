@@ -17,6 +17,75 @@ const SCurveSpreadsheet = () => {
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [showReplanejado, setShowReplanejado] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelImport = useCallback(async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const sheetName = wb.SheetNames.find(n => norm(n) === norm('Curva S - Geral Projeto'));
+      if (!sheetName) {
+        toast.error("Erro: aba 'Curva S - Geral Projeto' não encontrada");
+        return;
+      }
+      const ws = wb.Sheets[sheetName];
+      const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      const TARGETS = { prev: 'prev. acum. %', real: 'real. acum. %', tend: 'tend. acum. %', data: 'data de corte' };
+      const found: Record<string, { row: number; col: number }> = {};
+      rows.forEach((r, ri) => {
+        r?.forEach((cell, ci) => {
+          const n = norm(cell);
+          for (const [k, label] of Object.entries(TARGETS)) {
+            if (n === label && !found[k]) found[k] = { row: ri, col: ci };
+          }
+        });
+      });
+
+      const missing = Object.keys(TARGETS).filter(k => !found[k]);
+      if (missing.length) {
+        const labelMap: Record<string, string> = { prev: 'Prev. Acum. %', real: 'Real. Acum. %', tend: 'Tend. Acum. %', data: 'Data de Corte' };
+        toast.error(`Erro: label não encontrado: ${missing.map(k => labelMap[k]).join(', ')}`);
+        return;
+      }
+
+      const dataRow = rows[found.data.row] || [];
+      const prevRow = rows[found.prev.row] || [];
+      const realRow = rows[found.real.row] || [];
+      const tendRow = rows[found.tend.row] || [];
+      const startCol = found.data.col + 1;
+
+      type Col = { date: string; previsto: number; real: number; tendencia: number };
+      const cols: Col[] = [];
+      for (let c = startCol; c < dataRow.length; c++) {
+        const dv = dataRow[c];
+        let dateObj: Date | null = null;
+        if (dv instanceof Date) dateObj = dv;
+        else if (typeof dv === 'number' && dv > 1000) dateObj = excelSerialToDate(dv);
+        if (!dateObj || isNaN(dateObj.getTime())) continue;
+        const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
+        cols.push({
+          date: formatDDmmm(dateObj),
+          previsto: num(prevRow[c]),
+          real: num(realRow[c]),
+          tendencia: num(tendRow[c]),
+        });
+      }
+
+      const last8 = cols.filter(c => c.previsto > 0).slice(-8);
+      if (last8.length === 0) {
+        toast.error('Nenhuma semana com dados encontrada');
+        return;
+      }
+      setSCurveData(last8);
+      let statusIdx = -1;
+      last8.forEach((c, i) => { if (c.real > 0) statusIdx = i; });
+      if (statusIdx >= 0) setStatusDateIndex(statusIdx);
+      toast.success(`✓ Curva S importada — ${last8.length} semanas carregadas`);
+    } catch (e) {
+      toast.error(`Erro ao importar: ${e instanceof Error ? e.message : 'desconhecido'}`);
+    }
+  }, [setSCurveData, setStatusDateIndex]);
 
   const updateCell = (colIndex: number, field: keyof SCurvePoint, value: string) => {
     const updated = sCurveData.map((p, i) =>
