@@ -468,11 +468,56 @@ const scanFile = async (file: File): Promise<FileScan> => {
   return { fileName: file.name, sheets };
 };
 
+interface ProjectDates {
+  inicio?: Date;
+  terminoLB?: Date;
+  terminoPrev?: Date;
+}
+
+const PROJECT_DATE_LABELS: { key: keyof ProjectDates; patterns: string[] }[] = [
+  { key: 'terminoPrev', patterns: ['término prev', 'termino prev'] },
+  { key: 'terminoLB', patterns: ['término lb', 'termino lb', 'término linha base', 'termino linha base'] },
+  { key: 'inicio', patterns: ['início', 'inicio'] },
+];
+
+const extractProjectDates = (refs: SheetRef[]): ProjectDates => {
+  const out: ProjectDates = {};
+  for (const ref of refs) {
+    const rows = ref.grid.slice(0, 15);
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        const n = norm(row[c]);
+        if (!n) continue;
+        for (const { key, patterns } of PROJECT_DATE_LABELS) {
+          if (out[key]) continue;
+          if (!patterns.some(p => n.includes(p))) continue;
+          // Try cell to the right, then 2 rows below same column
+          const candidates: unknown[] = [
+            row[c + 1],
+            (ref.grid[r + 2] || [])[c],
+            (ref.grid[r + 1] || [])[c],
+            row[c + 2],
+          ];
+          for (const cand of candidates) {
+            const d = toDate(cand);
+            if (d) { out[key] = d; break; }
+          }
+        }
+      }
+    }
+  }
+  return out;
+};
+
+const toIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 interface ImportResult {
   curveBlock: CurveBlock | null;
   curve: CurveExtract | { error: string } | null;
   histBlock: HistBlock | null;
   hist: HistExtract | { error: string } | null;
+  projectDates: ProjectDates;
   errors: string[];
 }
 
@@ -496,8 +541,9 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
 
   const curve = curveBlock ? extractCurve(curveBlock) : null;
   const hist = histBlock ? extractHist(histBlock) : null;
+  const projectDates = extractProjectDates(allSheets);
 
-  return { curveBlock, curve, histBlock, hist, errors };
+  return { curveBlock, curve, histBlock, hist, projectDates, errors };
 };
 
 interface UploadZoneProps {
