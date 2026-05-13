@@ -652,7 +652,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     const now = new Date().toISOString();
     let count = 0;
     const currentInfo = projects.find(p => p.id === selectedProjectId)?.info;
-    const infoPatch: Record<string, string> = {};
+    const infoPatch: Record<string, string | number> = {};
     if (curveOk) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length) {
