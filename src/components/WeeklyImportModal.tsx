@@ -309,6 +309,7 @@ interface CurveExtract {
   ultimaReal: number;
   statusDate: Date;
   realAcuLast: number;
+  prevAcuLast: number;
   hasReplanejado: boolean;
   sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
   weekly: { date: string; previsto: number; real: number }[];
