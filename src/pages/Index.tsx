@@ -294,6 +294,24 @@ const Index = () => {
           MEGASTEAM · One Page Report · Gerado automaticamente
         </motion.div>
       </div>
+
+      {/* Mobile bottom nav */}
+      {!presentationMode && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-card border-t border-border flex justify-around items-stretch h-14 print:hidden">
+          <Link to="/" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-primary">
+            <FileText className="h-5 w-5" />
+            <span className="text-[10px] font-semibold">Relatório</span>
+          </Link>
+          <Link to="/dados" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+            <Database className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Dados</span>
+          </Link>
+          <Link to="/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+            <Shield className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Admin</span>
+          </Link>
+        </nav>
+      )}
     </div>
   );
 };
