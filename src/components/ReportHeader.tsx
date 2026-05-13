@@ -29,10 +29,10 @@ const KpiCard = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className="gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-1"
+      className="gradient-primary rounded-xl p-3 sm:p-4 card-shadow border-0 flex flex-col gap-1 min-h-[90px] sm:min-h-0 justify-between"
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
+        <span className="text-[10px] sm:text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
           {label}
         </span>
         {Icon && (
@@ -40,11 +40,11 @@ const KpiCard = ({
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
+        <span className={`text-lg sm:text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
-        <span className="text-xs text-primary-foreground/60">{subValue}</span>
+        <span className="text-[11px] sm:text-xs text-primary-foreground/60 leading-tight">{subValue}</span>
       )}
     </motion.div>
   );
