@@ -91,6 +91,15 @@ const HistogramChart = () => {
             <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
           )}
 
+          {boundaryLabel && (
+            <ReferenceLine
+              x={boundaryLabel}
+              stroke="hsl(var(--muted-foreground))"
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+            />
+          )}
+
           <Bar dataKey="previsto" name="previsto" radius={[4, 4, 0, 0]}>
             <LabelList dataKey="previsto" position="top" fontSize={9} fill="hsl(var(--chart-previsto))" />
             {data.map((entry, i) => (
