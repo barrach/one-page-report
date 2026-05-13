@@ -364,10 +364,11 @@ const extractHist = (block: HistBlock): HistExtract | { error: string } => {
   }
   if (colStart < 0) return { error: 'Nenhuma data encontrada na linha "Dia"' };
 
+  // Only columns where "Dia" is a real Date — skip totals/summary columns
   const items: { date: Date; prev: number; real: number }[] = [];
   for (let j = colStart; j < diaRow.length; j++) {
     const d = toDate(diaRow[j]);
-    if (!d) break;
+    if (!d) continue;
     items.push({
       date: d,
       prev: toNum(prevRow[j]),
@@ -378,13 +379,21 @@ const extractHist = (block: HistBlock): HistExtract | { error: string } => {
   let ultimaReal = -1;
   items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
 
-  let result: typeof items = [];
+  let result: { date: Date; prev: number; real: number }[] = [];
   if (ultimaReal >= 0) {
-    const past = items.slice(Math.max(0, ultimaReal - 5), ultimaReal + 1);
-    const future = items.slice(ultimaReal + 1).filter(x => x.prev > 0).slice(0, 4);
+    // Past: (ULTIMA_REAL - 5)..ULTIMA_REAL — show prev=0, real=real
+    const past = items
+      .slice(Math.max(0, ultimaReal - 5), ultimaReal + 1)
+      .map(x => ({ date: x.date, prev: 0, real: x.real }));
+    // Future: next 4 after ULTIMA_REAL where prev > 0 — show prev=value, real=0
+    const future = items
+      .slice(ultimaReal + 1)
+      .filter(x => x.prev > 0)
+      .slice(0, 4)
+      .map(x => ({ date: x.date, prev: x.prev, real: 0 }));
     result = [...past, ...future];
   } else {
-    result = items.filter(x => x.prev > 0).slice(0, 10);
+    result = items.filter(x => x.prev > 0).slice(0, 10).map(x => ({ date: x.date, prev: x.prev, real: 0 }));
   }
 
   const histogram = result.map(c => ({
