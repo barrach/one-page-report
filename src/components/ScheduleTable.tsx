@@ -1,9 +1,12 @@
 import { useCurrentProject } from '@/store/projectStore';
 
-const fmtDateCell = (v: string) => {
-  if (!v) return '';
-  if (v === 'ND') return 'ND';
-  return v;
+const fmtPct = (n: number) => Math.round(n).toString();
+
+const fmtDesvio = (n: number) => {
+  if (!n) return '0';
+  const abs = Math.abs(n);
+  const str = Number.isInteger(abs) ? abs.toString() : abs.toFixed(2).replace('.', ',');
+  return n < 0 ? `-${str}` : str;
 };
 
 const ScheduleTable = () => {
@@ -45,38 +48,59 @@ const ScheduleTable = () => {
           <tbody>
             {data.map((row, i) => {
               const level = row.outlineLevel ?? 1;
-              const isSummary = !!row.summary || level <= 2;
-              const isMilestone = !!row.milestone;
-              const indentPx = Math.max(0, (level - 1)) * 12;
-              const fontSize = level >= 5 ? 'text-[9px]' : level >= 4 ? 'text-[10px]' : '';
-              const bold = isSummary || row.bold;
-              const rowBg = level === 1
-                ? 'bg-primary/10'
-                : level === 2
-                  ? 'bg-muted/40'
-                  : i % 2 === 0 ? '' : 'bg-table-row-alt';
+              const isMilestone = !!row.milestone && !row.summary;
+              const indentPx = Math.min(level - 1, 4) * 16;
+
+              let rowStyle: React.CSSProperties = {};
+              let rowClass = '';
+              let nameClass = '';
+              if (level === 1) {
+                rowStyle = { backgroundColor: '#1a2f4e', color: '#ffffff' };
+                nameClass = 'font-bold';
+              } else if (level === 2) {
+                rowStyle = { backgroundColor: '#f0f4f8' };
+                nameClass = 'font-bold';
+              } else if (level === 3) {
+                rowClass = 'bg-card';
+              } else if (level === 4) {
+                rowClass = 'bg-card text-muted-foreground';
+                nameClass = 'text-[0.9em]';
+              } else {
+                rowClass = 'bg-card text-muted-foreground';
+                nameClass = 'text-[0.85em]';
+              }
+
+              const desvioColor =
+                row.desvio < 0 ? 'text-destructive' :
+                row.desvio > 0 ? 'text-success' :
+                'text-muted-foreground';
+
+              const baselineMissingClass = (v: string) =>
+                v === 'ND' ? 'italic text-muted-foreground' : '';
+
               return (
                 <tr
                   key={i}
-                  className={`border-b border-border/30 ${rowBg} ${row.highlight ? 'bg-warning/15 ring-1 ring-warning/30 ring-inset' : ''}`}
+                  style={rowStyle}
+                  className={`border-b border-border/30 ${rowClass} ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}
                 >
-                  <td className="px-2 py-1.5 text-center border border-border/30 text-muted-foreground font-mono text-[10px]">{row.outlineNumber || ''}</td>
-                  <td className="px-2 py-1.5 text-center border border-border/30 text-muted-foreground">{row.id}</td>
-                  <td className={`px-2 py-1.5 border border-border/30 ${bold ? 'font-bold' : ''} ${fontSize}`}>
+                  <td className="px-2 py-1.5 text-center border border-border/30 font-mono text-[10px] opacity-80">{row.outlineNumber || ''}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 opacity-80">{row.id}</td>
+                  <td className={`px-2 py-1.5 border border-border/30 ${nameClass}`}>
                     <span style={{ paddingLeft: `${indentPx}px` }} className="inline-block">
                       {isMilestone && <span className="mr-1">🔷</span>}
                       {row.tarefa}
                     </span>
                   </td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 ${bold ? 'font-bold' : ''}`}>{row.previsto > 0 ? `${row.previsto.toFixed(2)}%` : '0%'}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 ${bold ? 'font-bold' : ''}`}>{row.trabalhoConcluido > 0 ? `${row.trabalhoConcluido}%` : '0%'}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${row.desvio < 0 ? 'text-destructive' : row.desvio > 0 ? 'text-success' : ''}`}>
-                    {row.desvio !== 0 ? row.desvio.toFixed(2) : '0'}
+                  <td className={`px-2 py-1.5 text-center border border-border/30 ${nameClass}`}>{fmtPct(row.previsto)}</td>
+                  <td className={`px-2 py-1.5 text-center border border-border/30 ${nameClass}`}>{fmtPct(row.trabalhoConcluido)}</td>
+                  <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${desvioColor}`}>
+                    {fmtDesvio(row.desvio)}
                   </td>
-                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{fmtDateCell(row.inicio)}</td>
-                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{fmtDateCell(row.termino)}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${row.inicioBase === 'ND' ? 'text-muted-foreground italic' : ''}`}>{fmtDateCell(row.inicioBase)}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${row.terminoBase === 'ND' ? 'text-muted-foreground italic' : ''}`}>{fmtDateCell(row.terminoBase)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.inicio}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.termino}</td>
+                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${baselineMissingClass(row.inicioBase)}`}>{row.inicioBase}</td>
+                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${baselineMissingClass(row.terminoBase)}`}>{row.terminoBase}</td>
                 </tr>
               );
             })}
