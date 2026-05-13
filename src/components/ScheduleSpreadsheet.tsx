@@ -98,9 +98,25 @@ const ScheduleSpreadsheet = () => {
             </tr>
           </thead>
           <tbody>
-            {data.map((row, i) => (
-              <tr key={i} className={`border-b border-border ${row.highlight ? 'bg-warning/10' : ''}`}>
-                <td className="border border-border px-1 py-0.5 text-center font-mono text-[10px] text-muted-foreground">{row.outlineNumber || ''}</td>
+            {data.map((row, i) => {
+              const level = row.outlineLevel ?? 1;
+              const indentPx = Math.min(Math.max(level - 1, 0), 5) * 16;
+              const rowStyle: React.CSSProperties =
+                level === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
+                level === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
+                level === 3 ? { backgroundColor: '#d6e4f0', color: '#1a3158', fontWeight: 700, fontSize: '12px' } :
+                level === 4 ? { backgroundColor: '#ffffff', color: '#333333', fontWeight: 400, fontSize: '12px' } :
+                              { backgroundColor: '#ffffff', color: '#555555', fontWeight: 400, fontSize: '11px' };
+              const desvioStyle: React.CSSProperties =
+                row.desvio < 0 ? { color: '#dc2626', fontWeight: 600 } :
+                row.desvio > 0 ? { color: '#16a34a', fontWeight: 600 } :
+                                 { color: '#999999' };
+              const baselineStyle = (v: string): React.CSSProperties =>
+                v === 'ND' ? { fontStyle: 'italic', color: '#aaaaaa' } : {};
+              const inheritStyle: React.CSSProperties = { color: 'inherit' };
+              return (
+              <tr key={i} style={rowStyle} className={`border-b border-border ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}>
+                <td className="border border-border px-1 py-0.5 text-center" style={{ fontFamily: 'monospace', fontSize: '11px', color: level <= 2 ? '#ffffff' : '#444444' }}>{row.outlineNumber || ''}</td>
                 <td className="border border-border px-1 py-0.5 text-center">
                   <Checkbox checked={!!row.highlight} onCheckedChange={(checked) => {
                     setScheduleData(data.map((r, j) => j === i ? { ...r, highlight: !!checked } : r));
@@ -117,32 +133,37 @@ const ScheduleSpreadsheet = () => {
                   }} />
                 </td>
                 <td className="border border-border px-1 py-0.5">
-                  <input className="w-full text-center bg-transparent outline-none text-xs" value={row.id} onChange={(e) => updateRow(i, 'id', e.target.value)} />
+                  <input className="w-full text-center bg-transparent outline-none text-xs" style={inheritStyle} value={row.id} onChange={(e) => updateRow(i, 'id', e.target.value)} />
+                </td>
+                <td className="border border-border px-1 py-0.5" style={{ paddingLeft: `${indentPx + 4}px` }}>
+                  <input className="w-full bg-transparent outline-none text-xs px-1" style={inheritStyle} value={row.tarefa} onChange={(e) => updateRow(i, 'tarefa', e.target.value)} placeholder="Nome da tarefa..." />
                 </td>
                 <td className="border border-border px-1 py-0.5">
-                  <input className="w-full bg-transparent outline-none text-xs px-1" value={row.tarefa} onChange={(e) => updateRow(i, 'tarefa', e.target.value)} placeholder="Nome da tarefa..." />
+                  <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" style={inheritStyle} value={row.previsto} onChange={(e) => updateRow(i, 'previsto', e.target.value)} />
                 </td>
                 <td className="border border-border px-1 py-0.5">
-                  <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" value={row.previsto} onChange={(e) => updateRow(i, 'previsto', e.target.value)} />
+                  <input type="number" step="1" className="w-full text-center bg-transparent outline-none text-xs" style={inheritStyle} value={row.trabalhoConcluido} onChange={(e) => updateRow(i, 'trabalhoConcluido', e.target.value)} />
                 </td>
                 <td className="border border-border px-1 py-0.5">
-                  <input type="number" step="1" className="w-full text-center bg-transparent outline-none text-xs" value={row.trabalhoConcluido} onChange={(e) => updateRow(i, 'trabalhoConcluido', e.target.value)} />
+                  <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" style={desvioStyle} value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
                 </td>
-                <td className="border border-border px-1 py-0.5">
-                  <input type="number" step="0.01" className={`w-full text-center bg-transparent outline-none text-xs ${row.desvio < 0 ? 'text-destructive' : row.desvio > 0 ? 'text-success' : ''}`} value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
-                </td>
-                {['inicio', 'termino', 'inicioBase', 'terminoBase'].map((field) => (
-                  <td key={field} className="border border-border px-1 py-0.5">
-                    <input className="w-full text-center bg-transparent outline-none text-xs" value={(row as any)[field]} onChange={(e) => updateRow(i, field as keyof ScheduleRow, e.target.value)} />
-                  </td>
-                ))}
+                {(['inicio', 'termino', 'inicioBase', 'terminoBase'] as const).map((field) => {
+                  const v = (row as any)[field] as string;
+                  const isBaseline = field === 'inicioBase' || field === 'terminoBase';
+                  return (
+                    <td key={field} className="border border-border px-1 py-0.5">
+                      <input className="w-full text-center bg-transparent outline-none text-xs" style={isBaseline ? baselineStyle(v) : inheritStyle} value={v} onChange={(e) => updateRow(i, field, e.target.value)} />
+                    </td>
+                  );
+                })}
                 <td className="px-1 py-0.5 text-center">
                   <button onClick={() => removeScheduleRow(i)} className="text-destructive/50 hover:text-destructive">
                     <Trash2 className="h-3 w-3" />
                   </button>
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -49,58 +49,46 @@ const ScheduleTable = () => {
             {data.map((row, i) => {
               const level = row.outlineLevel ?? 1;
               const isMilestone = !!row.milestone && !row.summary;
-              const indentPx = Math.min(level - 1, 4) * 16;
+              const indentPx = Math.min(Math.max(level - 1, 0), 5) * 16;
 
-              let rowStyle: React.CSSProperties = {};
-              let rowClass = '';
-              let nameClass = '';
-              if (level === 1) {
-                rowStyle = { backgroundColor: '#1a2f4e', color: '#ffffff' };
-                nameClass = 'font-bold';
-              } else if (level === 2) {
-                rowStyle = { backgroundColor: '#f0f4f8' };
-                nameClass = 'font-bold';
-              } else if (level === 3) {
-                rowClass = 'bg-card';
-              } else if (level === 4) {
-                rowClass = 'bg-card text-muted-foreground';
-                nameClass = 'text-[0.9em]';
-              } else {
-                rowClass = 'bg-card text-muted-foreground';
-                nameClass = 'text-[0.85em]';
-              }
+              const rowStyle: React.CSSProperties =
+                level === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
+                level === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
+                level === 3 ? { backgroundColor: '#d6e4f0', color: '#1a3158', fontWeight: 700, fontSize: '12px' } :
+                level === 4 ? { backgroundColor: '#ffffff', color: '#333333', fontWeight: 400, fontSize: '12px' } :
+                              { backgroundColor: '#ffffff', color: '#555555', fontWeight: 400, fontSize: '11px' };
 
-              const desvioColor =
-                row.desvio < 0 ? 'text-destructive' :
-                row.desvio > 0 ? 'text-success' :
-                'text-muted-foreground';
+              const desvioStyle: React.CSSProperties =
+                row.desvio < 0 ? { color: '#dc2626', fontWeight: 600 } :
+                row.desvio > 0 ? { color: '#16a34a', fontWeight: 600 } :
+                                 { color: '#999999' };
 
-              const baselineMissingClass = (v: string) =>
-                v === 'ND' ? 'italic text-muted-foreground' : '';
+              const baselineStyle = (v: string): React.CSSProperties =>
+                v === 'ND' ? { fontStyle: 'italic', color: '#aaaaaa' } : {};
 
               return (
                 <tr
                   key={i}
                   style={rowStyle}
-                  className={`border-b border-border/30 ${rowClass} ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}
+                  className={`border-b border-border/30 ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}
                 >
-                  <td className="px-2 py-1.5 text-center border border-border/30 font-mono text-[10px] opacity-80">{row.outlineNumber || ''}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30" style={{ fontFamily: 'monospace', fontSize: '11px', color: level <= 2 ? '#ffffff' : '#444444' }}>{row.outlineNumber || ''}</td>
                   <td className="px-2 py-1.5 text-center border border-border/30 opacity-80">{row.id}</td>
-                  <td className={`px-2 py-1.5 border border-border/30 ${nameClass}`}>
+                  <td className="px-2 py-1.5 border border-border/30">
                     <span style={{ paddingLeft: `${indentPx}px` }} className="inline-block">
                       {isMilestone && <span className="mr-1">🔷</span>}
                       {row.tarefa}
                     </span>
                   </td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 ${nameClass}`}>{fmtPct(row.previsto)}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 ${nameClass}`}>{fmtPct(row.trabalhoConcluido)}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${desvioColor}`}>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.previsto)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.trabalhoConcluido)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30" style={desvioStyle}>
                     {fmtDesvio(row.desvio)}
                   </td>
                   <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.inicio}</td>
                   <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.termino}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${baselineMissingClass(row.inicioBase)}`}>{row.inicioBase}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 whitespace-nowrap ${baselineMissingClass(row.terminoBase)}`}>{row.terminoBase}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.inicioBase)}>{row.inicioBase}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.terminoBase)}>{row.terminoBase}</td>
                 </tr>
               );
             })}
