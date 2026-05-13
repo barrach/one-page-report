@@ -49,26 +49,14 @@ const ScheduleTable = () => {
             {data.map((row, i) => {
               const level = row.outlineLevel ?? 1;
               const isMilestone = !!row.milestone && !row.summary;
-              const indentPx = Math.min(level - 1, 4) * 16;
+              const indentPx = Math.min(Math.max(level - 1, 0), 5) * 16;
 
-              let rowStyle: React.CSSProperties = {};
-              let rowClass = '';
-              let nameClass = '';
-              if (level === 1) {
-                rowStyle = { backgroundColor: '#1a2f4e', color: '#ffffff' };
-                nameClass = 'font-bold';
-              } else if (level === 2) {
-                rowStyle = { backgroundColor: '#f0f4f8' };
-                nameClass = 'font-bold';
-              } else if (level === 3) {
-                rowClass = 'bg-card';
-              } else if (level === 4) {
-                rowClass = 'bg-card text-muted-foreground';
-                nameClass = 'text-[0.9em]';
-              } else {
-                rowClass = 'bg-card text-muted-foreground';
-                nameClass = 'text-[0.85em]';
-              }
+              const rowStyle: React.CSSProperties =
+                level === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
+                level === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
+                level === 3 ? { backgroundColor: '#d6e4f0', color: '#1a3158', fontWeight: 700, fontSize: '12px' } :
+                level === 4 ? { backgroundColor: '#ffffff', color: '#333333', fontWeight: 400, fontSize: '12px' } :
+                              { backgroundColor: '#ffffff', color: '#555555', fontWeight: 400, fontSize: '11px' };
 
               const desvioColor =
                 row.desvio < 0 ? 'text-destructive' :
