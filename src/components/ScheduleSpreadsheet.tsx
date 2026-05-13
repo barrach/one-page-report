@@ -1,13 +1,116 @@
 import { useProjectStore, useCurrentProject, ScheduleRow } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
+import { Plus, Trash2, ClipboardPaste, Upload, FileSpreadsheet } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
 
 const parseNumber = (val: string): number => {
   if (!val) return 0;
   return parseFloat(val.trim().replace('%', '').replace(/\s/g, '').replace(',', '.')) || 0;
+};
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const excelSerialToDate = (s: number): Date | null => {
+  if (typeof s !== 'number' || !isFinite(s) || s < 1) return null;
+  return new Date(Math.round((s - 25569) * 86400 * 1000));
+};
+const fmtDate = (v: unknown): string => {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number') {
+    const d = excelSerialToDate(v);
+    return d ? `${String(d.getUTCDate()).padStart(2, '0')}/${MONTHS_PT[d.getUTCMonth()]}/${String(d.getUTCFullYear()).slice(-2)}` : '';
+  }
+  if (v instanceof Date) {
+    return `${String(v.getUTCDate()).padStart(2, '0')}/${MONTHS_PT[v.getUTCMonth()]}/${String(v.getUTCFullYear()).slice(-2)}`;
+  }
+  return String(v).trim();
+};
+
+const COLUMN_PATTERNS: Record<keyof Omit<ScheduleRow, 'highlight' | 'bold' | 'criticalPath'>, RegExp> = {
+  id: /^\s*id\s*$/i,
+  tarefa: /(task\s*name|nome.*tarefa|^\s*nome\s*$)/i,
+  previsto: /(%\s*conclu[ií]do|%\s*work\s*complete|^\s*prev\.?\s*%?\s*$)/i,
+  trabalhoConcluido: /(%\s*trabalho|%\s*trab|%\s*work)/i,
+  desvio: /(desvio|variance)/i,
+  inicio: /(^\s*in[ií]cio\s*$|^\s*start\s*$)/i,
+  termino: /(^\s*t[eé]rmino\s*$|^\s*finish\s*$)/i,
+  inicioBase: /(in[ií]cio.*linha.*base|baseline\s*start|in[ií]cio.*base)/i,
+  terminoBase: /(t[eé]rmino.*linha.*base|baseline\s*finish|t[eé]rmino.*base)/i,
+};
+
+interface DetectedMapping {
+  sheetName: string;
+  headerRowIdx: number;
+  columnIndex: Partial<Record<keyof typeof COLUMN_PATTERNS, number>>;
+  rows: ScheduleRow[];
+}
+
+const detectScheduleFromWorkbook = (wb: XLSX.WorkBook): DetectedMapping | { error: string } => {
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: null });
+    // Find header row: row containing at least 3 of our patterns
+    for (let i = 0; i < Math.min(rows.length, 20); i++) {
+      const row = rows[i] || [];
+      const colIdx: Partial<Record<keyof typeof COLUMN_PATTERNS, number>> = {};
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (typeof cell !== 'string') continue;
+        const txt = cell.trim();
+        for (const [key, regex] of Object.entries(COLUMN_PATTERNS)) {
+          const k = key as keyof typeof COLUMN_PATTERNS;
+          if (colIdx[k] == null && regex.test(txt)) colIdx[k] = c;
+        }
+      }
+      const matches = Object.keys(colIdx).length;
+      if (matches >= 3 && colIdx.tarefa != null) {
+        // Build rows from i+1 onward
+        const dataRows: ScheduleRow[] = [];
+        for (let r = i + 1; r < rows.length; r++) {
+          const row = rows[r] || [];
+          const tarefa = colIdx.tarefa != null ? row[colIdx.tarefa] : '';
+          if (tarefa == null || String(tarefa).trim() === '') continue;
+          const get = (k: keyof typeof COLUMN_PATTERNS) => colIdx[k] != null ? row[colIdx[k]!] : null;
+          const num = (v: unknown): number => {
+            if (typeof v === 'number') return v <= 1 && v > 0 ? v * 100 : v;
+            if (typeof v === 'string') return parseNumber(v);
+            return 0;
+          };
+          dataRows.push({
+            id: String(get('id') ?? '').trim(),
+            tarefa: String(tarefa).trim(),
+            previsto: num(get('previsto')),
+            trabalhoConcluido: num(get('trabalhoConcluido')),
+            desvio: num(get('desvio')),
+            inicio: fmtDate(get('inicio')),
+            termino: fmtDate(get('termino')),
+            inicioBase: fmtDate(get('inicioBase')),
+            terminoBase: fmtDate(get('terminoBase')),
+          });
+        }
+        if (dataRows.length > 0) {
+          return { sheetName, headerRowIdx: i, columnIndex: colIdx, rows: dataRows };
+        }
+      }
+    }
+  }
+  return { error: 'Não foi possível detectar colunas de cronograma. Verifique se o arquivo possui cabeçalhos como Id, Nome da Tarefa, Início, Término...' };
+};
+
+const COL_LABELS: Record<keyof typeof COLUMN_PATTERNS, string> = {
+  id: 'Id',
+  tarefa: 'Nome da Tarefa',
+  previsto: 'Prev. %',
+  trabalhoConcluido: '% Trab.',
+  desvio: 'Desvio',
+  inicio: 'Início',
+  termino: 'Término',
+  inicioBase: 'Início Base',
+  terminoBase: 'Término Base',
 };
 
 const ScheduleSpreadsheet = () => {
