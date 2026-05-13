@@ -1,8 +1,15 @@
 import { useProjectStore, useCurrentProject, SCurvePoint } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { Plus, Trash2, ClipboardPaste, Upload } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
+const excelSerialToDate = (s: number) => new Date(Math.round((s - 25569) * 86400 * 1000));
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 const SCurveSpreadsheet = () => {
   const { sCurveData, statusDateIndex } = useCurrentProject();
@@ -10,6 +17,75 @@ const SCurveSpreadsheet = () => {
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [showReplanejado, setShowReplanejado] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelImport = useCallback(async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      const sheetName = wb.SheetNames.find(n => norm(n) === norm('Curva S - Geral Projeto'));
+      if (!sheetName) {
+        toast.error("Erro: aba 'Curva S - Geral Projeto' não encontrada");
+        return;
+      }
+      const ws = wb.Sheets[sheetName];
+      const rows: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
+
+      const TARGETS = { prev: 'prev. acum. %', real: 'real. acum. %', tend: 'tend. acum. %', data: 'data de corte' };
+      const found: Record<string, { row: number; col: number }> = {};
+      rows.forEach((r, ri) => {
+        r?.forEach((cell, ci) => {
+          const n = norm(cell);
+          for (const [k, label] of Object.entries(TARGETS)) {
+            if (n === label && !found[k]) found[k] = { row: ri, col: ci };
+          }
+        });
+      });
+
+      const missing = Object.keys(TARGETS).filter(k => !found[k]);
+      if (missing.length) {
+        const labelMap: Record<string, string> = { prev: 'Prev. Acum. %', real: 'Real. Acum. %', tend: 'Tend. Acum. %', data: 'Data de Corte' };
+        toast.error(`Erro: label não encontrado: ${missing.map(k => labelMap[k]).join(', ')}`);
+        return;
+      }
+
+      const dataRow = rows[found.data.row] || [];
+      const prevRow = rows[found.prev.row] || [];
+      const realRow = rows[found.real.row] || [];
+      const tendRow = rows[found.tend.row] || [];
+      const startCol = found.data.col + 1;
+
+      type Col = { date: string; previsto: number; real: number; tendencia: number };
+      const cols: Col[] = [];
+      for (let c = startCol; c < dataRow.length; c++) {
+        const dv = dataRow[c];
+        let dateObj: Date | null = null;
+        if (dv instanceof Date) dateObj = dv;
+        else if (typeof dv === 'number' && dv > 1000) dateObj = excelSerialToDate(dv);
+        if (!dateObj || isNaN(dateObj.getTime())) continue;
+        const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
+        cols.push({
+          date: formatDDmmm(dateObj),
+          previsto: num(prevRow[c]),
+          real: num(realRow[c]),
+          tendencia: num(tendRow[c]),
+        });
+      }
+
+      const last8 = cols.filter(c => c.previsto > 0).slice(-8);
+      if (last8.length === 0) {
+        toast.error('Nenhuma semana com dados encontrada');
+        return;
+      }
+      setSCurveData(last8);
+      let statusIdx = -1;
+      last8.forEach((c, i) => { if (c.real > 0) statusIdx = i; });
+      if (statusIdx >= 0) setStatusDateIndex(statusIdx);
+      toast.success(`✓ Curva S importada — ${last8.length} semanas carregadas`);
+    } catch (e) {
+      toast.error(`Erro ao importar: ${e instanceof Error ? e.message : 'desconhecido'}`);
+    }
+  }, [setSCurveData, setStatusDateIndex]);
 
   const updateCell = (colIndex: number, field: keyof SCurvePoint, value: string) => {
     const updated = sCurveData.map((p, i) =>
@@ -69,7 +145,21 @@ const SCurveSpreadsheet = () => {
           <Button size="sm" variant="outline" onClick={() => setShowPaste(!showPaste)} className="gap-1">
             <ClipboardPaste className="h-4 w-4" /> Colar do Excel
           </Button>
-          <Button size="sm" onClick={addSCurvePoint} className="gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleExcelImport(f);
+              if (e.target) e.target.value = '';
+            }}
+          />
+          <Button size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+            <Upload className="h-4 w-4" /> Importar Excel
+          </Button>
+          <Button size="sm" variant="outline" onClick={addSCurvePoint} className="gap-1">
             <Plus className="h-4 w-4" /> Coluna
           </Button>
         </div>
