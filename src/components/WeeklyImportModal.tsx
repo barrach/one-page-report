@@ -498,18 +498,21 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                       {chip('Dia', true)}{chip('TOTAL PREVISTA', true)}{chip('TOTAL REAL', true)}
                       {chip('MÃO DE OBRA DIRETA', true)}{chip('MÃO DE OBRA INDIRETA', true)}
                     </div>
-                    {result.hist && 'error' in result.hist ? (
+                    {result.hist && ('error' in result.hist ? (
                       <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.hist.error}</div>
-                    ) : result.hist && (
-                      <div className="text-muted-foreground">
-                        Semanas exibidas: <span className="font-semibold text-foreground">{result.hist.histogram.length}</span> ·
-                        Última com Real: <span className="font-semibold text-foreground">
-                          {result.hist.ultimaReal >= 0 && result.hist.histogram.length
-                            ? result.hist.histogram.find(h => h.real > 0)?.date || '—'
-                            : '—'}
-                        </span>
-                      </div>
-                    )}
+                    ) : (() => {
+                      const h = result.hist as HistExtract;
+                      return (
+                        <div className="text-muted-foreground">
+                          Semanas exibidas: <span className="font-semibold text-foreground">{h.histogram.length}</span> ·
+                          Última com Real: <span className="font-semibold text-foreground">
+                            {h.ultimaReal >= 0 && h.histogram.length
+                              ? h.histogram.find(x => x.real > 0)?.date || '—'
+                              : '—'}
+                          </span>
+                        </div>
+                      );
+                    })())}
                   </div>
                 )}
               </div>
