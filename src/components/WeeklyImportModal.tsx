@@ -451,12 +451,15 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
 
 interface UploadZoneProps {
   label: string;
+  subtitle?: string;
+  badge?: { text: string; variant: 'required' | 'optional' };
+  accept?: string;
   status: 'idle' | 'loaded';
   fileName?: string;
   onFile: (f: File) => void;
 }
 
-const UploadZone = ({ label, status, fileName, onFile }: UploadZoneProps) => {
+const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName, onFile }: UploadZoneProps) => {
   const [dragOver, setDragOver] = useState(false);
   return (
     <label
@@ -467,23 +470,31 @@ const UploadZone = ({ label, status, fileName, onFile }: UploadZoneProps) => {
         const f = e.dataTransfer.files?.[0];
         if (f) onFile(f);
       }}
-      className={`flex-1 cursor-pointer border-2 border-dashed rounded-lg p-4 text-center transition-colors ${
+      className={`flex-1 cursor-pointer border-2 border-dashed rounded-lg p-4 text-center transition-colors relative ${
         dragOver ? 'border-primary bg-primary/5' :
         status === 'loaded' ? 'border-success bg-success/5' :
         'border-border hover:border-primary/50'
       }`}
     >
-      <input type="file" accept=".xlsx" className="hidden"
+      {badge && (
+        <span className={`absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded font-semibold ${
+          badge.variant === 'optional'
+            ? 'bg-muted text-muted-foreground'
+            : 'bg-primary/10 text-primary'
+        }`}>{badge.text}</span>
+      )}
+      <input type="file" accept={accept} className="hidden"
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
       <div className="flex flex-col items-center gap-2">
         {status === 'loaded'
           ? <CheckCircle2 className="h-8 w-8 text-success" />
           : <Upload className="h-8 w-8 text-muted-foreground" />}
         <div className="font-semibold text-sm text-foreground">{label}</div>
+        {subtitle && <div className="text-[11px] text-muted-foreground">{subtitle}</div>}
         <div className="text-xs">
           {status === 'loaded' && fileName
             ? <span className="text-success font-medium">✓ {fileName}</span>
-            : <span className="text-muted-foreground">Arraste ou clique para selecionar .xlsx</span>}
+            : <span className="text-muted-foreground">Arraste ou clique para selecionar</span>}
         </div>
       </div>
     </label>
