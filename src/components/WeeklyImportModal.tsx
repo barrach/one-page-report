@@ -305,17 +305,17 @@ const findHistBlock = (ref: SheetRef): HistBlock | null => {
 
 interface CurveExtract {
   block: CurveBlock;
-  cols: { date: Date; prevSem: number; prevAcu: number; realSem: number; realAcu: number; tendAcu: number; }[];
+  cols: { date: Date; prevSem: number; prevAcu: number; realSem: number; realAcu: number; tendSem: number; tendAcu: number; replanjSem: number; replanjAcu: number; }[];
   ultimaReal: number;
-  ultimaLinhaBase: number;
-  sCurve: { date: string; previsto: number; real: number; tendencia: number }[];
+  hasReplanejado: boolean;
+  sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
   weekly: { date: string; previsto: number; real: number }[];
   monthly: { label: string; previsto: number; real: number }[];
 }
 
 const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   const { grid } = block.ref;
-  const { dates, prevSem, prevAcu, realSem, realAcu, tendAcu } = block.pos;
+  const { dates } = block.pos;
   const dateRow = grid[dates.row] || [];
 
   let colStart = -1;
@@ -324,18 +324,36 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   }
   if (colStart < 0) return { error: 'Nenhuma data encontrada após "Data de Corte"' };
 
+  const readRow = (key: CurveKey) => {
+    const p = block.pos[key];
+    return p ? (grid[p.row] || []) : null;
+  };
+  const r = {
+    prevSem: readRow('prevSem'),
+    prevAcu: readRow('prevAcu')!,
+    realSem: readRow('realSem'),
+    realAcu: readRow('realAcu')!,
+    tendSem: readRow('tendSem'),
+    tendAcu: readRow('tendAcu'),
+    replanjSem: readRow('replanjSem'),
+    replanjAcu: readRow('replanjAcu'),
+  };
+
   const cols: CurveExtract['cols'] = [];
   for (let j = colStart; j < dateRow.length; j++) {
     const d = toDate(dateRow[j]);
-    if (!d) break;
-    const cell = (row: number) => (grid[row] || [])[j];
+    if (!d) continue;
+    const get = (row: unknown[] | null) => row ? toNum(row[j]) : 0;
     cols.push({
       date: d,
-      prevSem: toNum(cell(prevSem.row)),
-      prevAcu: toNum(cell(prevAcu.row)),
-      realSem: toNum(cell(realSem.row)),
-      realAcu: toNum(cell(realAcu.row)),
-      tendAcu: toNum(cell(tendAcu.row)),
+      prevSem: get(r.prevSem),
+      prevAcu: get(r.prevAcu),
+      realSem: get(r.realSem),
+      realAcu: get(r.realAcu),
+      tendSem: get(r.tendSem),
+      tendAcu: get(r.tendAcu),
+      replanjSem: get(r.replanjSem),
+      replanjAcu: get(r.replanjAcu),
     });
   }
 
@@ -343,16 +361,17 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
   if (ultimaReal < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0' };
 
-  let ultimaLinhaBase = -1;
-  cols.forEach((c, i) => { if (c.prevAcu > 0) ultimaLinhaBase = i; });
-  if (ultimaLinhaBase < 0) return { error: 'Nenhuma coluna com Linha Base > 0' };
+  const hasReplanejado = cols.some(c => c.replanjAcu > 0);
 
-  const sCurve = cols.slice(0, ultimaLinhaBase + 1).map(c => ({
-    date: fmtDDmmm(c.date),
-    previsto: round2(c.prevAcu * 100),
-    real: round2((c.realAcu || 0) * 100),
-    tendencia: round2((c.tendAcu || 0) * 100),
-  }));
+  const sCurve = cols
+    .filter(c => c.prevAcu > 0 || c.realAcu > 0 || c.tendAcu > 0 || c.replanjAcu > 0)
+    .map(c => ({
+      date: fmtDDmmm(c.date),
+      previsto: round2(c.prevAcu * 100),
+      real: round2(c.realAcu * 100),
+      tendencia: round2(c.tendAcu * 100),
+      ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
+    }));
 
   const wStart = Math.max(0, ultimaReal - 4);
   const weekly = cols.slice(wStart, ultimaReal + 1).map(c => ({
@@ -376,7 +395,7 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       real: round2(m.realAcu * 100),
     }));
 
-  return { block, cols, ultimaReal, ultimaLinhaBase, sCurve, weekly, monthly };
+  return { block, cols, ultimaReal, hasReplanejado, sCurve, weekly, monthly };
 };
 
 interface HistExtract {
