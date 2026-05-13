@@ -81,6 +81,7 @@ const ScheduleSpreadsheet = () => {
         <table className="border-collapse text-xs w-full">
           <thead>
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
+              <th className="px-1 py-1.5 text-center border border-border w-14" title="Nível hierárquico (OutlineNumber)">+</th>
               <th className="px-1 py-1.5 text-center border border-border w-10" title="Destaque">✦</th>
               <th className="px-1 py-1.5 text-center border border-border w-8" title="Negrito">N</th>
               <th className="px-1 py-1.5 text-center border border-border w-8" title="Caminho Crítico">CC</th>
@@ -89,10 +90,10 @@ const ScheduleSpreadsheet = () => {
               <th className="px-2 py-1.5 text-center border border-border w-16">Prev. %</th>
               <th className="px-2 py-1.5 text-center border border-border w-16">% Trab.</th>
               <th className="px-2 py-1.5 text-center border border-border w-16">Desvio</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Início</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Término</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Início Base</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Término Base</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Início</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Término</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Início Base</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Término Base</th>
               <th className="px-1 py-1.5 w-8 border border-border"></th>
             </tr>
           </thead>
