@@ -138,8 +138,8 @@ const ReportHeader = () => {
   summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}${semanaAtual ? ` (${semanaAtual})` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
 
   // Status atual
-  summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${avancoReal}% de avanço real contra ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
-  
+  summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${fmtBR(avancoReal)}% de avanço real contra ${fmtBR(refPrev)}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
+
   // Weekly performance
   const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
   if (lastWeek && lastWeek.date) {
@@ -148,8 +148,9 @@ const ReportHeader = () => {
   }
 
   // Trend
-  if (prevPoint && prevAvancoReal > 0) {
-    const trendDir = desvio > prevDesvio ? 'melhora' : desvio < prevDesvio ? 'piora' : 'estabilidade';
+  if (penPoint && prevAvancoReal > 0) {
+    const prevDesvioCalc = prevAvancoReal - prevRefPrev;
+    const trendDir = desvio > prevDesvioCalc ? 'melhora' : desvio < prevDesvioCalc ? 'piora' : 'estabilidade';
     summaryParts.push(`Tendência de ${trendDir} em relação ao período anterior.`);
   }
 
