@@ -145,11 +145,21 @@ const HistogramSpreadsheet = () => {
     <div className="bg-card rounded-lg p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-foreground">Histograma (MOD)</h2>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button size="sm" variant="outline" onClick={() => setShowPaste(!showPaste)} className="gap-1">
             <ClipboardPaste className="h-4 w-4" /> Colar do Excel
           </Button>
-          <Button size="sm" onClick={addHistogramPoint} className="gap-1">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleExcelImport(f); if (e.target) e.target.value = ''; }}
+          />
+          <Button size="sm" onClick={() => fileInputRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+            <Upload className="h-4 w-4" /> Importar Excel
+          </Button>
+          <Button size="sm" variant="outline" onClick={addHistogramPoint} className="gap-1">
             <Plus className="h-4 w-4" /> Coluna
           </Button>
         </div>
