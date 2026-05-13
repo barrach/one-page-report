@@ -60,9 +60,6 @@ const ScheduleSpreadsheet = () => {
           <Button size="sm" variant="outline" onClick={() => setShowPaste(!showPaste)} className="gap-1">
             <ClipboardPaste className="h-4 w-4" /> Colar do Excel
           </Button>
-          <Button size="sm" onClick={() => setImportOpen(true)} className="gap-1 gradient-primary text-primary-foreground font-semibold">
-            <Upload className="h-4 w-4" /> Importar Project
-          </Button>
           <Button size="sm" variant="outline" onClick={addScheduleRow} className="gap-1">
             <Plus className="h-4 w-4" /> Linha
           </Button>
