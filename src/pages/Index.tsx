@@ -268,7 +268,7 @@ const Index = () => {
         </button>
       )}
 
-      <div ref={reportRef} className="p-3 sm:p-5 md:p-6 max-w-[1440px] mx-auto space-y-4">
+      <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
         <ExecutiveSummary />
 
