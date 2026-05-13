@@ -252,16 +252,6 @@ const DataInputPage = () => {
             <Button size="sm" variant="outline" onClick={() => setShowWeeklyPaste(!showWeeklyPaste)} className="gap-1">
               <ClipboardPaste className="h-4 w-4" /> Colar do Excel
             </Button>
-            <input
-              ref={weeklyFileRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleWeeklyExcelImport(f); if (e.target) e.target.value = ''; }}
-            />
-            <Button size="sm" onClick={() => weeklyFileRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
-              <Upload className="h-4 w-4" /> Importar Excel
-            </Button>
             <Button size="sm" variant="outline" onClick={addWeek} className="gap-1">
               <Plus className="h-4 w-4" /> Coluna
             </Button>
@@ -308,16 +298,6 @@ const DataInputPage = () => {
           <div className="flex gap-2 flex-wrap justify-end">
             <Button size="sm" variant="outline" onClick={() => setShowMonthPaste(!showMonthPaste)} className="gap-1">
               <ClipboardPaste className="h-4 w-4" /> Colar do Excel
-            </Button>
-            <input
-              ref={monthFileRef}
-              type="file"
-              accept=".xlsx"
-              className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMonthExcelImport(f); if (e.target) e.target.value = ''; }}
-            />
-            <Button size="sm" onClick={() => monthFileRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
-              <Upload className="h-4 w-4" /> Importar Excel
             </Button>
           </div>
         </div>
