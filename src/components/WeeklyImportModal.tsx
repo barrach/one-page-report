@@ -754,19 +754,34 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
                         ) : (() => {
                           const c = result.curve as CurveExtract;
+                          const sd = c.statusDate;
+                          const sdFull = `${String(sd.getDate()).padStart(2, '0')}/${MONTHS_PT[sd.getMonth()]}/${sd.getFullYear()}`;
+                          const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
                           return (
                             <>
-                              <div className="text-muted-foreground">
-                                Última semana com Real: <span className="font-semibold text-foreground">
-                                  {c.cols[c.ultimaReal] ? fmtDDmmm(c.cols[c.ultimaReal].date) : '—'}
-                                </span>
+                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground">
+                                <div>📅 <strong>Data de Status detectada:</strong> {sdFull}</div>
+                                <div>Última semana com Real: <strong>{fmtDDmmm(sd)}</strong> ({realStr}%)</div>
                               </div>
                               <div className="text-muted-foreground">
                                 Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
                               </div>
+                              {result.projectDates && (result.projectDates.inicio || result.projectDates.terminoLB || result.projectDates.terminoPrev) && (
+                                <div className="text-muted-foreground">
+                                  Datas do projeto detectadas:
+                                  {result.projectDates.inicio && <> Início <strong className="text-foreground">{fmtDDmmm(result.projectDates.inicio)}/{result.projectDates.inicio.getFullYear()}</strong></>}
+                                  {result.projectDates.terminoLB && <> · Término LB <strong className="text-foreground">{fmtDDmmm(result.projectDates.terminoLB)}/{result.projectDates.terminoLB.getFullYear()}</strong></>}
+                                  {result.projectDates.terminoPrev && <> · Término Prev <strong className="text-foreground">{fmtDDmmm(result.projectDates.terminoPrev)}/{result.projectDates.terminoPrev.getFullYear()}</strong></>}
+                                </div>
+                              )}
                             </>
                           );
                         })())}
+                        {result.curve && !('error' in result.curve) === false && (
+                          <div className="rounded bg-warning/10 border border-warning/30 px-2 py-1 text-warning-foreground text-xs">
+                            ⚠ Data de status não encontrada — verifique se o arquivo contém dados reais.
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
