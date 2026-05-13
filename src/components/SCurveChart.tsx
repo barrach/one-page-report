@@ -36,18 +36,35 @@ const SCurveChart = () => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'scurve');
   };
 
-  const createDot = (color: string) => (props: any) => {
+  const createDot = (color: string, baseR = 3) => (props: any) => {
     const { cx, cy, payload } = props;
     if (cx == null || cy == null) return null;
     const isSelected = selectedDate === payload?.date;
     return (
       <circle
         cx={cx} cy={cy}
-        r={isSelected ? 6 : 3}
+        r={isSelected ? 6 : baseR}
         fill={color}
         stroke={isSelected ? 'hsl(var(--foreground))' : 'none'}
         strokeWidth={isSelected ? 2 : 0}
         style={{ filter: isSelected ? 'drop-shadow(0 0 4px rgba(0,0,0,0.3))' : 'none' }}
+      />
+    );
+  };
+
+  // Highlighted dot for tendência (so a single point is clearly visible)
+  const tendenciaDot = (props: any) => {
+    const { cx, cy, payload } = props;
+    if (cx == null || cy == null) return null;
+    const isSelected = selectedDate === payload?.date;
+    return (
+      <circle
+        cx={cx} cy={cy}
+        r={isSelected ? 7 : 5}
+        fill="hsl(var(--chart-tendencia))"
+        stroke="hsl(var(--foreground))"
+        strokeWidth={1.5}
+        style={{ filter: 'drop-shadow(0 0 3px rgba(0,0,0,0.25))' }}
       />
     );
   };
@@ -69,12 +86,15 @@ const SCurveChart = () => {
             angle={-45}
             textAnchor="end"
             height={60}
+            interval={0}
           />
           <YAxis
             tickFormatter={(v) => `${v}%`}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             domain={[0, 100]}
+            ticks={[0, 20, 40, 60, 80, 100]}
+            allowDataOverflow={false}
           />
           <Tooltip
             contentStyle={{
@@ -117,7 +137,7 @@ const SCurveChart = () => {
             dot={createDot('hsl(var(--chart-real))')} activeDot={{ r: 5 }} connectNulls={false} />
           <Line type="monotone" dataKey="tendencia" name="Tendência"
             stroke="hsl(var(--chart-tendencia))" strokeWidth={2.5} strokeDasharray="6 4"
-            dot={createDot('hsl(var(--chart-tendencia))')} activeDot={{ r: 5 }} connectNulls={false} />
+            dot={tendenciaDot} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={false} />
           {sCurveData.some(p => p.replanejado != null) && (
             <Line type="monotone" dataKey="replanejado" name="Replanejado"
               stroke="hsl(var(--destructive))" strokeWidth={2.5} strokeDasharray="4 3"
