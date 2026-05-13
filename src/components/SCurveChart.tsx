@@ -22,13 +22,18 @@ const SCurveChart = () => {
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
-  const statusReal = sCurveData[cutIndex]?.real || 0;
+  const legendPayload = [
+    { value: 'Linha de base', type: 'line' as const, id: 'previsto', color: 'hsl(var(--chart-previsto))' },
+    { value: 'Real', type: 'line' as const, id: 'real', color: 'hsl(var(--chart-real))' },
+    { value: 'Tendência', type: 'line' as const, id: 'tendencia', color: 'hsl(var(--chart-tendencia))' },
+  ];
 
   const chartData = useMemo(() => {
     return sCurveData.map((point, i) => ({
       ...point,
-      real: i <= cutIndex ? point.real : undefined,
-      tendencia: i >= cutIndex ? point.tendencia : undefined,
+      previsto: point.previsto > 0 ? point.previsto : undefined,
+      real: point.real > 0 ? point.real : undefined,
+      tendencia: i >= cutIndex && point.tendencia > 0 ? point.tendencia : undefined,
     }));
   }, [sCurveData, cutIndex]);
 
@@ -81,18 +86,22 @@ const SCurveChart = () => {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="date"
+            tickFormatter={(value, index) => (index % 4 === 0 ? String(value) : '')}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             angle={-45}
             textAnchor="end"
             height={60}
             interval={0}
+            minTickGap={12}
           />
           <YAxis
             tickFormatter={(v) => `${v}%`}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             domain={[0, 100]}
+            min={0}
+            max={100}
             ticks={[0, 20, 40, 60, 80, 100]}
             allowDataOverflow={false}
           />
@@ -105,7 +114,7 @@ const SCurveChart = () => {
             }}
             formatter={(value: number) => value != null ? `${value}%` : '—'}
           />
-          <Legend />
+          <Legend payload={legendPayload} />
 
           {statusDate && (
             <ReferenceLine
@@ -115,7 +124,7 @@ const SCurveChart = () => {
               strokeWidth={2}
             >
               <Label
-                value={`Status: ${statusDate} — ${statusReal}%`}
+                value={`Status: ${statusDate}`}
                 position="top"
                 fill="hsl(var(--chart-cutline))"
                 fontSize={11}
@@ -138,11 +147,6 @@ const SCurveChart = () => {
           <Line type="monotone" dataKey="tendencia" name="Tendência"
             stroke="hsl(var(--chart-tendencia))" strokeWidth={2.5} strokeDasharray="6 4"
             dot={tendenciaDot} activeDot={{ r: 7 }} connectNulls={false} isAnimationActive={false} />
-          {sCurveData.some(p => p.replanejado != null) && (
-            <Line type="monotone" dataKey="replanejado" name="Replanejado"
-              stroke="hsl(var(--destructive))" strokeWidth={2.5} strokeDasharray="4 3"
-              dot={createDot('hsl(var(--destructive))')} activeDot={{ r: 5 }} connectNulls={false} />
-          )}
         </LineChart>
       </ResponsiveContainer>
     </div>
