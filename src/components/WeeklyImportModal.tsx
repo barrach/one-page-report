@@ -462,20 +462,23 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                       Aba: <span className="font-mono text-foreground">{result.curveBlock.ref.sheetName}</span>
                     </div>
                     <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
-                    {result.curve && 'error' in result.curve ? (
+                    {result.curve && ('error' in result.curve ? (
                       <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
-                    ) : result.curve && (
-                      <>
-                        <div className="text-muted-foreground">
-                          Última semana com Real: <span className="font-semibold text-foreground">
-                            {result.curve.cols[result.curve.ultimaReal] ? fmtDDmmm(result.curve.cols[result.curve.ultimaReal].date) : '—'}
-                          </span>
-                        </div>
-                        <div className="text-muted-foreground">
-                          Curva S: {result.curve.sCurve.length} sem · Semanal: {result.curve.weekly.length} sem · Mensal: {result.curve.monthly.length} meses
-                        </div>
-                      </>
-                    )}
+                    ) : (() => {
+                      const c = result.curve as CurveExtract;
+                      return (
+                        <>
+                          <div className="text-muted-foreground">
+                            Última semana com Real: <span className="font-semibold text-foreground">
+                              {c.cols[c.ultimaReal] ? fmtDDmmm(c.cols[c.ultimaReal].date) : '—'}
+                            </span>
+                          </div>
+                          <div className="text-muted-foreground">
+                            Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
+                          </div>
+                        </>
+                      );
+                    })())}
                   </div>
                 )}
               </div>
