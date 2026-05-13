@@ -75,6 +75,58 @@ const DataInputPage = () => {
   const [showMonthPaste, setShowMonthPaste] = useState(false);
   const [monthPasteText, setMonthPasteText] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const weeklyFileRef = useRef<HTMLInputElement>(null);
+  const monthFileRef = useRef<HTMLInputElement>(null);
+
+  const handleWeeklyExcelImport = useCallback(async (file: File) => {
+    const ex = await extractCurveSheet(file, { prev: 'prev. %', real: 'real. %' });
+    if (!ex) return;
+    const dateRow = ex.data[ex.found.__date.row] || [];
+    const prevRow = ex.data[ex.found.prev.row] || [];
+    const realRow = ex.data[ex.found.real.row] || [];
+    const startCol = ex.found.__date.col + 1;
+    const cols: { date: string; previsto: number; real: number }[] = [];
+    for (let c = startCol; c < dateRow.length; c++) {
+      const d = parseDateCell(dateRow[c]);
+      if (!d) continue;
+      const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
+      cols.push({ date: formatDDmmm(d), previsto: num(prevRow[c]), real: num(realRow[c]) });
+    }
+    const last5 = cols.filter(c => c.previsto > 0).slice(-5);
+    if (last5.length === 0) { toast.error('Nenhuma semana com Prev. % > 0'); return; }
+    setWeeklyData(last5);
+    toast.success(`✓ Resultado Semanal importado — ${last5.length} semanas`);
+  }, [setWeeklyData]);
+
+  const handleMonthExcelImport = useCallback(async (file: File) => {
+    const ex = await extractCurveSheet(file, { prev: 'prev. acum. %', real: 'real. acum. %' });
+    if (!ex) return;
+    const dateRow = ex.data[ex.found.__date.row] || [];
+    const prevRow = ex.data[ex.found.prev.row] || [];
+    const realRow = ex.data[ex.found.real.row] || [];
+    const startCol = ex.found.__date.col + 1;
+    // Group by year-month, keep last value per month
+    const byMonth = new Map<string, { date: Date; previsto: number; real: number }>();
+    for (let c = startCol; c < dateRow.length; c++) {
+      const d = parseDateCell(dateRow[c]);
+      if (!d) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+      const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
+      const previsto = num(prevRow[c]);
+      const real = num(realRow[c]);
+      if (previsto > 0) byMonth.set(key, { date: d, previsto, real });
+    }
+    const ordered = [...byMonth.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+    const last4 = ordered.slice(-4);
+    if (last4.length === 0) { toast.error('Nenhum mês com Prev. Acum. % > 0'); return; }
+    const newData = last4.map(m => ({
+      label: `${MONTHS_PT[m.date.getMonth()]}/${String(m.date.getFullYear()).slice(-2)}`,
+      previsto: m.previsto,
+      real: m.real,
+    }));
+    setMonthData(newData);
+    toast.success(`✓ Prev. x Realizado Mês importado — ${newData.length} meses`);
+  }, [setMonthData]);
 
   const updateWeekly = (index: number, field: string, value: string) => {
     const updated = weeklyData.map((w, i) =>
