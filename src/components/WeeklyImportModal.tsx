@@ -307,6 +307,8 @@ interface CurveExtract {
   block: CurveBlock;
   cols: { date: Date; prevSem: number; prevAcu: number; realSem: number; realAcu: number; tendSem: number; tendAcu: number; replanjSem: number; replanjAcu: number; }[];
   ultimaReal: number;
+  statusDate: Date;
+  realAcuLast: number;
   hasReplanejado: boolean;
   sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
   weekly: { date: string; previsto: number; real: number }[];
@@ -395,7 +397,7 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       real: round2(m.realAcu * 100),
     }));
 
-  return { block, cols, ultimaReal, hasReplanejado, sCurve, weekly, monthly };
+  return { block, cols, ultimaReal, statusDate: cols[ultimaReal].date, realAcuLast: round2(cols[ultimaReal].realAcu * 100), hasReplanejado, sCurve, weekly, monthly };
 };
 
 interface HistExtract {
@@ -466,11 +468,56 @@ const scanFile = async (file: File): Promise<FileScan> => {
   return { fileName: file.name, sheets };
 };
 
+interface ProjectDates {
+  inicio?: Date;
+  terminoLB?: Date;
+  terminoPrev?: Date;
+}
+
+const PROJECT_DATE_LABELS: { key: keyof ProjectDates; patterns: string[] }[] = [
+  { key: 'terminoPrev', patterns: ['término prev', 'termino prev'] },
+  { key: 'terminoLB', patterns: ['término lb', 'termino lb', 'término linha base', 'termino linha base'] },
+  { key: 'inicio', patterns: ['início', 'inicio'] },
+];
+
+const extractProjectDates = (refs: SheetRef[]): ProjectDates => {
+  const out: ProjectDates = {};
+  for (const ref of refs) {
+    const rows = ref.grid.slice(0, 15);
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r] || [];
+      for (let c = 0; c < row.length; c++) {
+        const n = norm(row[c]);
+        if (!n) continue;
+        for (const { key, patterns } of PROJECT_DATE_LABELS) {
+          if (out[key]) continue;
+          if (!patterns.some(p => n.includes(p))) continue;
+          // Try cell to the right, then 2 rows below same column
+          const candidates: unknown[] = [
+            row[c + 1],
+            (ref.grid[r + 2] || [])[c],
+            (ref.grid[r + 1] || [])[c],
+            row[c + 2],
+          ];
+          for (const cand of candidates) {
+            const d = toDate(cand);
+            if (d) { out[key] = d; break; }
+          }
+        }
+      }
+    }
+  }
+  return out;
+};
+
+const toIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 interface ImportResult {
   curveBlock: CurveBlock | null;
   curve: CurveExtract | { error: string } | null;
   histBlock: HistBlock | null;
   hist: HistExtract | { error: string } | null;
+  projectDates: ProjectDates;
   errors: string[];
 }
 
@@ -494,8 +541,9 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
 
   const curve = curveBlock ? extractCurve(curveBlock) : null;
   const hist = histBlock ? extractHist(histBlock) : null;
+  const projectDates = extractProjectDates(allSheets);
 
-  return { curveBlock, curve, histBlock, hist, errors };
+  return { curveBlock, curve, histBlock, hist, projectDates, errors };
 };
 
 interface UploadZoneProps {
@@ -556,7 +604,7 @@ interface Props {
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setLastImport, setStatusDateIndex } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
   const [file3, setFile3] = useState<File | null>(null);
@@ -577,7 +625,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     try {
       setResult(await runImport(files));
     } catch (e) {
-      setResult({ curveBlock: null, curve: null, histBlock: null, hist: null, errors: [(e as Error).message] });
+      setResult({ curveBlock: null, curve: null, histBlock: null, hist: null, projectDates: {}, errors: [(e as Error).message] });
     }
     setParsing(false);
   }, []);
@@ -602,6 +650,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const confirm = () => {
     const now = new Date().toISOString();
     let count = 0;
+    const currentInfo = projects.find(p => p.id === selectedProjectId)?.info;
+    const infoPatch: Record<string, string> = {};
     if (curveOk) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length) {
@@ -613,11 +663,21 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       }
       if (c.weekly.length) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
+      // Status date is the source of truth for "atualizadoEm" — always update
+      infoPatch.atualizadoEm = toIsoDate(c.statusDate);
     }
     if (histOk) {
       const h = result!.hist as HistExtract;
       if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
     }
+    // Project dates: only fill if user hasn't set manually
+    const pd = result?.projectDates;
+    if (pd && currentInfo) {
+      if (pd.inicio && !currentInfo.inicio) infoPatch.inicio = toIsoDate(pd.inicio);
+      if (pd.terminoLB && !currentInfo.terminoLB) infoPatch.terminoLB = toIsoDate(pd.terminoLB);
+      if (pd.terminoPrev && !currentInfo.terminoPrev) infoPatch.terminoPrev = toIsoDate(pd.terminoPrev);
+    }
+    if (Object.keys(infoPatch).length) setInfo(infoPatch);
     if (schedule && schedule.rows.length) {
       setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
       count++;
@@ -694,16 +754,26 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
                         ) : (() => {
                           const c = result.curve as CurveExtract;
+                          const sd = c.statusDate;
+                          const sdFull = `${String(sd.getDate()).padStart(2, '0')}/${MONTHS_PT[sd.getMonth()]}/${sd.getFullYear()}`;
+                          const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
                           return (
                             <>
-                              <div className="text-muted-foreground">
-                                Última semana com Real: <span className="font-semibold text-foreground">
-                                  {c.cols[c.ultimaReal] ? fmtDDmmm(c.cols[c.ultimaReal].date) : '—'}
-                                </span>
+                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground">
+                                <div>📅 <strong>Data de Status detectada:</strong> {sdFull}</div>
+                                <div>Última semana com Real: <strong>{fmtDDmmm(sd)}</strong> ({realStr}%)</div>
                               </div>
                               <div className="text-muted-foreground">
                                 Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
                               </div>
+                              {result.projectDates && (result.projectDates.inicio || result.projectDates.terminoLB || result.projectDates.terminoPrev) && (
+                                <div className="text-muted-foreground">
+                                  Datas do projeto detectadas:
+                                  {result.projectDates.inicio && <> Início <strong className="text-foreground">{fmtDDmmm(result.projectDates.inicio)}/{result.projectDates.inicio.getFullYear()}</strong></>}
+                                  {result.projectDates.terminoLB && <> · Término LB <strong className="text-foreground">{fmtDDmmm(result.projectDates.terminoLB)}/{result.projectDates.terminoLB.getFullYear()}</strong></>}
+                                  {result.projectDates.terminoPrev && <> · Término Prev <strong className="text-foreground">{fmtDDmmm(result.projectDates.terminoPrev)}/{result.projectDates.terminoPrev.getFullYear()}</strong></>}
+                                </div>
+                              )}
                             </>
                           );
                         })())}
