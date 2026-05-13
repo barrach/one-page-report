@@ -57,44 +57,61 @@ interface CurveBlock {
   pos: Record<CurveKey, CurvePos>;
 }
 
-// Find a curve block in a sheet: all 6 labels present, with rows clustered (max-min ≤ 15)
-const findCurveBlock = (ref: SheetRef): CurveBlock | null => {
-  const occ: Record<CurveKey, CurvePos[]> = {
-    dates: [], prevSem: [], prevAcu: [], realSem: [], realAcu: [], tendAcu: [],
-  };
-  ref.grid.forEach((row, ri) => {
-    row?.forEach((cell, ci) => {
-      const n = norm(cell);
-      if (!n) return;
-      (Object.keys(CURVE_LABELS) as CurveKey[]).forEach(k => {
-        if (n === CURVE_LABELS[k]) occ[k].push({ row: ri, col: ci });
+// Count how many cols on this row have realAcu > 0 (starting after labelCol)
+const countRealAcu = (grid: Grid, row: number, labelCol: number): number => {
+  const r = grid[row] || [];
+  let c = 0;
+  for (let j = labelCol + 1; j < r.length; j++) {
+    const v = r[j];
+    if (typeof v === 'number' && v > 0) c++;
+    else if (typeof v === 'string') {
+      const n = parseFloat(v.replace(',', '.'));
+      if (isFinite(n) && n > 0) c++;
+    }
+  }
+  return c;
+};
+
+// Find ALL valid curve blocks (6 labels in SAME column within 10 rows of each other),
+// across all sheets. Returns the one with most realAcu>0 columns.
+const findBestCurveBlock = (refs: SheetRef[]): CurveBlock | null => {
+  let best: { block: CurveBlock; score: number } | null = null;
+
+  for (const ref of refs) {
+    // For each cell == "Data de Corte", check same column for the other 5 labels within 10 rows below/above
+    const datesOcc: CurvePos[] = [];
+    ref.grid.forEach((row, ri) => {
+      row?.forEach((cell, ci) => {
+        if (norm(cell) === CURVE_LABELS.dates) datesOcc.push({ row: ri, col: ci });
       });
     });
-  });
-  // every key must have at least one occurrence
-  if ((Object.keys(occ) as CurveKey[]).some(k => occ[k].length === 0)) return null;
 
-  // Find a combination where all rows are within 15 of each other.
-  // Anchor on dates occurrences; pick nearest of each other label.
-  for (const datesPos of occ.dates) {
-    const candidate: Partial<Record<CurveKey, CurvePos>> = { dates: datesPos };
-    let ok = true;
-    (Object.keys(occ) as CurveKey[]).forEach(k => {
-      if (k === 'dates') return;
-      const nearest = occ[k]
-        .map(p => ({ p, d: Math.abs(p.row - datesPos.row) }))
-        .sort((a, b) => a.d - b.d)[0];
-      if (!nearest || nearest.d > 15) ok = false;
-      else candidate[k] = nearest.p;
-    });
-    if (ok) {
-      const rows = Object.values(candidate).map(p => p!.row);
-      if (Math.max(...rows) - Math.min(...rows) <= 15) {
-        return { ref, pos: candidate as Record<CurveKey, CurvePos> };
+    for (const dp of datesOcc) {
+      const candidate: Partial<Record<CurveKey, CurvePos>> = { dates: dp };
+      let ok = true;
+      (Object.keys(CURVE_LABELS) as CurveKey[]).forEach(k => {
+        if (k === 'dates') return;
+        const target = CURVE_LABELS[k];
+        let found: CurvePos | null = null;
+        // search within +/- 10 rows in same column
+        for (let dr = -10; dr <= 10; dr++) {
+          const ri = dp.row + dr;
+          if (ri < 0) continue;
+          const cell = (ref.grid[ri] || [])[dp.col];
+          if (norm(cell) === target) { found = { row: ri, col: dp.col }; break; }
+        }
+        if (!found) ok = false;
+        else candidate[k] = found;
+      });
+      if (!ok) continue;
+      const pos = candidate as Record<CurveKey, CurvePos>;
+      const score = countRealAcu(ref.grid, pos.realAcu.row, dp.col);
+      if (!best || score > best.score) {
+        best = { block: { ref, pos }, score };
       }
     }
   }
-  return null;
+  return best?.block ?? null;
 };
 
 interface HistBlock {
