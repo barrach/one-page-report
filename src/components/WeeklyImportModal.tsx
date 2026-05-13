@@ -584,7 +584,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
     }
     if (schedule && schedule.rows.length) {
-      setScheduleData(schedule.rows.map(r => ({ ...r, bold: false, criticalPath: false })));
+      setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
       count++;
     }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
