@@ -125,11 +125,11 @@ const SCurveChart = () => {
             >
               <Label
                 value={`Status: ${statusDate}`}
-                position="top"
+                position="insideTopRight"
                 fill="hsl(var(--chart-cutline))"
                 fontSize={11}
                 fontWeight="bold"
-                offset={10}
+                offset={8}
               />
             </ReferenceLine>
           )}
