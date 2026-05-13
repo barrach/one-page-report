@@ -762,9 +762,15 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
                           return (
                             <>
-                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground">
+                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground space-y-0.5">
                                 <div>📅 <strong>Data de Status detectada:</strong> {sdFull}</div>
                                 <div>Última semana com Real: <strong>{fmtDDmmm(sd)}</strong> ({realStr}%)</div>
+                                <div className="pt-1 border-t border-success/30 mt-1">
+                                  <div className="font-semibold">Informações do Projeto:</div>
+                                  <div>· Avanço Prev.: <strong>{c.prevAcuLast.toFixed(2).replace('.', ',')}%</strong></div>
+                                  <div>· Avanço Real: <strong>{realStr}%</strong></div>
+                                  <div>· Atualizado em: <strong>{sdFull}</strong></div>
+                                </div>
                               </div>
                               <div className="text-muted-foreground">
                                 Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
