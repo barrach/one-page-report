@@ -22,20 +22,23 @@ const SCurveChart = () => {
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
+  const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
   const legendPayload = [
     { value: 'Linha de base', type: 'line' as const, id: 'previsto', color: 'hsl(var(--chart-previsto))' },
     { value: 'Real', type: 'line' as const, id: 'real', color: 'hsl(var(--chart-real))' },
     { value: 'Tendência', type: 'line' as const, id: 'tendencia', color: 'hsl(var(--chart-tendencia))' },
+    ...(hasReplanejado ? [{ value: 'Replanejado', type: 'line' as const, id: 'replanejado', color: '#8b5cf6' }] : []),
   ];
 
   const chartData = useMemo(() => {
-    return sCurveData.map((point, i) => ({
+    return sCurveData.map((point) => ({
       ...point,
       previsto: point.previsto > 0 ? point.previsto : undefined,
       real: point.real > 0 ? point.real : undefined,
-      tendencia: i >= cutIndex && point.tendencia > 0 ? point.tendencia : undefined,
+      tendencia: point.tendencia > 0 ? point.tendencia : undefined,
+      replanejado: (point.replanejado ?? 0) > 0 ? point.replanejado : undefined,
     }));
-  }, [sCurveData, cutIndex]);
+  }, [sCurveData]);
 
   const handleClick = (data: any) => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'scurve');
