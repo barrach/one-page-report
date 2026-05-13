@@ -26,6 +26,87 @@ const HistogramSpreadsheet = () => {
   const { setHistogramData, addHistogramPoint, removeHistogramPoint } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleExcelImport = useCallback(async (file: File) => {
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+      let sheetName = wb.SheetNames.find(n => /frigo\+spci/i.test(n));
+      if (!sheetName) sheetName = wb.SheetNames.find(n => /histogr/i.test(n));
+      if (!sheetName) sheetName = wb.SheetNames[0];
+      if (!sheetName) { toast.error('Erro: nenhuma aba encontrada'); return; }
+
+      const rows: unknown[][] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: null });
+
+      const TARGETS = { dia: 'dia', prev: 'total prevista', real: 'total real' };
+      const found: Record<string, { row: number; col: number }> = {};
+      rows.forEach((r, ri) => {
+        r?.forEach((cell, ci) => {
+          const n = norm(cell);
+          if (!found.dia && n === 'dia') found.dia = { row: ri, col: ci };
+          if (!found.prev && n.includes('total prevista')) found.prev = { row: ri, col: ci };
+          if (!found.real && n.includes('total real')) found.real = { row: ri, col: ci };
+        });
+      });
+      const missing = Object.keys(TARGETS).filter(k => !found[k]);
+      if (missing.length) {
+        const labelMap: Record<string, string> = { dia: 'Dia', prev: 'TOTAL PREVISTA', real: 'TOTAL REAL' };
+        toast.error(`Erro: label não encontrado: ${missing.map(k => labelMap[k]).join(', ')}`);
+        return;
+      }
+
+      const diaRow = rows[found.dia.row] || [];
+      const prevRow = rows[found.prev.row] || [];
+      const realRow = rows[found.real.row] || [];
+
+      // Find first numeric date column at or to the right of the "Dia" label column
+      let startCol = -1;
+      for (let c = found.dia.col + 1; c < diaRow.length; c++) {
+        if (parseDateCell(diaRow[c])) { startCol = c; break; }
+      }
+      if (startCol < 0) { toast.error('Nenhuma data encontrada na linha "Dia"'); return; }
+
+      type Col = { date: string; dateObj: Date; previsto: number; real: number };
+      const cols: Col[] = [];
+      for (let c = startCol; c < diaRow.length; c++) {
+        const d = parseDateCell(diaRow[c]);
+        if (!d) continue;
+        const num = (v: unknown) => (typeof v === 'number' ? v : 0);
+        cols.push({
+          date: formatDDmmm(d),
+          dateObj: d,
+          previsto: num(prevRow[c]),
+          real: num(realRow[c]),
+        });
+      }
+
+      const today = new Date();
+      const filtered = cols.filter(c => !(c.dateObj.getTime() > today.getTime() && c.real === 0 && c.previsto === 0));
+
+      // last week with real > 0
+      let lastRealIdx = -1;
+      filtered.forEach((c, i) => { if (c.real > 0) lastRealIdx = i; });
+
+      let result: Col[];
+      if (lastRealIdx >= 0) {
+        const past = filtered.slice(Math.max(0, lastRealIdx - 5), lastRealIdx + 1);
+        const futureCandidates = filtered.slice(lastRealIdx + 1).filter(c => c.previsto > 0).slice(0, 4);
+        result = [...past, ...futureCandidates];
+      } else {
+        result = filtered.filter(c => c.previsto > 0).slice(0, 10);
+      }
+
+      if (result.length === 0) { toast.error('Nenhuma semana com dados encontrada'); return; }
+      const newData: HistogramPoint[] = result.map(c => ({
+        date: c.date, semana: '', previsto: c.previsto, real: c.real,
+      }));
+      setHistogramData(newData);
+      toast.success(`✓ Histograma importado — ${newData.length} semanas`);
+    } catch (e) {
+      toast.error(`Erro ao importar: ${e instanceof Error ? e.message : 'desconhecido'}`);
+    }
+  }, [setHistogramData]);
   const data = histogramData || [];
 
   const updateCell = (colIndex: number, field: keyof HistogramPoint, value: string) => {
