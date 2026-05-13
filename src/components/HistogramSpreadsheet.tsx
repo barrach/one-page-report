@@ -81,23 +81,8 @@ const HistogramSpreadsheet = () => {
         });
       }
 
-      const today = new Date();
-      const filtered = cols.filter(c => !(c.dateObj.getTime() > today.getTime() && c.real === 0 && c.previsto === 0));
-
-      // last week with real > 0
-      let lastRealIdx = -1;
-      filtered.forEach((c, i) => { if (c.real > 0) lastRealIdx = i; });
-
-      let result: Col[];
-      if (lastRealIdx >= 0) {
-        const past = filtered.slice(Math.max(0, lastRealIdx - 5), lastRealIdx + 1);
-        const futureCandidates = filtered.slice(lastRealIdx + 1).filter(c => c.previsto > 0).slice(0, 4);
-        result = [...past, ...futureCandidates];
-      } else {
-        result = filtered.filter(c => c.previsto > 0).slice(0, 10);
-      }
-
-      if (result.length === 0) { toast.error('Nenhuma semana com dados encontrada'); return; }
+      const result = cols;
+      if (result.length === 0) { toast.error('Nenhuma semana com data válida encontrada'); return; }
       const newData: HistogramPoint[] = result.map(c => ({
         date: c.date, semana: '', previsto: c.previsto, real: c.real,
       }));
