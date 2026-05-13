@@ -3,11 +3,51 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Trash2, Plus, ClipboardPaste, Upload } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
 import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import WeeklyImportModal from '@/components/WeeklyImportModal';
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
+const excelSerialToDate = (s: number) => new Date(Math.round((s - 25569) * 86400 * 1000));
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+const parseDateCell = (dv: unknown): Date | null => {
+  if (dv instanceof Date) return dv;
+  if (typeof dv === 'number' && dv > 1000) return excelSerialToDate(dv);
+  return null;
+};
+
+const extractCurveSheet = async (file: File, labels: Record<string, string>) => {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const sheetName = wb.SheetNames.find(n => norm(n) === norm('Curva S - Geral Projeto'));
+  if (!sheetName) {
+    toast.error("Erro: aba 'Curva S - Geral Projeto' não encontrada");
+    return null;
+  }
+  const data: unknown[][] = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: true, defval: null });
+  const allLabels: Record<string, string> = { __date: 'data de corte', ...labels };
+  const found: Record<string, { row: number; col: number }> = {};
+  data.forEach((r, ri) => {
+    r?.forEach((cell, ci) => {
+      const n = norm(cell);
+      for (const [k, label] of Object.entries(allLabels)) {
+        if (n === label && !found[k]) found[k] = { row: ri, col: ci };
+      }
+    });
+  });
+  const missing = Object.keys(allLabels).filter(k => !found[k]);
+  if (missing.length) {
+    const human: Record<string, string> = { __date: 'Data de Corte', ...labels };
+    toast.error(`Erro: label não encontrado: ${missing.map(k => human[k]).join(', ')}`);
+    return null;
+  }
+  return { data, found };
+};
 
 const formatTimestamp = (iso?: string) => {
   if (!iso) return null;
@@ -35,6 +75,58 @@ const DataInputPage = () => {
   const [showMonthPaste, setShowMonthPaste] = useState(false);
   const [monthPasteText, setMonthPasteText] = useState('');
   const [importOpen, setImportOpen] = useState(false);
+  const weeklyFileRef = useRef<HTMLInputElement>(null);
+  const monthFileRef = useRef<HTMLInputElement>(null);
+
+  const handleWeeklyExcelImport = useCallback(async (file: File) => {
+    const ex = await extractCurveSheet(file, { prev: 'prev. %', real: 'real. %' });
+    if (!ex) return;
+    const dateRow = ex.data[ex.found.__date.row] || [];
+    const prevRow = ex.data[ex.found.prev.row] || [];
+    const realRow = ex.data[ex.found.real.row] || [];
+    const startCol = ex.found.__date.col + 1;
+    const cols: { date: string; previsto: number; real: number }[] = [];
+    for (let c = startCol; c < dateRow.length; c++) {
+      const d = parseDateCell(dateRow[c]);
+      if (!d) continue;
+      const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
+      cols.push({ date: formatDDmmm(d), previsto: num(prevRow[c]), real: num(realRow[c]) });
+    }
+    const last5 = cols.filter(c => c.previsto > 0).slice(-5);
+    if (last5.length === 0) { toast.error('Nenhuma semana com Prev. % > 0'); return; }
+    setWeeklyData(last5);
+    toast.success(`✓ Resultado Semanal importado — ${last5.length} semanas`);
+  }, [setWeeklyData]);
+
+  const handleMonthExcelImport = useCallback(async (file: File) => {
+    const ex = await extractCurveSheet(file, { prev: 'prev. acum. %', real: 'real. acum. %' });
+    if (!ex) return;
+    const dateRow = ex.data[ex.found.__date.row] || [];
+    const prevRow = ex.data[ex.found.prev.row] || [];
+    const realRow = ex.data[ex.found.real.row] || [];
+    const startCol = ex.found.__date.col + 1;
+    // Group by year-month, keep last value per month
+    const byMonth = new Map<string, { date: Date; previsto: number; real: number }>();
+    for (let c = startCol; c < dateRow.length; c++) {
+      const d = parseDateCell(dateRow[c]);
+      if (!d) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, '0')}`;
+      const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
+      const previsto = num(prevRow[c]);
+      const real = num(realRow[c]);
+      if (previsto > 0) byMonth.set(key, { date: d, previsto, real });
+    }
+    const ordered = [...byMonth.values()].sort((a, b) => a.date.getTime() - b.date.getTime());
+    const last4 = ordered.slice(-4);
+    if (last4.length === 0) { toast.error('Nenhum mês com Prev. Acum. % > 0'); return; }
+    const newData = last4.map(m => ({
+      label: `${MONTHS_PT[m.date.getMonth()]}/${String(m.date.getFullYear()).slice(-2)}`,
+      previsto: m.previsto,
+      real: m.real,
+    }));
+    setMonthData(newData);
+    toast.success(`✓ Prev. x Realizado Mês importado — ${newData.length} meses`);
+  }, [setMonthData]);
 
   const updateWeekly = (index: number, field: string, value: string) => {
     const updated = weeklyData.map((w, i) =>
@@ -152,11 +244,21 @@ const DataInputPage = () => {
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-foreground">Resultado Semanal / Visão 5 Semanas</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
             <Button size="sm" variant="outline" onClick={() => setShowWeeklyPaste(!showWeeklyPaste)} className="gap-1">
               <ClipboardPaste className="h-4 w-4" /> Colar do Excel
             </Button>
-            <Button size="sm" onClick={addWeek} className="gap-1">
+            <input
+              ref={weeklyFileRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleWeeklyExcelImport(f); if (e.target) e.target.value = ''; }}
+            />
+            <Button size="sm" onClick={() => weeklyFileRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+              <Upload className="h-4 w-4" /> Importar Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={addWeek} className="gap-1">
               <Plus className="h-4 w-4" /> Coluna
             </Button>
           </div>
@@ -199,9 +301,21 @@ const DataInputPage = () => {
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-foreground">Prev. x Realizado Mês</h2>
-          <Button size="sm" variant="outline" onClick={() => setShowMonthPaste(!showMonthPaste)} className="gap-1">
-            <ClipboardPaste className="h-4 w-4" /> Colar do Excel
-          </Button>
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button size="sm" variant="outline" onClick={() => setShowMonthPaste(!showMonthPaste)} className="gap-1">
+              <ClipboardPaste className="h-4 w-4" /> Colar do Excel
+            </Button>
+            <input
+              ref={monthFileRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMonthExcelImport(f); if (e.target) e.target.value = ''; }}
+            />
+            <Button size="sm" onClick={() => monthFileRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+              <Upload className="h-4 w-4" /> Importar Excel
+            </Button>
+          </div>
         </div>
         <PasteSection show={showMonthPaste} text={monthPasteText} setText={setMonthPasteText} onImport={handleMonthPaste} label="Semanas" />
         <div className="overflow-x-auto">
