@@ -507,13 +507,19 @@ interface Props {
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setLastImport, setStatusDateIndex } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setLastImport, setStatusDateIndex } = useProjectStore();
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
+  const [file3, setFile3] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
+  const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
 
-  const reset = () => { setFile1(null); setFile2(null); setResult(null); };
+  const reset = () => {
+    setFile1(null); setFile2(null); setFile3(null);
+    setResult(null); setSchedule(null); setScheduleError(null);
+  };
 
   const runWith = useCallback(async (a: File | null, b: File | null) => {
     const files = [a, b].filter((f): f is File => !!f);
@@ -529,10 +535,20 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
   const onFile1 = useCallback((f: File) => { setFile1(f); runWith(f, file2); }, [file2, runWith]);
   const onFile2 = useCallback((f: File) => { setFile2(f); runWith(file1, f); }, [file1, runWith]);
+  const onFile3 = useCallback(async (f: File) => {
+    setFile3(f); setSchedule(null); setScheduleError(null);
+    try {
+      const ex = await parseScheduleFile(f);
+      if (!ex.rows.length) setScheduleError('Nenhuma tarefa encontrada no arquivo');
+      else setSchedule(ex);
+    } catch (e) {
+      setScheduleError((e as Error).message);
+    }
+  }, []);
 
   const curveOk = result?.curve && !('error' in result.curve);
   const histOk = result?.hist && !('error' in result.hist);
-  const canConfirm = !!(curveOk || histOk);
+  const canConfirm = !!(curveOk || histOk || schedule);
 
   const confirm = () => {
     const now = new Date().toISOString();
@@ -553,6 +569,10 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       const h = result!.hist as HistExtract;
       if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
     }
+    if (schedule && schedule.rows.length) {
+      setScheduleData(schedule.rows.map(r => ({ ...r, bold: false, criticalPath: false })));
+      count++;
+    }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
     onOpenChange(false);
     setTimeout(reset, 300);
@@ -572,13 +592,22 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             <FileSpreadsheet className="h-5 w-5 text-primary" /> Importação Semanal
           </DialogTitle>
           <DialogDescription>
-            Suba os arquivos Excel — o sistema identifica as abas pelo conteúdo, não pelo nome
+            Suba os arquivos — o sistema identifica as abas pelo conteúdo, não pelo nome
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex gap-3">
-          <UploadZone label="Arquivo 1 (.xlsx)" status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
-          <UploadZone label="Arquivo 2 (.xlsx)" status={file2 ? 'loaded' : 'idle'} fileName={file2?.name} onFile={onFile2} />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
+          <UploadZone label="Arquivo 2 — Histograma MOD (.xlsx)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file2 ? 'loaded' : 'idle'} fileName={file2?.name} onFile={onFile2} />
+          <UploadZone
+            label="Arquivo 3 — Cronograma (.xml ou .xlsx)"
+            subtitle="Opcional — MS Project: Arquivo → Salvar Como → XML"
+            badge={{ text: 'Opcional', variant: 'optional' }}
+            accept=".xml,.xlsx,.xls"
+            status={file3 ? 'loaded' : 'idle'}
+            fileName={file3?.name}
+            onFile={onFile3}
+          />
         </div>
 
         {parsing && (
