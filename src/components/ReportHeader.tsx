@@ -64,6 +64,26 @@ const TrendIndicator = ({ current, previous, suffix = '%' }: { current: number; 
 
 const fmtBR = (n: number, d = 2) => n.toFixed(d).replace('.', ',');
 
+const ExecutiveSummaryStrip = ({ idp, text }: { idp: number; text: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={`bg-muted/50 border-x border-border px-3 sm:px-5 py-2.5 border-l-4 ${
+      idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
+    }`}>
+      <p className={`text-[12px] sm:text-xs text-foreground leading-relaxed ${expanded ? '' : 'line-clamp-4 sm:line-clamp-none'}`}>
+        <span className="font-semibold text-primary mr-1.5">Resumo:</span>
+        {text}
+      </p>
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="mt-1 text-[11px] font-semibold text-primary sm:hidden"
+      >
+        {expanded ? 'Ver menos' : 'Ver mais'}
+      </button>
+    </div>
+  );
+};
+
 const ReportHeader = () => {
   const { info, sCurveData, weeklyData } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
