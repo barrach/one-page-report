@@ -85,7 +85,7 @@ const SCurveChart = () => {
     const { x, y, value, index } = props;
     if (value == null || x == null || y == null) return null;
     const isLast = index === lastIdx[seriesKey];
-    const showInterval = index % 3 === 0;
+    const showInterval = index % labelInterval === 0;
     if (!isLast && !showInterval) return null;
     const dy = position === 'top' ? -8 : 14;
     return (
@@ -93,7 +93,7 @@ const SCurveChart = () => {
         x={x}
         y={y + dy}
         fill={color}
-        fontSize={11}
+        fontSize={labelFontSize}
         fontWeight={isLast ? 700 : 500}
         textAnchor="middle"
       >
@@ -114,7 +114,7 @@ const SCurveChart = () => {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="date"
-            tickFormatter={(value, index) => (index % 3 === 0 ? String(value) : '')}
+            tickFormatter={(value, index) => (index % labelInterval === 0 ? String(value) : '')}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             angle={-45}
