@@ -118,7 +118,34 @@ const ScheduleSpreadsheet = () => {
   const { setScheduleData, addScheduleRow, removeScheduleRow } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [detected, setDetected] = useState<DetectedMapping | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const data = scheduleData || [];
+
+  const handleProjectFile = async (file: File) => {
+    setImportFile(file);
+    setImportError(null);
+    setDetected(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const result = detectScheduleFromWorkbook(wb);
+      if ('error' in result) setImportError(result.error);
+      else setDetected(result);
+    } catch (e) {
+      setImportError((e as Error).message);
+    }
+  };
+
+  const confirmProjectImport = () => {
+    if (!detected) return;
+    setScheduleData(detected.rows);
+    toast.success(`✓ Cronograma importado — ${detected.rows.length} tarefa${detected.rows.length === 1 ? '' : 's'} carregada${detected.rows.length === 1 ? '' : 's'}`);
+    setImportOpen(false);
+    setTimeout(() => { setImportFile(null); setDetected(null); setImportError(null); }, 300);
+  };
 
   const updateRow = (index: number, field: keyof ScheduleRow, value: string) => {
     const updated = data.map((r, i) => {
