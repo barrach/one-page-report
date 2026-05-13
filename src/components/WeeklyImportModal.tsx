@@ -625,7 +625,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     try {
       setResult(await runImport(files));
     } catch (e) {
-      setResult({ curveBlock: null, curve: null, histBlock: null, hist: null, errors: [(e as Error).message] });
+      setResult({ curveBlock: null, curve: null, histBlock: null, hist: null, projectDates: {}, errors: [(e as Error).message] });
     }
     setParsing(false);
   }, []);
