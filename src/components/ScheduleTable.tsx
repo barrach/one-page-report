@@ -70,18 +70,18 @@ const ScheduleTable = () => {
                 <tr
                   key={i}
                   style={rowStyle}
-                  className={`border-b border-border/30 ${rowClass} ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}
+                  className={`border-b border-border/30 ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}
                 >
-                  <td className="px-2 py-1.5 text-center border border-border/30 font-mono text-[10px] opacity-80">{row.outlineNumber || ''}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30" style={{ fontFamily: 'monospace', fontSize: '11px', color: level <= 2 ? '#ffffff' : '#444444' }}>{row.outlineNumber || ''}</td>
                   <td className="px-2 py-1.5 text-center border border-border/30 opacity-80">{row.id}</td>
-                  <td className={`px-2 py-1.5 border border-border/30 ${nameClass}`}>
+                  <td className="px-2 py-1.5 border border-border/30">
                     <span style={{ paddingLeft: `${indentPx}px` }} className="inline-block">
                       {isMilestone && <span className="mr-1">🔷</span>}
                       {row.tarefa}
                     </span>
                   </td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 ${nameClass}`}>{fmtPct(row.previsto)}</td>
-                  <td className={`px-2 py-1.5 text-center border border-border/30 ${nameClass}`}>{fmtPct(row.trabalhoConcluido)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.previsto)}</td>
+                  <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.trabalhoConcluido)}</td>
                   <td className={`px-2 py-1.5 text-center border border-border/30 font-semibold ${desvioColor}`}>
                     {fmtDesvio(row.desvio)}
                   </td>
