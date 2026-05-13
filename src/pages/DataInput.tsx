@@ -248,14 +248,6 @@ const DataInputPage = () => {
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-foreground">Resultado Semanal / Visão 5 Semanas</h2>
-          <div className="flex gap-2 flex-wrap justify-end">
-            <Button size="sm" variant="outline" onClick={() => setShowWeeklyPaste(!showWeeklyPaste)} className="gap-1">
-              <ClipboardPaste className="h-4 w-4" /> Colar do Excel
-            </Button>
-            <Button size="sm" variant="outline" onClick={addWeek} className="gap-1">
-              <Plus className="h-4 w-4" /> Coluna
-            </Button>
-          </div>
         </div>
         <PasteSection show={showWeeklyPaste} text={weeklyPasteText} setText={setWeeklyPasteText} onImport={handleWeeklyPaste} label="Datas" />
         <div className="overflow-x-auto">
@@ -295,11 +287,6 @@ const DataInputPage = () => {
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-foreground">Prev. x Realizado Mês</h2>
-          <div className="flex gap-2 flex-wrap justify-end">
-            <Button size="sm" variant="outline" onClick={() => setShowMonthPaste(!showMonthPaste)} className="gap-1">
-              <ClipboardPaste className="h-4 w-4" /> Colar do Excel
-            </Button>
-          </div>
         </div>
         <PasteSection show={showMonthPaste} text={monthPasteText} setText={setMonthPasteText} onImport={handleMonthPaste} label="Semanas" />
         <div className="overflow-x-auto">
