@@ -61,41 +61,61 @@ const TrendIndicator = ({ current, previous, suffix = '%' }: { current: number; 
   );
 };
 
+const fmtBR = (n: number, d = 2) => n.toFixed(d).replace('.', ',');
+
 const ReportHeader = () => {
-  const { info, sCurveData, statusDateIndex, weeklyData } = useCurrentProject();
+  const { info, sCurveData, weeklyData } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
-  // Pega o ponto da data de status na Curva S
-  const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
-  const statusPoint = sCurveData[cutIndex];
-  const prevPoint = cutIndex > 0 ? sCurveData[cutIndex - 1] : null;
+  // ULTIMA_SEMANA = last index where Real Acum. % > 0
+  const ultIdx = (() => {
+    for (let i = sCurveData.length - 1; i >= 0; i--) {
+      if ((sCurveData[i]?.real ?? 0) > 0) return i;
+    }
+    return -1;
+  })();
+  // PENULTIMA_SEMANA = previous index with Real > 0
+  const penIdx = (() => {
+    for (let i = ultIdx - 1; i >= 0; i--) {
+      if ((sCurveData[i]?.real ?? 0) > 0) return i;
+    }
+    return -1;
+  })();
 
-  // Avanço Real: usa o valor da Curva S na data de status (se disponível), senão usa info manual
-  const avancoReal = (statusPoint?.real != null && statusPoint.real > 0)
-    ? statusPoint.real
-    : info.avancoReal;
-  const prevAvancoReal = prevPoint?.real ?? 0;
+  const ultPoint = ultIdx >= 0 ? sCurveData[ultIdx] : null;
+  const penPoint = penIdx >= 0 ? sCurveData[penIdx] : null;
 
-  // Replanejado: se houver, usar como referência de comparação em vez do previsto
-  const hasReplanejado = sCurveData.some(p => p.replanejado != null && p.replanejado !== 0);
-  const refPrev = hasReplanejado && statusPoint?.replanejado != null
-    ? statusPoint.replanejado
-    : (statusPoint?.previsto != null && statusPoint.previsto > 0 ? statusPoint.previsto : info.avancoPrev);
-  const refLabel = hasReplanejado ? 'replan.' : 'prev.';
+  const hasReplanejado = sCurveData.some(p => (p as any).replanejado != null && (p as any).replanejado !== 0);
+  const refLabel = hasReplanejado ? 'replanj.' : 'LB';
+
+  const avancoReal = ultPoint?.real ?? 0;
+  const refPrev = ultPoint
+    ? (hasReplanejado && (ultPoint as any).replanejado != null
+        ? (ultPoint as any).replanejado
+        : (ultPoint.previsto ?? 0))
+    : 0;
+  const prevAvancoReal = penPoint?.real ?? 0;
+  const prevRefPrev = penPoint
+    ? (hasReplanejado && (penPoint as any).replanejado != null
+        ? (penPoint as any).replanejado
+        : (penPoint.previsto ?? 0))
+    : 0;
+
+  // Weekly Real % derived from accumulated delta
+  const realSemUlt = ultIdx > 0
+    ? avancoReal - (sCurveData[ultIdx - 1]?.real ?? 0)
+    : avancoReal;
+  const realSemPen = penIdx > 0
+    ? prevAvancoReal - (sCurveData[penIdx - 1]?.real ?? 0)
+    : prevAvancoReal;
 
   const desvio = avancoReal - refPrev;
   const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
-
-  // Previous period calcs for trend indicators
-  const prevRefPrev = hasReplanejado && prevPoint?.replanejado != null
-    ? prevPoint.replanejado
-    : (prevPoint?.previsto ?? 0);
-  const prevDesvio = prevAvancoReal - prevRefPrev;
   const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
 
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
-  
+
 
   // Health badge
   const healthConfig = idp >= 95
@@ -118,8 +138,8 @@ const ReportHeader = () => {
   summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}${semanaAtual ? ` (${semanaAtual})` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
 
   // Status atual
-  summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${avancoReal}% de avanço real contra ${refPrev}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
-  
+  summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${fmtBR(avancoReal)}% de avanço real contra ${fmtBR(refPrev)}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
+
   // Weekly performance
   const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
   if (lastWeek && lastWeek.date) {
@@ -128,8 +148,9 @@ const ReportHeader = () => {
   }
 
   // Trend
-  if (prevPoint && prevAvancoReal > 0) {
-    const trendDir = desvio > prevDesvio ? 'melhora' : desvio < prevDesvio ? 'piora' : 'estabilidade';
+  if (penPoint && prevAvancoReal > 0) {
+    const prevDesvioCalc = prevAvancoReal - prevRefPrev;
+    const trendDir = desvio > prevDesvioCalc ? 'melhora' : desvio < prevDesvioCalc ? 'piora' : 'estabilidade';
     summaryParts.push(`Tendência de ${trendDir} em relação ao período anterior.`);
   }
 
@@ -208,7 +229,7 @@ const ReportHeader = () => {
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Progress bar card */}
+          {/* Card 1 — % Realizado */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
@@ -218,20 +239,19 @@ const ReportHeader = () => {
             </div>
             <div className="flex items-end justify-between">
               <div className="flex items-end gap-2">
-                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : avancoReal >= refPrev * 0.9 ? 'text-warning' : 'text-destructive'}`}>{avancoReal}%</span>
+                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : 'text-destructive'}`}>{fmtBR(avancoReal)}%</span>
               </div>
-              <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
+              <span className="text-sm text-primary-foreground/60 pb-1">/ {fmtBR(refPrev)}% {refLabel}</span>
             </div>
             <div className="relative">
               <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${avancoReal}%` }}
+                  animate={{ width: `${Math.min(avancoReal, 100)}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="h-full bg-primary-foreground rounded-full"
                 />
               </div>
-              {/* Marker */}
               <div
                 className="absolute top-0 h-2.5 w-0.5 bg-warning rounded-full"
                 style={{ left: `${Math.min(refPrev, 100)}%` }}
@@ -246,17 +266,15 @@ const ReportHeader = () => {
             </div>
           </div>
 
-
-          {/* Evolução Semanal - baseado na Curva S (avanço acumulado) */}
+          {/* Card 2 — Evolução Semanal */}
           {(() => {
-            const evolucao = avancoReal - prevAvancoReal;
-            const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
-            const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
+            const evolColor = realSemUlt > 0 ? 'text-success' : realSemUlt < 0 ? 'text-destructive' : 'text-warning';
+            const EvolIcon = realSemUlt > 0 ? TrendingUp : realSemUlt < 0 ? TrendingDown : ArrowRight;
             return (
               <KpiCard
                 label="Evolução Semanal"
-                value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
-                subValue="vs semana anterior"
+                value={`${realSemUlt >= 0 ? '+' : ''}${fmtBR(realSemUlt)}%`}
+                subValue={`vs semana anterior: ${fmtBR(realSemPen)}%`}
                 icon={EvolIcon}
                 valueColor={evolColor}
                 index={1}
@@ -264,16 +282,23 @@ const ReportHeader = () => {
             );
           })()}
 
+          {/* Card 3 — Desvio */}
           <KpiCard
             label="Desvio"
             value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}%`}
-            subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
+            subValue={
+              Math.abs(desvio) < 0.05
+                ? 'no prazo'
+                : desvio < 0
+                  ? `abaixo do ${hasReplanejado ? 'replanejado' : 'previsto'}`
+                  : `acima do ${hasReplanejado ? 'replanejado' : 'previsto'}`
+            }
             icon={DesvioIcon}
-            valueColor={desvio < 0 ? 'text-destructive' : 'text-success'}
+            valueColor={desvio < 0 ? 'text-destructive' : desvio > 0 ? 'text-success' : 'text-muted-foreground'}
             index={2}
-            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: '%' } : undefined}
           />
 
+          {/* Card 4 — Prazo Restante */}
           {(() => {
             const terminoStr = info.terminoPrev || info.terminoLB;
             let diasRestantes = 0;
@@ -282,7 +307,9 @@ const ReportHeader = () => {
               const hoje = new Date();
               const termino = new Date(terminoStr);
               diasRestantes = Math.ceil((termino.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-              prazoLabel = diasRestantes >= 0 ? `${diasRestantes}d` : `${Math.abs(diasRestantes)}d atrás`;
+              const abs = Math.abs(diasRestantes);
+              const formatted = abs >= 30 ? `${Math.round(abs / 7)} sem` : `${abs}d`;
+              prazoLabel = diasRestantes >= 0 ? formatted : `${formatted} atrás`;
             }
             const prazoColor = diasRestantes < 0 ? 'text-destructive' : diasRestantes <= 30 ? 'text-warning' : 'text-success';
             return (
@@ -297,14 +324,16 @@ const ReportHeader = () => {
             );
           })()}
 
+          {/* Card 5 — IDP */}
           <KpiCard
             label="IDP"
-            value={`${idp.toFixed(1)}%`}
+            value={`${fmtBR(idp, 1)}%`}
             subValue="índice de desempenho"
-            valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
+            valueColor={idp < 90 ? 'text-destructive' : idp < 100 ? 'text-warning' : 'text-success'}
             index={4}
-            trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
+            trend={penPoint ? { current: idp, previous: prevIdp } : undefined}
           />
+
         </div>
       </div>
     </motion.div>
