@@ -1,5 +1,6 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import { useIsMobile } from '@/hooks/use-mobile';
 import ChartInsight from '@/components/ChartInsight';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import { useMemo } from 'react';
