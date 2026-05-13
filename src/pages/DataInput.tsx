@@ -1,12 +1,25 @@
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Trash2, Plus, ClipboardPaste } from 'lucide-react';
+import { Trash2, Plus, ClipboardPaste, Upload } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useCallback } from 'react';
 import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
+import WeeklyImportModal from '@/components/WeeklyImportModal';
+
+const formatTimestamp = (iso?: string) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const ImportStamp = ({ iso }: { iso?: string }) => {
+  const ts = formatTimestamp(iso);
+  if (!ts) return null;
+  return <p className="text-[11px] text-muted-foreground mt-2 italic">Atualizado via Excel · {ts}</p>;
+};
 
 const parseNumber = (val: string): number => {
   if (!val) return 0;
@@ -15,12 +28,13 @@ const parseNumber = (val: string): number => {
 };
 
 const DataInputPage = () => {
-  const { info, weeklyData, monthData } = useCurrentProject();
+  const { info, weeklyData, monthData, lastImports } = useCurrentProject();
   const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData } = useProjectStore();
   const [showWeeklyPaste, setShowWeeklyPaste] = useState(false);
   const [weeklyPasteText, setWeeklyPasteText] = useState('');
   const [showMonthPaste, setShowMonthPaste] = useState(false);
   const [monthPasteText, setMonthPasteText] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const updateWeekly = (index: number, field: string, value: string) => {
     const updated = weeklyData.map((w, i) =>
