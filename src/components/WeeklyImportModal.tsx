@@ -616,83 +616,104 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           </div>
         )}
 
-        {result && !parsing && (
+        {(result || schedule || scheduleError) && !parsing && (
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
               <h3 className="font-semibold text-sm">Resumo de Detecção</h3>
 
-              {result.errors.map((e, i) => (
+              {result?.errors.map((e, i) => (
                 <div key={i} className="text-xs text-destructive flex items-center gap-1">
                   <AlertCircle className="h-3.5 w-3.5" /> {e}
                 </div>
               ))}
 
-              {/* CURVA_GERAL */}
-              <div className="text-xs space-y-2">
-                <div className="font-medium text-foreground">📊 Curva S / Semanal / Prev x Mês (CURVA_GERAL)</div>
-                {!result.curveBlock ? (
-                  <div className="pl-4 text-destructive">Aba não identificada</div>
-                ) : (
-                  <div className="pl-4 space-y-1">
-                    <div className="text-muted-foreground">
-                      Arquivo: <span className="font-mono text-foreground">{result.curveBlock.ref.fileName}</span> ·
-                      Aba: <span className="font-mono text-foreground">{result.curveBlock.ref.sheetName}</span>
-                    </div>
-                    <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
-                    {result.curve && ('error' in result.curve ? (
-                      <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
-                    ) : (() => {
-                      const c = result.curve as CurveExtract;
-                      return (
-                        <>
-                          <div className="text-muted-foreground">
-                            Última semana com Real: <span className="font-semibold text-foreground">
-                              {c.cols[c.ultimaReal] ? fmtDDmmm(c.cols[c.ultimaReal].date) : '—'}
-                            </span>
-                          </div>
-                          <div className="text-muted-foreground">
-                            Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
-                          </div>
-                        </>
-                      );
-                    })())}
-                  </div>
-                )}
-              </div>
-
-              {/* HISTOGRAMA */}
-              <div className="text-xs space-y-2">
-                <div className="font-medium text-foreground">👥 Histograma MOD</div>
-                {!result.histBlock ? (
-                  <div className="pl-4 text-destructive">Aba não identificada</div>
-                ) : (
-                  <div className="pl-4 space-y-1">
-                    <div className="text-muted-foreground">
-                      Arquivo: <span className="font-mono text-foreground">{result.histBlock.ref.fileName}</span> ·
-                      Aba: <span className="font-mono text-foreground">{result.histBlock.ref.sheetName}</span>
-                    </div>
-                    <div>
-                      {chip('Dia', true)}{chip('TOTAL PREVISTA', true)}{chip('TOTAL REAL', true)}
-                      {chip('MÃO DE OBRA DIRETA', true)}{chip('MÃO DE OBRA INDIRETA', true)}
-                    </div>
-                    {result.hist && ('error' in result.hist ? (
-                      <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.hist.error}</div>
-                    ) : (() => {
-                      const h = result.hist as HistExtract;
-                      return (
+              {result && (
+                <>
+                  {/* CURVA_GERAL */}
+                  <div className="text-xs space-y-2">
+                    <div className="font-medium text-foreground">📊 Curva S / Semanal / Prev x Mês (CURVA_GERAL)</div>
+                    {!result.curveBlock ? (
+                      <div className="pl-4 text-destructive">Aba não identificada</div>
+                    ) : (
+                      <div className="pl-4 space-y-1">
                         <div className="text-muted-foreground">
-                          Semanas exibidas: <span className="font-semibold text-foreground">{h.histogram.length}</span> ·
-                          Última com Real: <span className="font-semibold text-foreground">
-                            {h.ultimaReal >= 0 && h.histogram.length
-                              ? h.histogram.find(x => x.real > 0)?.date || '—'
-                              : '—'}
-                          </span>
+                          Arquivo: <span className="font-mono text-foreground">{result.curveBlock.ref.fileName}</span> ·
+                          Aba: <span className="font-mono text-foreground">{result.curveBlock.ref.sheetName}</span>
                         </div>
-                      );
-                    })())}
+                        <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
+                        {result.curve && ('error' in result.curve ? (
+                          <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
+                        ) : (() => {
+                          const c = result.curve as CurveExtract;
+                          return (
+                            <>
+                              <div className="text-muted-foreground">
+                                Última semana com Real: <span className="font-semibold text-foreground">
+                                  {c.cols[c.ultimaReal] ? fmtDDmmm(c.cols[c.ultimaReal].date) : '—'}
+                                </span>
+                              </div>
+                              <div className="text-muted-foreground">
+                                Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
+                              </div>
+                            </>
+                          );
+                        })())}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
+
+                  {/* HISTOGRAMA */}
+                  <div className="text-xs space-y-2">
+                    <div className="font-medium text-foreground">👥 Histograma MOD</div>
+                    {!result.histBlock ? (
+                      <div className="pl-4 text-destructive">Aba não identificada</div>
+                    ) : (
+                      <div className="pl-4 space-y-1">
+                        <div className="text-muted-foreground">
+                          Arquivo: <span className="font-mono text-foreground">{result.histBlock.ref.fileName}</span> ·
+                          Aba: <span className="font-mono text-foreground">{result.histBlock.ref.sheetName}</span>
+                        </div>
+                        <div>
+                          {chip('Dia', true)}{chip('TOTAL PREVISTA', true)}{chip('TOTAL REAL', true)}
+                          {chip('MÃO DE OBRA DIRETA', true)}{chip('MÃO DE OBRA INDIRETA', true)}
+                        </div>
+                        {result.hist && ('error' in result.hist ? (
+                          <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.hist.error}</div>
+                        ) : (() => {
+                          const h = result.hist as HistExtract;
+                          return (
+                            <div className="text-muted-foreground">
+                              Semanas exibidas: <span className="font-semibold text-foreground">{h.histogram.length}</span> ·
+                              Última com Real: <span className="font-semibold text-foreground">
+                                {h.ultimaReal >= 0 && h.histogram.length
+                                  ? h.histogram.find(x => x.real > 0)?.date || '—'
+                                  : '—'}
+                              </span>
+                            </div>
+                          );
+                        })())}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+              {/* CRONOGRAMA (opcional) */}
+              {(schedule || scheduleError) && (
+                <div className="text-xs space-y-2">
+                  <div className="font-medium text-foreground flex items-center gap-1">
+                    <CalendarDays className="h-3.5 w-3.5" /> Cronograma <span className="text-muted-foreground font-normal">(opcional)</span>
+                  </div>
+                  {scheduleError ? (
+                    <div className="pl-4 text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{scheduleError}</div>
+                  ) : schedule && (
+                    <div className="pl-4 text-muted-foreground">
+                      Cronograma: <span className="font-semibold text-foreground">{schedule.rows.length}</span> tarefas encontradas
+                      {' · '}formato: <span className="font-mono text-foreground">{schedule.format === 'xml' ? 'XML do Project' : 'Excel'}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
