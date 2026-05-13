@@ -218,18 +218,14 @@ const ReportHeader = () => {
       </div>
 
       {/* Executive Summary Strip */}
-      <div className={`bg-muted/50 border-x border-border px-5 py-2.5 border-l-4 ${
-        idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
-      }`}>
-        <p className="text-xs text-foreground leading-relaxed">
-          <span className="font-semibold text-primary mr-1.5">Resumo:</span>
-          {executiveSummaryText}
-        </p>
-      </div>
+      <ExecutiveSummaryStrip
+        idp={idp}
+        text={executiveSummaryText}
+      />
 
       {/* KPI Cards */}
-      <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-3 sm:p-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
           {/* Card 1 — % Realizado */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
