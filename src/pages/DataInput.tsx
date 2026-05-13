@@ -1,12 +1,25 @@
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Trash2, Plus, ClipboardPaste } from 'lucide-react';
+import { Trash2, Plus, ClipboardPaste, Upload } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useCallback } from 'react';
 import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
+import WeeklyImportModal from '@/components/WeeklyImportModal';
+
+const formatTimestamp = (iso?: string) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const ImportStamp = ({ iso }: { iso?: string }) => {
+  const ts = formatTimestamp(iso);
+  if (!ts) return null;
+  return <p className="text-[11px] text-muted-foreground mt-2 italic">Atualizado via Excel · {ts}</p>;
+};
 
 const parseNumber = (val: string): number => {
   if (!val) return 0;
@@ -15,12 +28,13 @@ const parseNumber = (val: string): number => {
 };
 
 const DataInputPage = () => {
-  const { info, weeklyData, monthData } = useCurrentProject();
+  const { info, weeklyData, monthData, lastImports } = useCurrentProject();
   const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData } = useProjectStore();
   const [showWeeklyPaste, setShowWeeklyPaste] = useState(false);
   const [weeklyPasteText, setWeeklyPasteText] = useState('');
   const [showMonthPaste, setShowMonthPaste] = useState(false);
   const [monthPasteText, setMonthPasteText] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const updateWeekly = (index: number, field: string, value: string) => {
     const updated = weeklyData.map((w, i) =>
@@ -88,6 +102,20 @@ const DataInputPage = () => {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 max-w-5xl mx-auto space-y-8">
+      {/* Import button - top of page */}
+      <div className="flex justify-end">
+        <Button
+          size="lg"
+          onClick={() => setImportOpen(true)}
+          className="gap-2 gradient-primary text-primary-foreground shadow-lg hover:opacity-90 font-semibold"
+        >
+          <Upload className="h-5 w-5" />
+          Importar Semana
+        </Button>
+      </div>
+
+      <WeeklyImportModal open={importOpen} onOpenChange={setImportOpen} />
+
       {/* Project Info */}
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <h2 className="text-xl font-bold text-foreground mb-4">Informações do Projeto</h2>
@@ -115,7 +143,10 @@ const DataInputPage = () => {
         </div>
       </div>
 
-      <SCurveSpreadsheet />
+      <div>
+        <SCurveSpreadsheet />
+        <ImportStamp iso={lastImports?.sCurve} />
+      </div>
 
       {/* Weekly Data */}
       <div className="bg-card rounded-lg p-6 shadow-sm border">
@@ -161,6 +192,7 @@ const DataInputPage = () => {
             </tbody>
           </table>
         </div>
+        <ImportStamp iso={lastImports?.weekly} />
       </div>
 
       {/* Month Data */}
@@ -201,9 +233,13 @@ const DataInputPage = () => {
             </tbody>
           </table>
         </div>
+        <ImportStamp iso={lastImports?.month} />
       </div>
 
-      <HistogramSpreadsheet />
+      <div>
+        <HistogramSpreadsheet />
+        <ImportStamp iso={lastImports?.histogram} />
+      </div>
       <ScheduleSpreadsheet />
     </div>
   );
