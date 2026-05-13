@@ -1,8 +1,20 @@
 import { useProjectStore, useCurrentProject, HistogramPoint } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
-import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { Plus, Trash2, ClipboardPaste, Upload } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
+
+const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
+const excelSerialToDate = (s: number) => new Date(Math.round((s - 25569) * 86400 * 1000));
+const norm = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+const parseDateCell = (v: unknown): Date | null => {
+  if (v instanceof Date) return v;
+  if (typeof v === 'number' && v > 1000) return excelSerialToDate(v);
+  return null;
+};
 
 const parseNumber = (val: string): number => {
   if (!val) return 0;
