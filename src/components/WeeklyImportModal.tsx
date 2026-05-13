@@ -50,9 +50,22 @@ const parseScheduleXML = (text: string): ScheduleRow[] => {
     const pc = parseFloat(get('PercentComplete')) || 0;
     const pwc = parseFloat(get('PercentWorkComplete')) || 0;
     const fd = (s: string) => {
+      if (!s || s === 'NA') return '';
       const d = parseAnyDate(s);
       return d ? fmtScheduleDate(d) : '';
     };
+    const fdBaseline = (s: string) => {
+      if (!s || s === 'NA') return 'ND';
+      const d = parseAnyDate(s);
+      if (!d) return 'ND';
+      // MS Project uses year 1984 for "NA" baseline
+      if (d.getFullYear() < 1990) return 'ND';
+      return fmtScheduleDate(d);
+    };
+    const outlineLevel = parseInt(get('OutlineLevel')) || 1;
+    const summary = get('Summary') === '1';
+    const milestone = get('Milestone') === '1';
+    const outlineNumber = get('OutlineNumber') || '';
     rows.push({
       id: get('ID'),
       tarefa: name,
@@ -61,8 +74,13 @@ const parseScheduleXML = (text: string): ScheduleRow[] => {
       desvio: Math.round((pc - pwc) * 100) / 100,
       inicio: fd(get('Start')),
       termino: fd(get('Finish')),
-      inicioBase: fd(get('BaselineStart')),
-      terminoBase: fd(get('BaselineFinish')),
+      inicioBase: fdBaseline(get('BaselineStart')),
+      terminoBase: fdBaseline(get('BaselineFinish')),
+      outlineLevel,
+      outlineNumber,
+      summary,
+      milestone,
+      bold: summary || outlineLevel <= 2,
     });
   }
   return rows;
