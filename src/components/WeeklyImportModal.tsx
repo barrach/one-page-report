@@ -175,77 +175,93 @@ const toNum = (v: unknown): number => {
 type Grid = unknown[][];
 interface SheetRef { fileName: string; sheetName: string; grid: Grid; }
 
-const CURVE_LABELS = {
-  dates: 'data de corte',
-  prevSem: 'prev. %',
-  prevAcu: 'prev. acum. %',
-  realSem: 'real. %',
-  realAcu: 'real. acum. %',
-  tendAcu: 'tend. acum. %',
+// Required labels (fingerprint of curve block)
+const REQUIRED_LABELS = {
+  dates: ['data de corte'],
+  prevAcu: ['prev. acum. %'],
+  realAcu: ['real. acum. %'],
 } as const;
-type CurveKey = keyof typeof CURVE_LABELS;
+// Optional labels
+const OPTIONAL_LABELS = {
+  prevSem: ['prev. %'],
+  realSem: ['real. %'],
+  tendAcu: ['tend. acum. %', 'tendência acum. %', 'tendencia acum. %'],
+  tendSem: ['tendência %', 'tendencia %'],
+  replanjSem: ['prev. replanejado %'],
+  replanjAcu: ['prev. acum. replanejado %'],
+} as const;
+type RequiredKey = keyof typeof REQUIRED_LABELS;
+type OptionalKey = keyof typeof OPTIONAL_LABELS;
+type CurveKey = RequiredKey | OptionalKey;
 const CURVE_HUMAN: Record<CurveKey, string> = {
   dates: 'Data de Corte',
-  prevSem: 'Prev. %',
   prevAcu: 'Prev. Acum. %',
-  realSem: 'Real. %',
   realAcu: 'Real. Acum. %',
+  prevSem: 'Prev. %',
+  realSem: 'Real. %',
   tendAcu: 'Tend. Acum. %',
+  tendSem: 'Tendência %',
+  replanjSem: 'Prev. Replanejado %',
+  replanjAcu: 'Prev. Acum. Replanejado %',
 };
 
 interface CurvePos { row: number; col: number; }
 interface CurveBlock {
   ref: SheetRef;
-  pos: Record<CurveKey, CurvePos>;
+  pos: Partial<Record<CurveKey, CurvePos>> & Record<RequiredKey, CurvePos>;
 }
 
-// Count how many cols on this row have realAcu > 0 (starting after labelCol)
-const countRealAcu = (grid: Grid, row: number, labelCol: number): number => {
-  const r = grid[row] || [];
-  let c = 0;
-  for (let j = labelCol + 1; j < r.length; j++) {
-    const v = r[j];
-    if (typeof v === 'number' && v > 0) c++;
-    else if (typeof v === 'string') {
-      const n = parseFloat(v.replace(',', '.'));
-      if (isFinite(n) && n > 0) c++;
-    }
-  }
-  return c;
-};
-
-// Anchor on "Tend. Acum. %" (unique label). The other 5 labels must be in the
-// same column, within 10 rows above/below.
-const findBestCurveBlock = (refs: SheetRef[]): CurveBlock | null => {
-  for (const ref of refs) {
-    const tendOcc: CurvePos[] = [];
-    ref.grid.forEach((row, ri) => {
-      row?.forEach((cell, ci) => {
-        if (norm(cell) === CURVE_LABELS.tendAcu) tendOcc.push({ row: ri, col: ci });
-      });
-    });
-
-    for (const tp of tendOcc) {
-      const candidate: Partial<Record<CurveKey, CurvePos>> = { tendAcu: tp };
-      let ok = true;
-      (Object.keys(CURVE_LABELS) as CurveKey[]).forEach(k => {
-        if (k === 'tendAcu') return;
-        const target = CURVE_LABELS[k];
-        let found: CurvePos | null = null;
-        for (let dr = -10; dr <= 10; dr++) {
-          const ri = tp.row + dr;
-          if (ri < 0) continue;
-          const cell = (ref.grid[ri] || [])[tp.col];
-          if (norm(cell) === target) { found = { row: ri, col: tp.col }; break; }
-        }
-        if (!found) ok = false;
-        else candidate[k] = found;
-      });
-      if (!ok) continue;
-      return { ref, pos: candidate as Record<CurveKey, CurvePos> };
-    }
+const findLabelInColumn = (grid: Grid, anchorRow: number, col: number, targets: readonly string[], range = 15): CurvePos | null => {
+  for (let dr = -range; dr <= range; dr++) {
+    const ri = anchorRow + dr;
+    if (ri < 0) continue;
+    const cell = (grid[ri] || [])[col];
+    if (cell == null) continue;
+    const n = norm(cell);
+    if (targets.some(t => n === t)) return { row: ri, col };
   }
   return null;
+};
+
+// Anchor on "Data de Corte". Required fingerprint must match in same col within 15 rows.
+// Pick block with most realAcu > 0 columns.
+const findBestCurveBlock = (refs: SheetRef[]): CurveBlock | null => {
+  let best: { block: CurveBlock; score: number } | null = null;
+  for (const ref of refs) {
+    const dateOcc: CurvePos[] = [];
+    ref.grid.forEach((row, ri) => {
+      row?.forEach((cell, ci) => {
+        if (norm(cell) === REQUIRED_LABELS.dates[0]) dateOcc.push({ row: ri, col: ci });
+      });
+    });
+    for (const dp of dateOcc) {
+      const pos: Partial<Record<CurveKey, CurvePos>> = { dates: dp };
+      let ok = true;
+      (['prevAcu', 'realAcu'] as RequiredKey[]).forEach(k => {
+        const f = findLabelInColumn(ref.grid, dp.row, dp.col, REQUIRED_LABELS[k]);
+        if (!f) ok = false; else pos[k] = f;
+      });
+      if (!ok) continue;
+      (Object.keys(OPTIONAL_LABELS) as OptionalKey[]).forEach(k => {
+        const f = findLabelInColumn(ref.grid, dp.row, dp.col, OPTIONAL_LABELS[k]);
+        if (f) pos[k] = f;
+      });
+      // Score = number of cols with realAcu > 0
+      const realRow = ref.grid[pos.realAcu!.row] || [];
+      let score = 0;
+      for (let j = pos.dates!.col + 1; j < realRow.length; j++) {
+        const v = realRow[j];
+        if (typeof v === 'number' && v > 0) score++;
+        else if (typeof v === 'string') {
+          const n = parseFloat(v.replace(',', '.'));
+          if (isFinite(n) && n > 0) score++;
+        }
+      }
+      const block: CurveBlock = { ref, pos: pos as CurveBlock['pos'] };
+      if (!best || score > best.score) best = { block, score };
+    }
+  }
+  return best?.block ?? null;
 };
 
 interface HistBlock {
@@ -289,17 +305,17 @@ const findHistBlock = (ref: SheetRef): HistBlock | null => {
 
 interface CurveExtract {
   block: CurveBlock;
-  cols: { date: Date; prevSem: number; prevAcu: number; realSem: number; realAcu: number; tendAcu: number; }[];
+  cols: { date: Date; prevSem: number; prevAcu: number; realSem: number; realAcu: number; tendSem: number; tendAcu: number; replanjSem: number; replanjAcu: number; }[];
   ultimaReal: number;
-  ultimaLinhaBase: number;
-  sCurve: { date: string; previsto: number; real: number; tendencia: number }[];
+  hasReplanejado: boolean;
+  sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
   weekly: { date: string; previsto: number; real: number }[];
   monthly: { label: string; previsto: number; real: number }[];
 }
 
 const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   const { grid } = block.ref;
-  const { dates, prevSem, prevAcu, realSem, realAcu, tendAcu } = block.pos;
+  const { dates } = block.pos;
   const dateRow = grid[dates.row] || [];
 
   let colStart = -1;
@@ -308,18 +324,36 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   }
   if (colStart < 0) return { error: 'Nenhuma data encontrada após "Data de Corte"' };
 
+  const readRow = (key: CurveKey) => {
+    const p = block.pos[key];
+    return p ? (grid[p.row] || []) : null;
+  };
+  const r = {
+    prevSem: readRow('prevSem'),
+    prevAcu: readRow('prevAcu')!,
+    realSem: readRow('realSem'),
+    realAcu: readRow('realAcu')!,
+    tendSem: readRow('tendSem'),
+    tendAcu: readRow('tendAcu'),
+    replanjSem: readRow('replanjSem'),
+    replanjAcu: readRow('replanjAcu'),
+  };
+
   const cols: CurveExtract['cols'] = [];
   for (let j = colStart; j < dateRow.length; j++) {
     const d = toDate(dateRow[j]);
-    if (!d) break;
-    const cell = (row: number) => (grid[row] || [])[j];
+    if (!d) continue;
+    const get = (row: unknown[] | null) => row ? toNum(row[j]) : 0;
     cols.push({
       date: d,
-      prevSem: toNum(cell(prevSem.row)),
-      prevAcu: toNum(cell(prevAcu.row)),
-      realSem: toNum(cell(realSem.row)),
-      realAcu: toNum(cell(realAcu.row)),
-      tendAcu: toNum(cell(tendAcu.row)),
+      prevSem: get(r.prevSem),
+      prevAcu: get(r.prevAcu),
+      realSem: get(r.realSem),
+      realAcu: get(r.realAcu),
+      tendSem: get(r.tendSem),
+      tendAcu: get(r.tendAcu),
+      replanjSem: get(r.replanjSem),
+      replanjAcu: get(r.replanjAcu),
     });
   }
 
@@ -327,16 +361,17 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
   if (ultimaReal < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0' };
 
-  let ultimaLinhaBase = -1;
-  cols.forEach((c, i) => { if (c.prevAcu > 0) ultimaLinhaBase = i; });
-  if (ultimaLinhaBase < 0) return { error: 'Nenhuma coluna com Linha Base > 0' };
+  const hasReplanejado = cols.some(c => c.replanjAcu > 0);
 
-  const sCurve = cols.slice(0, ultimaLinhaBase + 1).map(c => ({
-    date: fmtDDmmm(c.date),
-    previsto: round2(c.prevAcu * 100),
-    real: round2((c.realAcu || 0) * 100),
-    tendencia: round2((c.tendAcu || 0) * 100),
-  }));
+  const sCurve = cols
+    .filter(c => c.prevAcu > 0 || c.realAcu > 0 || c.tendAcu > 0 || c.replanjAcu > 0)
+    .map(c => ({
+      date: fmtDDmmm(c.date),
+      previsto: round2(c.prevAcu * 100),
+      real: round2(c.realAcu * 100),
+      tendencia: round2(c.tendAcu * 100),
+      ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
+    }));
 
   const wStart = Math.max(0, ultimaReal - 4);
   const weekly = cols.slice(wStart, ultimaReal + 1).map(c => ({
@@ -360,7 +395,7 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       real: round2(m.realAcu * 100),
     }));
 
-  return { block, cols, ultimaReal, ultimaLinhaBase, sCurve, weekly, monthly };
+  return { block, cols, ultimaReal, hasReplanejado, sCurve, weekly, monthly };
 };
 
 interface HistExtract {
