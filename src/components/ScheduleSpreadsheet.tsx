@@ -1,12 +1,9 @@
 import { useProjectStore, useCurrentProject, ScheduleRow } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, ClipboardPaste, Upload, FileSpreadsheet } from 'lucide-react';
+import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import * as XLSX from 'xlsx';
-import { toast } from 'sonner';
 
 const parseNumber = (val: string): number => {
   if (!val) return 0;
