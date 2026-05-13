@@ -14,7 +14,11 @@ import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
+import { useIsMobile } from '@/hooks/use-mobile';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -31,6 +35,8 @@ const Index = () => {
   const navigate = useNavigate();
   const [isStandalone, setIsStandalone] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const togglePresentation = () => {
     if (!presentationMode) {
@@ -129,13 +135,13 @@ const Index = () => {
     <div className={`min-h-screen bg-background ${presentationMode ? 'overflow-auto' : ''}`}>
       {/* Top navigation bar */}
       {!presentationMode && (
-        <div className="gradient-primary px-3 sm:px-5 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
-          <div className="flex items-center gap-3 sm:gap-5">
-            <div className="flex items-center gap-2">
+        <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
+          <div className="flex items-center gap-3 sm:gap-5 min-w-0">
+            <div className="flex items-center gap-2 shrink-0">
               <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-              <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
+              <h1 className="text-[13px] sm:text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
             </div>
-            <nav className="flex gap-1">
+            <nav className="hidden sm:flex gap-1">
               <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
                 <FileText className="h-3.5 w-3.5" />
                 Relatório
@@ -151,7 +157,7 @@ const Index = () => {
             </nav>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden sm:flex items-center gap-2 sm:gap-3">
             <button
               onClick={togglePresentation}
               className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
@@ -209,6 +215,44 @@ const Index = () => {
             </Dialog>
             <ProjectSelector showCreate />
           </div>
+
+          <div className="flex sm:hidden items-center gap-2 min-w-0 flex-1 justify-end">
+            <div className="min-w-0 flex-1 max-w-[180px]">
+              <ProjectSelector showCreate />
+            </div>
+            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+              <SheetTrigger asChild>
+                <button
+                  className="flex items-center justify-center h-11 w-11 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors shrink-0"
+                  aria-label="Abrir menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px]">
+                <SheetHeader>
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                <div className="flex flex-col gap-2 mt-6">
+                  <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); openExportDialog(); }}>
+                    <Download className="h-4 w-4 mr-2" /> Exportar PDF
+                  </Button>
+                  <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); togglePresentation(); }}>
+                    <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
+                  </Button>
+                  <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); toggleTheme(); }}>
+                    {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                    {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                  </Button>
+                  {!isStandalone && (
+                    <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); navigate('/install'); }}>
+                      <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
+                    </Button>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
       )}
 
@@ -224,7 +268,7 @@ const Index = () => {
         </button>
       )}
 
-      <div ref={reportRef} className="p-3 sm:p-5 md:p-6 max-w-[1440px] mx-auto space-y-4">
+      <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
         <ExecutiveSummary />
 
@@ -250,6 +294,24 @@ const Index = () => {
           MEGASTEAM · One Page Report · Gerado automaticamente
         </motion.div>
       </div>
+
+      {/* Mobile bottom nav */}
+      {!presentationMode && (
+        <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-card border-t border-border flex justify-around items-stretch h-14 print:hidden">
+          <Link to="/" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-primary">
+            <FileText className="h-5 w-5" />
+            <span className="text-[10px] font-semibold">Relatório</span>
+          </Link>
+          <Link to="/dados" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+            <Database className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Dados</span>
+          </Link>
+          <Link to="/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+            <Shield className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Admin</span>
+          </Link>
+        </nav>
+      )}
     </div>
   );
 };

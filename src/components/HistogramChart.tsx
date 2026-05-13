@@ -1,5 +1,6 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import { useIsMobile } from '@/hooks/use-mobile';
 import ChartInsight from '@/components/ChartInsight';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import {
@@ -10,8 +11,10 @@ import {
 const HistogramChart = () => {
   const { histogramData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+  const isMobile = useIsMobile();
 
-  const data = (histogramData || []).filter(h => h.date);
+  const allData = (histogramData || []).filter(h => h.date);
+  const data = isMobile ? allData.slice(-8) : allData;
 
   // Boundary between last real week and first future (previsto) week
   let lastRealIdx = -1;
@@ -139,7 +142,7 @@ const HistogramChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Mão de obra prevista × real por período</p>
-      {chartContent('h-[450px]')}
+      {chartContent('h-[260px] sm:h-[450px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
     </div>
   );

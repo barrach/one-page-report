@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
@@ -28,10 +29,10 @@ const KpiCard = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.35 }}
-      className="gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-1"
+      className="gradient-primary rounded-xl p-3 sm:p-4 card-shadow border-0 flex flex-col gap-1 min-h-[90px] sm:min-h-0 justify-between"
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
+        <span className="text-[10px] sm:text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
           {label}
         </span>
         {Icon && (
@@ -39,11 +40,11 @@ const KpiCard = ({
         )}
       </div>
       <div className="flex items-end gap-1.5">
-        <span className={`text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
+        <span className={`text-lg sm:text-xl font-bold leading-tight ${valueColor}`}>{value}</span>
         {trend && <TrendIndicator current={trend.current} previous={trend.previous} suffix={trend.suffix} />}
       </div>
       {subValue && (
-        <span className="text-xs text-primary-foreground/60">{subValue}</span>
+        <span className="text-[11px] sm:text-xs text-primary-foreground/60 leading-tight">{subValue}</span>
       )}
     </motion.div>
   );
@@ -62,6 +63,26 @@ const TrendIndicator = ({ current, previous, suffix = '%' }: { current: number; 
 };
 
 const fmtBR = (n: number, d = 2) => n.toFixed(d).replace('.', ',');
+
+const ExecutiveSummaryStrip = ({ idp, text }: { idp: number; text: string }) => {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={`bg-muted/50 border-x border-border px-3 sm:px-5 py-2.5 border-l-4 ${
+      idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
+    }`}>
+      <p className={`text-[12px] sm:text-xs text-foreground leading-relaxed ${expanded ? '' : 'line-clamp-4 sm:line-clamp-none'}`}>
+        <span className="font-semibold text-primary mr-1.5">Resumo:</span>
+        {text}
+      </p>
+      <button
+        onClick={() => setExpanded(v => !v)}
+        className="mt-1 text-[11px] font-semibold text-primary sm:hidden"
+      >
+        {expanded ? 'Ver menos' : 'Ver mais'}
+      </button>
+    </div>
+  );
+};
 
 const ReportHeader = () => {
   const { info, sCurveData, weeklyData } = useCurrentProject();
@@ -217,18 +238,14 @@ const ReportHeader = () => {
       </div>
 
       {/* Executive Summary Strip */}
-      <div className={`bg-muted/50 border-x border-border px-5 py-2.5 border-l-4 ${
-        idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
-      }`}>
-        <p className="text-xs text-foreground leading-relaxed">
-          <span className="font-semibold text-primary mr-1.5">Resumo:</span>
-          {executiveSummaryText}
-        </p>
-      </div>
+      <ExecutiveSummaryStrip
+        idp={idp}
+        text={executiveSummaryText}
+      />
 
       {/* KPI Cards */}
-      <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-3 sm:p-4">
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
           {/* Card 1 — % Realizado */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">

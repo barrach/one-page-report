@@ -1,5 +1,6 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import { useIsMobile } from '@/hooks/use-mobile';
 import ChartInsight from '@/components/ChartInsight';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import { useMemo } from 'react';
@@ -22,6 +23,9 @@ const fmtPct = (v: number | null | undefined) =>
 const SCurveChart = () => {
   const { sCurveData, statusDateIndex, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+  const isMobile = useIsMobile();
+  const labelInterval = isMobile ? 6 : 3;
+  const labelFontSize = isMobile ? 9 : 11;
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
@@ -81,7 +85,7 @@ const SCurveChart = () => {
     const { x, y, value, index } = props;
     if (value == null || x == null || y == null) return null;
     const isLast = index === lastIdx[seriesKey];
-    const showInterval = index % 3 === 0;
+    const showInterval = index % labelInterval === 0;
     if (!isLast && !showInterval) return null;
     const dy = position === 'top' ? -8 : 14;
     return (
@@ -89,7 +93,7 @@ const SCurveChart = () => {
         x={x}
         y={y + dy}
         fill={color}
-        fontSize={11}
+        fontSize={labelFontSize}
         fontWeight={isLast ? 700 : 500}
         textAnchor="middle"
       >
@@ -110,7 +114,7 @@ const SCurveChart = () => {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="date"
-            tickFormatter={(value, index) => (index % 3 === 0 ? String(value) : '')}
+            tickFormatter={(value, index) => (index % labelInterval === 0 ? String(value) : '')}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             angle={-45}
@@ -200,7 +204,7 @@ const SCurveChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {chartContent('h-[500px]')}
+      {chartContent('h-[280px] sm:h-[500px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}
