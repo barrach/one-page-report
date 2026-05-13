@@ -77,6 +77,10 @@ export interface ScheduleRow {
   highlight?: boolean;
   bold?: boolean;
   criticalPath?: boolean;
+  outlineLevel?: number;
+  outlineNumber?: string;
+  summary?: boolean;
+  milestone?: boolean;
 }
 
 export interface Project {

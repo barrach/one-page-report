@@ -81,6 +81,7 @@ const ScheduleSpreadsheet = () => {
         <table className="border-collapse text-xs w-full">
           <thead>
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
+              <th className="px-1 py-1.5 text-center border border-border w-14" title="Nível hierárquico (OutlineNumber)">+</th>
               <th className="px-1 py-1.5 text-center border border-border w-10" title="Destaque">✦</th>
               <th className="px-1 py-1.5 text-center border border-border w-8" title="Negrito">N</th>
               <th className="px-1 py-1.5 text-center border border-border w-8" title="Caminho Crítico">CC</th>
@@ -89,16 +90,17 @@ const ScheduleSpreadsheet = () => {
               <th className="px-2 py-1.5 text-center border border-border w-16">Prev. %</th>
               <th className="px-2 py-1.5 text-center border border-border w-16">% Trab.</th>
               <th className="px-2 py-1.5 text-center border border-border w-16">Desvio</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Início</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Término</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Início Base</th>
-              <th className="px-2 py-1.5 text-center border border-border w-24">Término Base</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Início</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Término</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Início Base</th>
+              <th className="px-2 py-1.5 text-center border border-border w-28">Término Base</th>
               <th className="px-1 py-1.5 w-8 border border-border"></th>
             </tr>
           </thead>
           <tbody>
             {data.map((row, i) => (
               <tr key={i} className={`border-b border-border ${row.highlight ? 'bg-warning/10' : ''}`}>
+                <td className="border border-border px-1 py-0.5 text-center font-mono text-[10px] text-muted-foreground">{row.outlineNumber || ''}</td>
                 <td className="border border-border px-1 py-0.5 text-center">
                   <Checkbox checked={!!row.highlight} onCheckedChange={(checked) => {
                     setScheduleData(data.map((r, j) => j === i ? { ...r, highlight: !!checked } : r));
@@ -127,7 +129,7 @@ const ScheduleSpreadsheet = () => {
                   <input type="number" step="1" className="w-full text-center bg-transparent outline-none text-xs" value={row.trabalhoConcluido} onChange={(e) => updateRow(i, 'trabalhoConcluido', e.target.value)} />
                 </td>
                 <td className="border border-border px-1 py-0.5">
-                  <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
+                  <input type="number" step="0.01" className={`w-full text-center bg-transparent outline-none text-xs ${row.desvio < 0 ? 'text-destructive' : row.desvio > 0 ? 'text-success' : ''}`} value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
                 </td>
                 {['inicio', 'termino', 'inicioBase', 'terminoBase'].map((field) => (
                   <td key={field} className="border border-border px-1 py-0.5">
