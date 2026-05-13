@@ -650,6 +650,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const confirm = () => {
     const now = new Date().toISOString();
     let count = 0;
+    const currentInfo = projects.find(p => p.id === selectedProjectId)?.info;
+    const infoPatch: Record<string, string> = {};
     if (curveOk) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length) {
@@ -661,11 +663,21 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       }
       if (c.weekly.length) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
+      // Status date is the source of truth for "atualizadoEm" — always update
+      infoPatch.atualizadoEm = toIsoDate(c.statusDate);
     }
     if (histOk) {
       const h = result!.hist as HistExtract;
       if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
     }
+    // Project dates: only fill if user hasn't set manually
+    const pd = result?.projectDates;
+    if (pd && currentInfo) {
+      if (pd.inicio && !currentInfo.inicio) infoPatch.inicio = toIsoDate(pd.inicio);
+      if (pd.terminoLB && !currentInfo.terminoLB) infoPatch.terminoLB = toIsoDate(pd.terminoLB);
+      if (pd.terminoPrev && !currentInfo.terminoPrev) infoPatch.terminoPrev = toIsoDate(pd.terminoPrev);
+    }
+    if (Object.keys(infoPatch).length) setInfo(infoPatch);
     if (schedule && schedule.rows.length) {
       setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
       count++;
