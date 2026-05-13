@@ -140,12 +140,20 @@ const MonthChart = () => {
   const totalPrev = monthData.reduce((s, d) => s + d.previsto, 0);
   const totalReal = monthData.reduce((s, d) => s + d.real, 0);
 
+  // % Meta Realizado = Real / Prev do último mês com Real > 0
+  let lastWithReal = -1;
+  monthData.forEach((d, i) => { if (d.real > 0) lastWithReal = i; });
+  const metaRealizado =
+    lastWithReal >= 0 && monthData[lastWithReal].previsto > 0
+      ? (monthData[lastWithReal].real / monthData[lastWithReal].previsto) * 100
+      : 0;
+
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={info.avancoReal} selectedIndex={selectedMonthIndex} />
+      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
