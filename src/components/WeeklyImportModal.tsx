@@ -305,12 +305,8 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const scans = await Promise.all(files.map(scanFile));
   const allSheets = scans.flatMap(s => s.sheets);
 
-  // Identify CURVA_GERAL
-  let curveBlock: CurveBlock | null = null;
-  for (const s of allSheets) {
-    const b = findCurveBlock(s);
-    if (b) { curveBlock = b; break; }
-  }
+  // Identify CURVA_GERAL — best block across all sheets (most realAcu>0 cols)
+  const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
 
   // Identify HISTOGRAMA — pick max realCount
   const histCandidates = allSheets
