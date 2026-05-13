@@ -244,11 +244,21 @@ const DataInputPage = () => {
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-foreground">Resultado Semanal / Visão 5 Semanas</h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap justify-end">
             <Button size="sm" variant="outline" onClick={() => setShowWeeklyPaste(!showWeeklyPaste)} className="gap-1">
               <ClipboardPaste className="h-4 w-4" /> Colar do Excel
             </Button>
-            <Button size="sm" onClick={addWeek} className="gap-1">
+            <input
+              ref={weeklyFileRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleWeeklyExcelImport(f); if (e.target) e.target.value = ''; }}
+            />
+            <Button size="sm" onClick={() => weeklyFileRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+              <Upload className="h-4 w-4" /> Importar Excel
+            </Button>
+            <Button size="sm" variant="outline" onClick={addWeek} className="gap-1">
               <Plus className="h-4 w-4" /> Coluna
             </Button>
           </div>
