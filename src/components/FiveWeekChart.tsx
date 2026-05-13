@@ -18,7 +18,7 @@ const FiveWeekChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Visão de 5 Semanas</h3>
       <p className="text-xs text-muted-foreground mb-4">Resultado semanal previsto × real</p>
-      <div className="h-[380px]">
+      <div className="h-[240px] sm:h-[380px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={weeklyData} onClick={handleClick} style={{ cursor: 'pointer' }} barCategoryGap="15%" barGap={4} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

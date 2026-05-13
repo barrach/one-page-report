@@ -200,7 +200,7 @@ const SCurveChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {chartContent('h-[500px]')}
+      {chartContent('h-[280px] sm:h-[500px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}
