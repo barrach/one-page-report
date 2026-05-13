@@ -3,7 +3,7 @@ import { useReportInteraction } from '@/store/reportInteraction';
 import ChartInsight from '@/components/ChartInsight';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Cell, ReferenceLine,
+  ResponsiveContainer, Cell, ReferenceLine, LabelList,
 } from 'recharts';
 
 const FiveWeekChart = () => {
@@ -18,9 +18,9 @@ const FiveWeekChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Visão de 5 Semanas</h3>
       <p className="text-xs text-muted-foreground mb-4">Resultado semanal previsto × real</p>
-      <div className="h-[240px] sm:h-[300px]">
+      <div className="h-[380px]">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={weeklyData} onClick={handleClick} style={{ cursor: 'pointer' }}>
+          <BarChart data={weeklyData} onClick={handleClick} style={{ cursor: 'pointer' }} barCategoryGap="15%" barGap={4} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
             <YAxis tickFormatter={(v) => `${v}%`} tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
@@ -40,6 +40,7 @@ const FiveWeekChart = () => {
             )}
 
             <Bar dataKey="previsto" name="Previsto" radius={[4, 4, 0, 0]} fill="hsl(var(--chart-previsto))">
+              <LabelList dataKey="previsto" position="top" fontSize={11} fill="hsl(var(--chart-previsto))" formatter={(v: number) => v > 0 ? `${v}%` : ''} />
               {weeklyData.map((entry, i) => (
                 <Cell key={i}
                   fill={selectedDate === null || selectedDate === entry.date
@@ -49,6 +50,7 @@ const FiveWeekChart = () => {
               ))}
             </Bar>
             <Bar dataKey="real" name="Real" radius={[4, 4, 0, 0]} fill="hsl(var(--chart-real))">
+              <LabelList dataKey="real" position="top" fontSize={11} fill="hsl(var(--chart-real))" formatter={(v: number) => v > 0 ? `${v}%` : ''} />
               {weeklyData.map((entry, i) => (
                 <Cell key={i}
                   fill={selectedDate === null || selectedDate === entry.date

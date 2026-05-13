@@ -228,13 +228,11 @@ const Index = () => {
         <ReportHeader />
         <ExecutiveSummary />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SCurveChart />
-          <FiveWeekChart />
-        </div>
+        <SCurveChart />
+        <HistogramChart />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <HistogramChart />
+          <FiveWeekChart />
           <MonthChart />
         </div>
 

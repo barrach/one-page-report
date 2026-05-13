@@ -81,7 +81,7 @@ const SCurveChart = () => {
     const { x, y, value, index } = props;
     if (value == null || x == null || y == null) return null;
     const isLast = index === lastIdx[seriesKey];
-    const showInterval = index % 4 === 0;
+    const showInterval = index % 3 === 0;
     if (!isLast && !showInterval) return null;
     const dy = position === 'top' ? -8 : 14;
     return (
@@ -89,7 +89,7 @@ const SCurveChart = () => {
         x={x}
         y={y + dy}
         fill={color}
-        fontSize={10}
+        fontSize={11}
         fontWeight={isLast ? 700 : 500}
         textAnchor="middle"
       >
@@ -110,7 +110,7 @@ const SCurveChart = () => {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="date"
-            tickFormatter={(value, index) => (index % 4 === 0 ? String(value) : '')}
+            tickFormatter={(value, index) => (index % 3 === 0 ? String(value) : '')}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             angle={-45}
@@ -121,7 +121,7 @@ const SCurveChart = () => {
           />
           <YAxis
             tickFormatter={(v) => `${v}%`}
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 12 }}
             stroke="hsl(var(--muted-foreground))"
             domain={[0, 100]}
             ticks={[0, 20, 40, 60, 80, 100]}
@@ -200,7 +200,7 @@ const SCurveChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {chartContent('h-[280px] sm:h-[360px]')}
+      {chartContent('h-[500px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}

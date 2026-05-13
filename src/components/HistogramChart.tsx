@@ -40,7 +40,7 @@ const HistogramChart = () => {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 9 }}
+            tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             angle={-45}
             textAnchor="end"
@@ -102,7 +102,7 @@ const HistogramChart = () => {
           )}
 
           <Bar dataKey="previsto" name="previsto" radius={[4, 4, 0, 0]}>
-            <LabelList dataKey="previsto" position="top" fontSize={9} fill="hsl(var(--chart-previsto))" />
+            <LabelList dataKey="previsto" position="top" fontSize={11} fill="hsl(var(--chart-previsto))" />
             {data.map((entry, i) => (
               <Cell key={i}
                 fill={selectedDate === null || selectedDate === entry.date
@@ -112,7 +112,7 @@ const HistogramChart = () => {
             ))}
           </Bar>
           <Bar dataKey="real" name="real" radius={[4, 4, 0, 0]}>
-            <LabelList dataKey="real" position="top" fontSize={9} fill="hsl(var(--chart-real))" formatter={(v: number) => v > 0 ? v : ''} />
+            <LabelList dataKey="real" position="top" fontSize={11} fill="hsl(var(--chart-real))" formatter={(v: number) => v > 0 ? v : ''} />
             {data.map((entry, i) => (
               <Cell key={i}
                 fill={selectedDate === null || selectedDate === entry.date
@@ -139,7 +139,7 @@ const HistogramChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Mão de obra prevista × real por período</p>
-      {chartContent('h-[250px] sm:h-[320px]')}
+      {chartContent('h-[450px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
     </div>
   );
