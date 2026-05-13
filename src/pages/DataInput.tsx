@@ -301,9 +301,21 @@ const DataInputPage = () => {
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-foreground">Prev. x Realizado Mês</h2>
-          <Button size="sm" variant="outline" onClick={() => setShowMonthPaste(!showMonthPaste)} className="gap-1">
-            <ClipboardPaste className="h-4 w-4" /> Colar do Excel
-          </Button>
+          <div className="flex gap-2 flex-wrap justify-end">
+            <Button size="sm" variant="outline" onClick={() => setShowMonthPaste(!showMonthPaste)} className="gap-1">
+              <ClipboardPaste className="h-4 w-4" /> Colar do Excel
+            </Button>
+            <input
+              ref={monthFileRef}
+              type="file"
+              accept=".xlsx"
+              className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleMonthExcelImport(f); if (e.target) e.target.value = ''; }}
+            />
+            <Button size="sm" onClick={() => monthFileRef.current?.click()} className="gap-1 gradient-primary text-primary-foreground">
+              <Upload className="h-4 w-4" /> Importar Excel
+            </Button>
+          </div>
         </div>
         <PasteSection show={showMonthPaste} text={monthPasteText} setText={setMonthPasteText} onImport={handleMonthPaste} label="Semanas" />
         <div className="overflow-x-auto">
