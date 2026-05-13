@@ -102,6 +102,20 @@ const DataInputPage = () => {
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8 max-w-5xl mx-auto space-y-8">
+      {/* Import button - top of page */}
+      <div className="flex justify-end">
+        <Button
+          size="lg"
+          onClick={() => setImportOpen(true)}
+          className="gap-2 gradient-primary text-primary-foreground shadow-lg hover:opacity-90 font-semibold"
+        >
+          <Upload className="h-5 w-5" />
+          Importar Semana
+        </Button>
+      </div>
+
+      <WeeklyImportModal open={importOpen} onOpenChange={setImportOpen} />
+
       {/* Project Info */}
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <h2 className="text-xl font-bold text-foreground mb-4">Informações do Projeto</h2>
@@ -129,7 +143,10 @@ const DataInputPage = () => {
         </div>
       </div>
 
-      <SCurveSpreadsheet />
+      <div>
+        <SCurveSpreadsheet />
+        <ImportStamp iso={lastImports?.sCurve} />
+      </div>
 
       {/* Weekly Data */}
       <div className="bg-card rounded-lg p-6 shadow-sm border">
@@ -175,6 +192,7 @@ const DataInputPage = () => {
             </tbody>
           </table>
         </div>
+        <ImportStamp iso={lastImports?.weekly} />
       </div>
 
       {/* Month Data */}
@@ -215,9 +233,13 @@ const DataInputPage = () => {
             </tbody>
           </table>
         </div>
+        <ImportStamp iso={lastImports?.month} />
       </div>
 
-      <HistogramSpreadsheet />
+      <div>
+        <HistogramSpreadsheet />
+        <ImportStamp iso={lastImports?.histogram} />
+      </div>
       <ScheduleSpreadsheet />
     </div>
   );
