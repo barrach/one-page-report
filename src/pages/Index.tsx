@@ -35,6 +35,8 @@ const Index = () => {
   const navigate = useNavigate();
   const [isStandalone, setIsStandalone] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   const togglePresentation = () => {
     if (!presentationMode) {
