@@ -777,11 +777,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                             </>
                           );
                         })())}
-                        {result.curve && !('error' in result.curve) === false && (
-                          <div className="rounded bg-warning/10 border border-warning/30 px-2 py-1 text-warning-foreground text-xs">
-                            ⚠ Data de status não encontrada — verifique se o arquivo contém dados reais.
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
