@@ -155,6 +155,7 @@ const SCurveChart = () => {
               stroke="#8b5cf6" strokeWidth={2.5} strokeDasharray="4 4"
               dot={createDot('#8b5cf6')} activeDot={{ r: 5 }} connectNulls={false} />
           )}
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
