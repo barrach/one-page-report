@@ -52,13 +52,17 @@ const extractCurveSheet = async (file: File, labels: Record<string, string>) => 
 const formatTimestamp = (iso?: string) => {
   if (!iso) return null;
   const d = new Date(iso);
-  return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mmm = MONTHS_PT[d.getMonth()];
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${dd}/${mmm} ${hh}:${mm}`;
 };
 
 const ImportStamp = ({ iso }: { iso?: string }) => {
   const ts = formatTimestamp(iso);
   if (!ts) return null;
-  return <p className="text-[11px] text-muted-foreground mt-2 italic">Atualizado via Excel · {ts}</p>;
+  return <p className="text-[11px] text-muted-foreground mt-2 italic">Atualizado em {ts}</p>;
 };
 
 const parseNumber = (val: string): number => {
