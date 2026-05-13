@@ -2,9 +2,133 @@ import { useState, useCallback } from 'react';
 import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
-import { useProjectStore } from '@/store/projectStore';
+import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, CalendarDays } from 'lucide-react';
+import { useProjectStore, ScheduleRow } from '@/store/projectStore';
 import { toast } from 'sonner';
+
+const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const fmtScheduleDate = (d: Date): string => {
+  if (!d || isNaN(d.getTime())) return '';
+  const dia = DAYS_PT[d.getDay()];
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dia} ${dd}/${mm}/${yy}`;
+};
+const parseAnyDate = (v: unknown): Date | null => {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'number' && v > 1000) {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof v === 'string') {
+    const s = v.trim();
+    if (!s) return null;
+    const d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+type ScheduleFormat = 'xml' | 'xlsx';
+interface ScheduleExtract { rows: ScheduleRow[]; format: ScheduleFormat; }
+
+const parseScheduleXML = (text: string): ScheduleRow[] => {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('XML inválido');
+  const tasks = Array.from(doc.getElementsByTagName('Task'));
+  const rows: ScheduleRow[] = [];
+  for (const t of tasks) {
+    const get = (tag: string) => {
+      const el = Array.from(t.children).find(c => c.tagName === tag);
+      return el?.textContent ?? '';
+    };
+    if (get('UID') === '0') continue;
+    const name = get('Name');
+    if (!name) continue;
+    const pc = parseFloat(get('PercentComplete')) || 0;
+    const pwc = parseFloat(get('PercentWorkComplete')) || 0;
+    const fd = (s: string) => {
+      const d = parseAnyDate(s);
+      return d ? fmtScheduleDate(d) : '';
+    };
+    rows.push({
+      id: get('ID'),
+      tarefa: name,
+      previsto: pc,
+      trabalhoConcluido: pwc,
+      desvio: Math.round((pc - pwc) * 100) / 100,
+      inicio: fd(get('Start')),
+      termino: fd(get('Finish')),
+      inicioBase: fd(get('BaselineStart')),
+      terminoBase: fd(get('BaselineFinish')),
+    });
+  }
+  return rows;
+};
+
+const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  for (const name of wb.SheetNames) {
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true });
+    for (let i = 0; i < Math.min(grid.length, 5); i++) {
+      const row = grid[i] || [];
+      const idx: Record<string, number> = {};
+      for (let c = 0; c < row.length; c++) {
+        const cell = row[c];
+        if (typeof cell !== 'string') continue;
+        const n = cell.trim().toLowerCase();
+        if (idx.id == null && /^\s*id\s*$/.test(n)) idx.id = c;
+        if (idx.tarefa == null && /(nome|tarefa|task)/.test(n)) idx.tarefa = c;
+        if (idx.previsto == null && /(%\s*conc|prev|f[ií]sico)/.test(n)) idx.previsto = c;
+        if (idx.trabalhoConcluido == null && /(%\s*trab|work)/.test(n)) idx.trabalhoConcluido = c;
+        if (idx.desvio == null && /(desvio|variance)/.test(n)) idx.desvio = c;
+        if (idx.inicioBase == null && /base/.test(n) && /(in[ií]cio|start)/.test(n)) idx.inicioBase = c;
+        else if (idx.inicio == null && /(in[ií]cio|start)/.test(n)) idx.inicio = c;
+        if (idx.terminoBase == null && /base/.test(n) && /(t[eé]rmino|finish)/.test(n)) idx.terminoBase = c;
+        else if (idx.termino == null && /(t[eé]rmino|finish)/.test(n)) idx.termino = c;
+      }
+      if (idx.tarefa == null || Object.keys(idx).length < 3) continue;
+      const out: ScheduleRow[] = [];
+      for (let r = i + 1; r < grid.length; r++) {
+        const rr = grid[r] || [];
+        const tarefa = rr[idx.tarefa];
+        if (tarefa == null || String(tarefa).trim() === '') continue;
+        const cell = (k: string) => idx[k] != null ? rr[idx[k]] : null;
+        const num = (v: unknown) => {
+          if (typeof v === 'number') return v <= 1 && v > 0 ? v * 100 : v;
+          if (typeof v === 'string') { const n = parseFloat(v.replace(',', '.')); return isFinite(n) ? n : 0; }
+          return 0;
+        };
+        const fd = (v: unknown) => { const d = parseAnyDate(v); return d ? fmtScheduleDate(d) : ''; };
+        out.push({
+          id: String(cell('id') ?? '').trim(),
+          tarefa: String(tarefa).trim(),
+          previsto: num(cell('previsto')),
+          trabalhoConcluido: num(cell('trabalhoConcluido')),
+          desvio: num(cell('desvio')),
+          inicio: fd(cell('inicio')),
+          termino: fd(cell('termino')),
+          inicioBase: fd(cell('inicioBase')),
+          terminoBase: fd(cell('terminoBase')),
+        });
+      }
+      if (out.length) return out;
+    }
+  }
+  throw new Error('Não foi possível detectar colunas do cronograma');
+};
+
+const parseScheduleFile = async (file: File): Promise<ScheduleExtract> => {
+  const isXml = /\.xml$/i.test(file.name);
+  if (isXml) {
+    const text = await file.text();
+    return { rows: parseScheduleXML(text), format: 'xml' };
+  }
+  const buf = await file.arrayBuffer();
+  return { rows: parseScheduleXLSX(buf), format: 'xlsx' };
+};
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
