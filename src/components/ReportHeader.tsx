@@ -229,7 +229,7 @@ const ReportHeader = () => {
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-4">
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Progress bar card */}
+          {/* Card 1 — % Realizado */}
           <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
@@ -239,20 +239,19 @@ const ReportHeader = () => {
             </div>
             <div className="flex items-end justify-between">
               <div className="flex items-end gap-2">
-                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : avancoReal >= refPrev * 0.9 ? 'text-warning' : 'text-destructive'}`}>{avancoReal}%</span>
+                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : 'text-destructive'}`}>{fmtBR(avancoReal)}%</span>
               </div>
-              <span className="text-sm text-primary-foreground/60 pb-1">/ {refPrev}% {refLabel}</span>
+              <span className="text-sm text-primary-foreground/60 pb-1">/ {fmtBR(refPrev)}% {refLabel}</span>
             </div>
             <div className="relative">
               <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
-                  animate={{ width: `${avancoReal}%` }}
+                  animate={{ width: `${Math.min(avancoReal, 100)}%` }}
                   transition={{ duration: 0.8, ease: 'easeOut' }}
                   className="h-full bg-primary-foreground rounded-full"
                 />
               </div>
-              {/* Marker */}
               <div
                 className="absolute top-0 h-2.5 w-0.5 bg-warning rounded-full"
                 style={{ left: `${Math.min(refPrev, 100)}%` }}
@@ -267,17 +266,15 @@ const ReportHeader = () => {
             </div>
           </div>
 
-
-          {/* Evolução Semanal - baseado na Curva S (avanço acumulado) */}
+          {/* Card 2 — Evolução Semanal */}
           {(() => {
-            const evolucao = avancoReal - prevAvancoReal;
-            const evolColor = evolucao > 0 ? 'text-success' : evolucao < 0 ? 'text-destructive' : 'text-warning';
-            const EvolIcon = evolucao > 0 ? TrendingUp : evolucao < 0 ? TrendingDown : ArrowRight;
+            const evolColor = realSemUlt > 0 ? 'text-success' : realSemUlt < 0 ? 'text-destructive' : 'text-warning';
+            const EvolIcon = realSemUlt > 0 ? TrendingUp : realSemUlt < 0 ? TrendingDown : ArrowRight;
             return (
               <KpiCard
                 label="Evolução Semanal"
-                value={`${evolucao >= 0 ? '+' : ''}${evolucao.toFixed(1)}%`}
-                subValue="vs semana anterior"
+                value={`${realSemUlt >= 0 ? '+' : ''}${fmtBR(realSemUlt)}%`}
+                subValue={`vs semana anterior: ${fmtBR(realSemPen)}%`}
                 icon={EvolIcon}
                 valueColor={evolColor}
                 index={1}
@@ -285,16 +282,23 @@ const ReportHeader = () => {
             );
           })()}
 
+          {/* Card 3 — Desvio */}
           <KpiCard
             label="Desvio"
             value={`${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}%`}
-            subValue={desvio < 0 ? `abaixo do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}` : `acima do ${refLabel === 'replan.' ? 'replanejado' : 'previsto'}`}
+            subValue={
+              Math.abs(desvio) < 0.05
+                ? 'no prazo'
+                : desvio < 0
+                  ? `abaixo do ${hasReplanejado ? 'replanejado' : 'previsto'}`
+                  : `acima do ${hasReplanejado ? 'replanejado' : 'previsto'}`
+            }
             icon={DesvioIcon}
-            valueColor={desvio < 0 ? 'text-destructive' : 'text-success'}
+            valueColor={desvio < 0 ? 'text-destructive' : desvio > 0 ? 'text-success' : 'text-muted-foreground'}
             index={2}
-            trend={prevPoint ? { current: desvio, previous: prevDesvio, suffix: '%' } : undefined}
           />
 
+          {/* Card 4 — Prazo Restante */}
           {(() => {
             const terminoStr = info.terminoPrev || info.terminoLB;
             let diasRestantes = 0;
@@ -303,7 +307,9 @@ const ReportHeader = () => {
               const hoje = new Date();
               const termino = new Date(terminoStr);
               diasRestantes = Math.ceil((termino.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
-              prazoLabel = diasRestantes >= 0 ? `${diasRestantes}d` : `${Math.abs(diasRestantes)}d atrás`;
+              const abs = Math.abs(diasRestantes);
+              const formatted = abs >= 30 ? `${Math.round(abs / 7)} sem` : `${abs}d`;
+              prazoLabel = diasRestantes >= 0 ? formatted : `${formatted} atrás`;
             }
             const prazoColor = diasRestantes < 0 ? 'text-destructive' : diasRestantes <= 30 ? 'text-warning' : 'text-success';
             return (
@@ -318,14 +324,16 @@ const ReportHeader = () => {
             );
           })()}
 
+          {/* Card 5 — IDP */}
           <KpiCard
             label="IDP"
-            value={`${idp.toFixed(1)}%`}
+            value={`${fmtBR(idp, 1)}%`}
             subValue="índice de desempenho"
-            valueColor={idp < 90 ? 'text-destructive' : idp <= 100 ? 'text-warning' : 'text-success'}
+            valueColor={idp < 90 ? 'text-destructive' : idp < 100 ? 'text-warning' : 'text-success'}
             index={4}
-            trend={prevPoint ? { current: idp, previous: prevIdp } : undefined}
+            trend={penPoint ? { current: idp, previous: prevIdp } : undefined}
           />
+
         </div>
       </div>
     </motion.div>
