@@ -273,6 +273,7 @@ interface CurveExtract {
   block: CurveBlock;
   cols: { date: Date; prevSem: number; prevAcu: number; realSem: number; realAcu: number; tendAcu: number; }[];
   ultimaReal: number;
+  ultimaLinhaBase: number;
   sCurve: { date: string; previsto: number; real: number; tendencia: number }[];
   weekly: { date: string; previsto: number; real: number }[];
   monthly: { label: string; previsto: number; real: number }[];
@@ -308,11 +309,14 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
   cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
   if (ultimaReal < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0' };
 
-  const sStart = Math.max(0, ultimaReal - 7);
-  const sCurve = cols.slice(sStart, ultimaReal + 1).map(c => ({
+  let ultimaLinhaBase = -1;
+  cols.forEach((c, i) => { if (c.prevAcu > 0) ultimaLinhaBase = i; });
+  if (ultimaLinhaBase < 0) return { error: 'Nenhuma coluna com Linha Base > 0' };
+
+  const sCurve = cols.slice(0, ultimaLinhaBase + 1).map(c => ({
     date: fmtDDmmm(c.date),
     previsto: round2(c.prevAcu * 100),
-    real: round2(c.realAcu * 100),
+    real: round2((c.realAcu || 0) * 100),
     tendencia: round2((c.tendAcu || 0) * 100),
   }));
 
@@ -338,7 +342,7 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       real: round2(m.realAcu * 100),
     }));
 
-  return { block, cols, ultimaReal, sCurve, weekly, monthly };
+  return { block, cols, ultimaReal, ultimaLinhaBase, sCurve, weekly, monthly };
 };
 
 interface HistExtract {
