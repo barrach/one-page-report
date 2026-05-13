@@ -397,7 +397,7 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       real: round2(m.realAcu * 100),
     }));
 
-  return { block, cols, ultimaReal, hasReplanejado, sCurve, weekly, monthly };
+  return { block, cols, ultimaReal, statusDate: cols[ultimaReal].date, realAcuLast: round2(cols[ultimaReal].realAcu * 100), hasReplanejado, sCurve, weekly, monthly };
 };
 
 interface HistExtract {
