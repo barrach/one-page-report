@@ -1,7 +1,13 @@
+import { useMemo } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
+import { centerWeeklyWindow } from '@/lib/dateUtils';
 
 const WeeklyResultTable = () => {
-  const { weeklyData } = useCurrentProject();
+  const { weeklyData: allWeeklyData, info } = useCurrentProject();
+  const weeklyData = useMemo(
+    () => centerWeeklyWindow(allWeeklyData, info?.atualizadoEm || '', 5),
+    [allWeeklyData, info?.atualizadoEm],
+  );
 
   const totalPrev = weeklyData.reduce((s, w) => s + w.previsto, 0);
   const totalReal = weeklyData.reduce((s, w) => s + w.real, 0);
