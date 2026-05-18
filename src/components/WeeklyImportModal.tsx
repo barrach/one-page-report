@@ -911,6 +911,14 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     }
   }
 
+  // FORMATO C (RHODIA): data de atualização frequentemente em grid[51][0] como Date
+  if (!updateDate) {
+    for (let r = 45; r < Math.min(grid.length, 60); r++) {
+      const d = toDate((grid[r] || [])[0]);
+      if (d) { updateDate = d; break; }
+    }
+  }
+
   if (rowPrevAcu < 0 || rowRealAcu < 0) return null;
 
   return {
