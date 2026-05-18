@@ -1296,7 +1296,7 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const hist = histBlock ? extractHist(histBlock) : null;
   const projectDates = extractProjectDates(allSheets);
 
-  return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, errors };
+  return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, formatC: null, errors };
 };
 
 interface UploadZoneProps {
