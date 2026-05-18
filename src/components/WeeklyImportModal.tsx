@@ -857,61 +857,61 @@ interface FormatCBundle {
   info: FormatCInfo;
 }
 
+// Strict trim comparison (preserves case + accents). Format C labels are uppercase.
+const trimStr = (v: unknown): string => (v == null ? '' : String(v).trim());
+
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
-  // Row of dates: col 0 contains "evento ( cronograma)" exact + subsequent are Date
-  // Stricter than just "evento" to avoid matching financial curves ("Evento de Pagamento")
+
+  // SHEET CHECK: must contain a row where col 0 trimmed === 'REALIZADO GERAL (ACUMULADO)'
+  const hasRealAcuLabel = grid.some(row => trimStr((row || [])[0]) === 'REALIZADO GERAL (ACUMULADO)');
+  if (!hasRealAcuLabel) return null;
+
   let rowDates = -1, colStart = -1;
-  for (let r = 0; r < Math.min(grid.length, 20); r++) {
-    const row = grid[r] || [];
-    const n = norm(row[0]);
-    if (!(n === 'evento ( cronograma)' || n === 'evento (cronograma)' || n === 'evento cronograma')) continue;
-    for (let c = 1; c < row.length; c++) {
-      if (toDate(row[c])) { rowDates = r; colStart = c; break; }
-    }
-    if (rowDates >= 0) break;
-  }
-
-  if (rowDates < 0) return null;
-
   let rowPrevAcu = -1, rowPrevSem = -1, rowRealAcu = -1, rowRealSem = -1;
   let rowTendAcu = -1, rowTendSem = -1;
   let rowReplanjAcu = -1, rowReplanjSem = -1;
   let rowRealReplanjAcu = -1, rowRealReplanjSem = -1;
-  let updateDate: Date | undefined;
+  let rowDataAtu = -1;
 
-  for (let r = 0; r < grid.length; r++) {
-    const n = norm((grid[r] || [])[0]);
-    if (!n) continue;
-    const isAcu = n.includes('(acumulado)');
-    const isSem = n.includes('(semanal)');
-    const isReplanj = n.includes('replanejado');
-    const isReal = n.includes('realizado geral');
-    const isPrev = n.includes('previsto geral');
-    const isTend = n.includes('tendência geral') || n.includes('tendencia geral');
+  grid.forEach((row, i) => {
+    const label = trimStr((row || [])[0]);
+    if (!label) return;
+    if (label === 'Evento ( Cronograma)' || label === 'Evento (Cronograma)') rowDates = i;
+    else if (label === 'PREVISTO GERAL LB') rowPrevSem = i;
+    else if (label === 'PREVISTO GERAL LB (ACUMULADO)') rowPrevAcu = i;
+    else if (label === 'REALIZADO GERAL') rowRealSem = i;
+    else if (label === 'REALIZADO GERAL (ACUMULADO)') rowRealAcu = i;
+    else if (label === 'PREVISTO GERAL REPLANEJADO (SEMANAL)') rowReplanjSem = i;
+    else if (label === 'PREVISTO GERAL REPLANEJADO (ACUMULADO)') rowReplanjAcu = i;
+    else if (label === 'REALIZADO GERAL REPLANEJADO (SEMANAL)') rowRealReplanjSem = i;
+    else if (label === 'REALIZADO GERAL REPLANEJADO (ACUMULADO)') rowRealReplanjAcu = i;
+    else if (label === 'TENDÊNCIA GERAL' || label === 'TENDENCIA GERAL') rowTendSem = i;
+    else if (label === 'TENDÊNCIA GERAL (ACUMULADO)' || label === 'TENDENCIA GERAL (ACUMULADO)') rowTendAcu = i;
+    else if (label === 'Data da atualização:' || label === 'Data da atualizacao:') rowDataAtu = i + 1;
+  });
 
-    if (isAcu) {
-      if (isReplanj && isReal && rowRealReplanjAcu < 0) rowRealReplanjAcu = r;
-      else if (isReplanj && isPrev && rowReplanjAcu < 0) rowReplanjAcu = r;
-      else if (isReal && rowRealAcu < 0) rowRealAcu = r;
-      else if (isPrev && rowPrevAcu < 0) rowPrevAcu = r;
-      else if (isTend && rowTendAcu < 0) rowTendAcu = r;
-    } else if (isSem) {
-      if (isReplanj && isReal && rowRealReplanjSem < 0) rowRealReplanjSem = r;
-      else if (isReplanj && isPrev && rowReplanjSem < 0) rowReplanjSem = r;
-    } else {
-      if (rowPrevSem < 0 && n === 'previsto geral lb') rowPrevSem = r;
-      else if (rowRealSem < 0 && n === 'realizado geral') rowRealSem = r;
-      else if (rowTendSem < 0 && (n === 'tendência geral' || n === 'tendencia geral')) rowTendSem = r;
-    }
-    if (n.includes('data da atualização') || n.includes('data da atualizacao')) {
-      const next = (grid[r + 1] || [])[0];
-      const d = toDate(next);
-      if (d) updateDate = d;
-    }
+  console.log('[FORMATO C] Linhas encontradas:', {
+    rowDates, rowPrevAcu, rowRealAcu, rowTendAcu, rowReplanjAcu,
+    rowRealReplanjAcu, rowRealReplanjSem, rowPrevSem, rowRealSem,
+    rowReplanjSem, rowTendSem,
+  });
+
+  if (rowDates < 0 || rowRealAcu < 0 || rowPrevAcu < 0) return null;
+
+  // COL_START = first column after col 0 with a Date in the dates row
+  const dateRow = grid[rowDates] || [];
+  for (let j = 1; j < dateRow.length; j++) {
+    if (toDate(dateRow[j])) { colStart = j; break; }
   }
+  if (colStart < 0) return null;
 
-  // FORMATO C (RHODIA): data de atualização frequentemente em grid[51][0] como Date
+  let updateDate: Date | undefined;
+  if (rowDataAtu >= 0) {
+    const d = toDate((grid[rowDataAtu] || [])[0]);
+    if (d) updateDate = d;
+  }
+  // Fallback: RHODIA tem data em grid[51][0]
   if (!updateDate) {
     for (let r = 45; r < Math.min(grid.length, 60); r++) {
       const d = toDate((grid[r] || [])[0]);
@@ -919,7 +919,7 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     }
   }
 
-  if (rowPrevAcu < 0 || rowRealAcu < 0) return null;
+  console.log('[FORMATO C] colStart:', colStart, 'updateDate:', updateDate);
 
   return {
     ref, rowDates, colStart,
@@ -933,42 +933,25 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 
 const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   const { grid } = ref;
-  let rowEquipe = -1, colEquipe = -1;
+  // Procurar linha onde row[1].trim() === 'EQUIPE DO PROJETO - TOTAL' E row[4].trim() === 'PLAN'
+  let rowPlan = -1, rowReal = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
-    for (let c = 0; c < row.length; c++) {
-      const n = norm(row[c]);
-      if (n.includes('equipe do projeto') && n.includes('total')) {
-        rowEquipe = r; colEquipe = c; break;
+    if (trimStr(row[1]) === 'EQUIPE DO PROJETO - TOTAL' && trimStr(row[4]) === 'PLAN') {
+      rowPlan = r;
+      for (let r2 = r + 1; r2 < Math.min(grid.length, r + 6); r2++) {
+        if (trimStr((grid[r2] || [])[4]) === 'REAL') { rowReal = r2; break; }
       }
+      break;
     }
-    if (rowEquipe >= 0) break;
   }
-  if (rowEquipe < 0) return null;
-
-  // Search PLAN and REAL within next 8 rows, any column
-  let rowPlan = -1, rowReal = -1;
-  for (let r = rowEquipe; r < Math.min(grid.length, rowEquipe + 12); r++) {
-    const row = grid[r] || [];
-    for (let c = 0; c < row.length; c++) {
-      const n = norm(row[c]);
-      if (rowPlan < 0 && n === 'plan') rowPlan = r;
-      if (rowReal < 0 && n === 'real') rowReal = r;
-    }
-    if (rowPlan >= 0 && rowReal >= 0) break;
-  }
+  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal);
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // FORMATO C: dados sempre começam em col 5 (S1). Aceita zeros (semana de mobilização).
-  const planRow = grid[rowPlan] || [];
-  let colStart = -1;
-  for (let c = 5; c < planRow.length; c++) {
-    if (typeof planRow[c] === 'number') { colStart = c; break; }
-  }
-  if (colStart < 0) return null;
-
-  return { ref, rowPlan, rowReal, colStart };
+  // FORMATO C: dados sempre em colunas 5-28
+  return { ref, rowPlan, rowReal, colStart: 5 };
 };
+
 
 
 const extractFormatCInfo = (refs: SheetRef[]): FormatCInfo => {
