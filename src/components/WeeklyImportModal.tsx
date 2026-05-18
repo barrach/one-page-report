@@ -752,6 +752,7 @@ interface ImportResult {
   histBlock: HistBlock | null;
   hist: HistExtract | { error: string } | null;
   projectDates: ProjectDates;
+  formatB?: FormatBBlock | null;
   errors: string[];
 }
 
@@ -759,10 +760,36 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const scans = await Promise.all(files.map(scanFile));
   const allSheets = scans.flatMap(s => s.sheets);
 
-  // Identify CURVA_GERAL — best block across all sheets (most realAcu>0 cols)
-  const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
+  // Try FORMAT B first (integrated curve + histogram in same sheet)
+  let formatB: FormatBBlock | null = null;
+  for (const ref of allSheets) {
+    const fb = findFormatBBlock(ref);
+    if (fb) { formatB = fb; break; }
+  }
 
-  // Identify HISTOGRAMA — pick max realCount
+  if (formatB) {
+    const curve = extractFormatBCurve(formatB);
+    const hist = extractFormatBHist(formatB);
+    const projectDates = extractProjectDates(allSheets);
+    // Override "Atualizado em" from Format B's explicit update date label, if present
+    if (formatB.updateDate) {
+      // Pass via projectDates? — handled in confirm() via formatB.updateDate
+    }
+    const errors: string[] = [];
+    if (!curve.sCurve.length) errors.push('Nenhuma coluna com Real Acumulado > 0 (FORMATO B)');
+    return {
+      curveBlock: null,
+      curve,
+      histBlock: hist.block,
+      hist,
+      projectDates,
+      formatB,
+      errors,
+    };
+  }
+
+  // FORMAT A — fallback
+  const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
   const histCandidates = allSheets
     .map(findHistBlock)
     .filter((b): b is HistBlock => !!b)
@@ -777,7 +804,7 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const hist = histBlock ? extractHist(histBlock) : null;
   const projectDates = extractProjectDates(allSheets);
 
-  return { curveBlock, curve, histBlock, hist, projectDates, errors };
+  return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, errors };
 };
 
 interface UploadZoneProps {
