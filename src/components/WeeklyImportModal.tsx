@@ -1225,6 +1225,25 @@ const scanFile = async (file: File): Promise<FileScan> => {
     sheetName: name,
     grid: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true }),
   }));
+
+  // ===== DEBUG MODAL =====
+  // Identifica aba da Curva S (contém "curva" no nome) ou usa a primeira
+  const curvaSheet = sheets.find(s => /curva/i.test(s.sheetName)) || sheets[0];
+  const rows = curvaSheet?.grid || [];
+  const debugInfo = {
+    arquivo: file.name,
+    abas: wb.SheetNames,
+    abaInspecionada: curvaSheet?.sheetName,
+    totalLinhas: rows.length,
+    labels_col0: rows.slice(0, 20).map((r, i) => `L${i}: ${(r as unknown[])?.[0]}`),
+    tipo_L7_C1: `${typeof (rows[6] as unknown[])?.[1]} = ${(rows[6] as unknown[])?.[1]}`,
+    valor_L12_C23: (rows[11] as unknown[])?.[23],
+    valor_L10_C23: (rows[9] as unknown[])?.[23],
+  };
+  console.log('[DEBUG IMPORT]', debugInfo);
+  try { alert(JSON.stringify(debugInfo, null, 2)); } catch { /* noop */ }
+  // =======================
+
   return { fileName: file.name, sheets };
 };
 
