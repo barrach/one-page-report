@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
+import { centerWeeklyWindow } from '@/lib/dateUtils';
 import ChartInsight from '@/components/ChartInsight';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -7,8 +9,12 @@ import {
 } from 'recharts';
 
 const FiveWeekChart = () => {
-  const { weeklyData, info } = useCurrentProject();
+  const { weeklyData: allWeeklyData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+  const weeklyData = useMemo(
+    () => centerWeeklyWindow(allWeeklyData, info?.atualizadoEm || '', 5),
+    [allWeeklyData, info?.atualizadoEm],
+  );
 
   const handleClick = (data: any) => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'fiveweek');
