@@ -1,21 +1,31 @@
 import { useProjectStore, useCurrentProject, ScheduleRow } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
-import { useState, useCallback } from 'react';
-import { Textarea } from '@/components/ui/textarea';
-
-const parseNumber = (val: string): number => {
-  if (!val) return 0;
-  return parseFloat(val.trim().replace('%', '').replace(/\s/g, '').replace(',', '.')) || 0;
-};
+import { Trash2, ChevronRight, ChevronDown } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
+import { cn } from '@/lib/utils';
 
 const ScheduleSpreadsheet = () => {
   const { scheduleData } = useCurrentProject();
-  const { setScheduleData, addScheduleRow, removeScheduleRow } = useProjectStore();
-  const [showPaste, setShowPaste] = useState(false);
-  const [pasteText, setPasteText] = useState('');
+  const { setScheduleData, removeScheduleRow } = useProjectStore();
   const data = scheduleData || [];
+
+  const [maxLevel, setMaxLevel] = useState<number>(4);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+
+  const visible = useMemo(
+    () => computeVisibleIndices(data, maxLevel, collapsed),
+    [data, maxLevel, collapsed],
+  );
+
+  const toggleCollapse = (i: number) => {
+    setCollapsed((s) => {
+      const next = new Set(s);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
 
   const updateRow = (index: number, field: keyof ScheduleRow, value: string) => {
     const updated = data.map((r, i) => {
@@ -28,46 +38,33 @@ const ScheduleSpreadsheet = () => {
     setScheduleData(updated);
   };
 
-  const handlePaste = useCallback(() => {
-    if (!pasteText.trim()) return;
-    const lines = pasteText.trim().split('\n');
-    const newData: ScheduleRow[] = [];
-    for (let i = 0; i < lines.length; i++) {
-      const cells = lines[i].split('\t');
-      if (i === 0 && /^(id|Id|ID)$/i.test(cells[0]?.trim())) continue;
-      if (cells.length >= 2) {
-        newData.push({
-          id: cells[0]?.trim() || '',
-          tarefa: cells[1]?.trim() || '',
-          previsto: parseNumber(cells[2]),
-          trabalhoConcluido: parseNumber(cells[3]),
-          desvio: parseNumber(cells[4]),
-          inicio: cells[5]?.trim() || '',
-          termino: cells[6]?.trim() || '',
-          inicioBase: cells[7]?.trim() || '',
-          terminoBase: cells[8]?.trim() || '',
-        });
-      }
-    }
-    if (newData.length > 0) { setScheduleData(newData); setShowPaste(false); setPasteText(''); }
-  }, [pasteText, setScheduleData]);
+  const levelButtons: Array<{ label: string; value: number }> = [
+    { label: '1', value: 1 }, { label: '2', value: 2 }, { label: '3', value: 3 },
+    { label: '4', value: 4 }, { label: '5', value: 5 }, { label: 'Todos', value: 99 },
+  ];
 
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <h2 className="text-xl font-bold text-foreground">Cronograma</h2>
-      </div>
-
-      {showPaste && (
-        <div className="mb-4 space-y-2 p-4 rounded-md bg-muted/50 border">
-          <p className="text-sm text-muted-foreground">
-            Cole os dados do Excel (separados por tab). Formato esperado por linha:<br />
-            <strong>Id</strong> | <strong>Nome da Tarefa</strong> | <strong>Previsto %</strong> | <strong>% Trabalho</strong> | <strong>Desvio %</strong> | <strong>Início</strong> | <strong>Término</strong> | <strong>Início Base</strong> | <strong>Término Base</strong>
-          </p>
-          <Textarea rows={8} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Cole aqui os dados copiados do Excel..." className="font-mono text-xs" />
-          <Button size="sm" onClick={handlePaste}>Importar Dados</Button>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-muted-foreground">Exibir até nível:</span>
+          {levelButtons.map((b) => (
+            <button
+              key={b.value}
+              onClick={() => setMaxLevel(b.value)}
+              className={cn(
+                'px-2 py-1 rounded border text-xs font-medium transition-colors',
+                maxLevel === b.value
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background text-foreground border-border hover:bg-muted',
+              )}
+            >
+              {b.label}
+            </button>
+          ))}
         </div>
-      )}
+      </div>
 
       <div className="overflow-x-auto">
         <table className="border-collapse text-xs w-full">
@@ -90,9 +87,12 @@ const ScheduleSpreadsheet = () => {
             </tr>
           </thead>
           <tbody>
-            {data.map((row, i) => {
+            {visible.map((i) => {
+              const row = data[i];
               const level = row.outlineLevel ?? 1;
               const indentPx = Math.min(Math.max(level - 1, 0), 5) * 16;
+              const hasKids = rowHasChildren(data, i);
+              const isCollapsed = collapsed.has(i);
               const rowStyle: React.CSSProperties =
                 level === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
                 level === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700, fontSize: '13px' } :
@@ -128,7 +128,22 @@ const ScheduleSpreadsheet = () => {
                   <input className="w-full text-center bg-transparent outline-none text-xs" style={inheritStyle} value={row.id} onChange={(e) => updateRow(i, 'id', e.target.value)} />
                 </td>
                 <td className="border border-border px-1 py-0.5" style={{ paddingLeft: `${indentPx + 4}px` }}>
-                  <input className="w-full bg-transparent outline-none text-xs px-1" style={inheritStyle} value={row.tarefa} onChange={(e) => updateRow(i, 'tarefa', e.target.value)} placeholder="Nome da tarefa..." />
+                  <div className="flex items-center gap-1">
+                    {hasKids ? (
+                      <button
+                        type="button"
+                        onClick={() => toggleCollapse(i)}
+                        className="shrink-0 hover:opacity-70"
+                        style={{ color: 'inherit' }}
+                        title={isCollapsed ? 'Expandir' : 'Colapsar'}
+                      >
+                        {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                      </button>
+                    ) : (
+                      <span className="inline-block w-3" />
+                    )}
+                    <input className="w-full bg-transparent outline-none text-xs px-1" style={inheritStyle} value={row.tarefa} onChange={(e) => updateRow(i, 'tarefa', e.target.value)} placeholder="Nome da tarefa..." />
+                  </div>
                 </td>
                 <td className="border border-border px-1 py-0.5">
                   <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" style={inheritStyle} value={row.previsto} onChange={(e) => updateRow(i, 'previsto', e.target.value)} />
@@ -140,7 +155,7 @@ const ScheduleSpreadsheet = () => {
                   <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs" style={desvioStyle} value={row.desvio} onChange={(e) => updateRow(i, 'desvio', e.target.value)} />
                 </td>
                 {(['inicio', 'termino', 'inicioBase', 'terminoBase'] as const).map((field) => {
-                  const v = (row as any)[field] as string;
+                  const v = (row as unknown as Record<string, string>)[field];
                   const isBaseline = field === 'inicioBase' || field === 'terminoBase';
                   return (
                     <td key={field} className="border border-border px-1 py-0.5">
@@ -159,6 +174,10 @@ const ScheduleSpreadsheet = () => {
           </tbody>
         </table>
       </div>
+
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Exibindo {visible.length} de {data.length} linhas.
+      </p>
     </div>
   );
 };
