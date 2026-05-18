@@ -1020,16 +1020,33 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                 <>
                   {/* CURVA_GERAL */}
                   <div className="text-xs space-y-2">
-                    <div className="font-medium text-foreground">📊 Curva S / Semanal / Prev x Mês (CURVA_GERAL)</div>
-                    {!result.curveBlock ? (
+                    <div className="font-medium text-foreground">
+                      📊 Curva S / Semanal / Prev x Mês
+                      {result.formatB && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO B (integrado)</span>}
+                    </div>
+                    {!result.curveBlock && !result.formatB ? (
                       <div className="pl-4 text-destructive">Aba não identificada</div>
                     ) : (
                       <div className="pl-4 space-y-1">
                         <div className="text-muted-foreground">
-                          Arquivo: <span className="font-mono text-foreground">{result.curveBlock.ref.fileName}</span> ·
-                          Aba: <span className="font-mono text-foreground">{result.curveBlock.ref.sheetName}</span>
+                          Arquivo: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB!.ref).fileName}</span> ·
+                          Aba: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB!.ref).sheetName}</span>
                         </div>
-                        <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
+                        {result.curveBlock && (
+                          <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
+                        )}
+                        {result.formatB && (
+                          <div>
+                            {chip('Prev. LB Acu.', result.formatB.rowPrevAcu >= 0)}
+                            {chip('Real Acu.', result.formatB.rowRealAcu >= 0)}
+                            {chip('Tend. Acu.', result.formatB.rowTendAcu >= 0)}
+                            {chip('Prev. Sem.', result.formatB.rowPrevSem >= 0)}
+                            {chip('Real Sem.', result.formatB.rowRealSem >= 0)}
+                            {chip('Replanej.', result.formatB.rowReplanjAcu >= 0)}
+                            {chip('MOD Prev', result.formatB.rowModPrev >= 0)}
+                            {chip('MOD Real', result.formatB.rowModReal >= 0)}
+                          </div>
+                        )}
                         {result.curve && ('error' in result.curve ? (
                           <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
                         ) : (() => {
@@ -1037,6 +1054,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           const sd = c.statusDate;
                           const sdFull = `${String(sd.getDate()).padStart(2, '0')}/${MONTHS_PT[sd.getMonth()]}/${sd.getFullYear()}`;
                           const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
+                          const updateDate = result.formatB?.updateDate ?? sd;
+                          const udFull = `${String(updateDate.getDate()).padStart(2, '0')}/${MONTHS_PT[updateDate.getMonth()]}/${updateDate.getFullYear()}`;
                           return (
                             <>
                               <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground space-y-0.5">
@@ -1046,7 +1065,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                                   <div className="font-semibold">Informações do Projeto:</div>
                                   <div>· Avanço Prev.: <strong>{c.prevAcuLast.toFixed(2).replace('.', ',')}%</strong></div>
                                   <div>· Avanço Real: <strong>{realStr}%</strong></div>
-                                  <div>· Atualizado em: <strong>{sdFull}</strong></div>
+                                  <div>· Atualizado em: <strong>{udFull}</strong></div>
                                 </div>
                               </div>
                               <div className="text-muted-foreground">
