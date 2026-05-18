@@ -588,7 +588,7 @@ const extractFormatBCurve = (b: FormatBBlock): CurveExtract | { error: string } 
 
   let ultimaReal = -1;
   cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
-  if (ultimaReal < 0) return { block: null as never, cols, ultimaReal, statusDate: new Date(), realAcuLast: 0, prevAcuLast: 0, hasReplanejado: false, sCurve: [], weekly: [], monthly: [] };
+  if (ultimaReal < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO B)' };
 
   const hasReplanejado = cols.some(c => c.replanjAcu > 0);
 
