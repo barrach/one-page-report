@@ -1127,8 +1127,8 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     .slice(-4)
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.previsto, real: m.real }));
 
-  // 6. KPIs — usar dados da última semana
-  const last = semanas[semanas.length - 1];
+  // 6. KPIs — usar dados da ULTIMA_REAL (não da última projeção)
+  const last = (ultimaRealIdx >= 0 ? semanas[ultimaRealIdx] : semanas[semanas.length - 1]);
   const prevLast = last.rpa > 0 ? last.rpa : last.lb;
 
   // 7. cols compatível com CurveExtract (valores decimais para back-compat)
@@ -1142,7 +1142,7 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   return {
     block: null as never,
-    cols, ultimaReal: semanas.length - 1,
+    cols, ultimaReal: ultimaRealIdx >= 0 ? ultimaRealIdx : semanas.length - 1,
     statusDate: last.date,
     realAcuLast: last.ra,
     prevAcuLast: prevLast,
