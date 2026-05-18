@@ -1,6 +1,6 @@
 import { useProjectStore, useCurrentProject, ScheduleRow } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+
 import { Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
