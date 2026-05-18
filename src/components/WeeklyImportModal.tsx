@@ -37,56 +37,95 @@ interface ScheduleMapEntry { field: ScheduleField; col: number; header: string; 
 interface ScheduleExtract { rows: ScheduleRow[]; format: ScheduleFormat; mapping?: ScheduleMapEntry[]; missing?: ScheduleField[]; }
 
 
-const parseScheduleXML = (text: string): ScheduleRow[] => {
-  const doc = new DOMParser().parseFromString(text, 'application/xml');
-  if (doc.getElementsByTagName('parsererror').length) throw new Error('XML inválido');
-  const tasks = Array.from(doc.getElementsByTagName('Task'));
-  const rows: ScheduleRow[] = [];
-  for (const t of tasks) {
-    const get = (tag: string) => {
-      const el = Array.from(t.children).find(c => c.tagName === tag);
-      return el?.textContent ?? '';
-    };
-    if (get('UID') === '0') continue;
-    const name = get('Name');
+const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
+  // 1. Parsear o XML
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+  if (xmlDoc.getElementsByTagName('parsererror').length) throw new Error('XML inválido');
+
+  // 2. O namespace pode variar — buscar Tasks de duas formas
+  let tasks: HTMLCollectionOf<Element> | Element[] = xmlDoc.getElementsByTagName('Task');
+  if (!tasks || tasks.length === 0) {
+    tasks = xmlDoc.getElementsByTagNameNS('*', 'Task');
+  }
+
+  // 3. Helper para ler tag com segurança (apenas filhos diretos da Task)
+  function getTag(task: Element, tagName: string): string | null {
+    const directChild = Array.from(task.children).find(
+      (c) => c.localName === tagName || c.tagName === tagName,
+    );
+    if (directChild) return (directChild.textContent ?? '').trim();
+    const el =
+      task.getElementsByTagName(tagName)[0] ||
+      task.getElementsByTagNameNS('*', tagName)[0];
+    return el ? (el.textContent ?? '').trim() : null;
+  }
+
+  // 4. Formatar data — "Dia DD/mmm/aa"
+  function formatDate(dateStr: string | null): string {
+    if (!dateStr || dateStr === 'NA' || dateStr === '') return 'ND';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'ND';
+    if (d.getFullYear() < 1990) return 'ND';
+    const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const meses = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = meses[d.getMonth()];
+    const ano = String(d.getFullYear()).slice(2);
+    return `${dias[d.getDay()]} ${dia}/${mes}/${ano}`;
+  }
+
+  // 5. Processar cada Task
+  const result: ScheduleRow[] = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const task = tasks[i];
+
+    const uid = getTag(task, 'UID');
+    if (uid === '0') continue; // ignorar tarefa raiz
+
+    const id = getTag(task, 'ID');
+    const name = getTag(task, 'Name');
     if (!name) continue;
-    const pc = parseFloat(get('PercentComplete')) || 0;
-    const pwc = parseFloat(get('PercentWorkComplete')) || 0;
-    const fd = (s: string) => {
-      if (!s || s === 'NA') return '';
-      const d = parseAnyDate(s);
-      return d ? fmtScheduleDate(d) : '';
-    };
-    const fdBaseline = (s: string) => {
-      if (!s || s === 'NA') return 'ND';
-      const d = parseAnyDate(s);
-      if (!d) return 'ND';
-      // MS Project uses year 1984 for "NA" baseline
-      if (d.getFullYear() < 1990) return 'ND';
-      return fmtScheduleDate(d);
-    };
-    const outlineLevel = parseInt(get('OutlineLevel')) || 1;
-    const summary = get('Summary') === '1';
-    const milestone = get('Milestone') === '1';
-    const outlineNumber = get('OutlineNumber') || '';
-    rows.push({
-      id: get('ID'),
+    const outlineLevel = parseInt(getTag(task, 'OutlineLevel') || '1') || 1;
+    const outlineNumber = getTag(task, 'OutlineNumber') || (id ?? '');
+    const prevPct = parseFloat(getTag(task, 'PercentComplete') || '0') || 0;
+    const trabPct = parseFloat(getTag(task, 'PercentWorkComplete') || '0') || 0;
+    const isSummary = getTag(task, 'Summary') === '1';
+    const isMilestone = getTag(task, 'Milestone') === '1';
+
+    const inicio = formatDate(getTag(task, 'Start'));
+    const termino = formatDate(getTag(task, 'Finish'));
+
+    const baseStart = getTag(task, 'BaselineStart');
+    const baseFinish = getTag(task, 'BaselineFinish');
+    const inicioBase = !baseStart || baseStart === 'NA' ? 'ND' : formatDate(baseStart);
+    const terminoBase = !baseFinish || baseFinish === 'NA' ? 'ND' : formatDate(baseFinish);
+
+    const desvio = Math.round((prevPct - trabPct) * 100) / 100;
+
+    result.push({
+      id: id ?? String(i + 1),
       tarefa: name,
-      previsto: pc,
-      trabalhoConcluido: pwc,
-      desvio: Math.round((pc - pwc) * 100) / 100,
-      inicio: fd(get('Start')),
-      termino: fd(get('Finish')),
-      inicioBase: fdBaseline(get('BaselineStart')),
-      terminoBase: fdBaseline(get('BaselineFinish')),
+      previsto: prevPct,
+      trabalhoConcluido: trabPct,
+      desvio,
+      inicio: inicio === 'ND' ? '' : inicio,
+      termino: termino === 'ND' ? '' : termino,
+      inicioBase,
+      terminoBase,
       outlineLevel,
       outlineNumber,
-      summary,
-      milestone,
-      bold: summary || outlineLevel <= 2,
+      summary: isSummary,
+      milestone: isMilestone,
+      bold: isSummary || outlineLevel <= 2,
     });
   }
-  return rows;
+
+  console.log('XML tasks encontradas:', tasks.length);
+  console.log('Primeira task:', result[0]);
+  console.log('Total importado:', result.length);
+
+  return result;
 };
 
 // ─── Schedule (XLSX) — fully dynamic, header-driven column mapping ───
