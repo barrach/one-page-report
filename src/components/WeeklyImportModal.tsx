@@ -812,26 +812,30 @@ interface UploadZoneProps {
   subtitle?: string;
   badge?: { text: string; variant: 'required' | 'optional' };
   accept?: string;
-  status: 'idle' | 'loaded';
+  status: 'idle' | 'loaded' | 'disabled';
   fileName?: string;
+  disabledMessage?: string;
   onFile: (f: File) => void;
 }
 
-const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName, onFile }: UploadZoneProps) => {
+const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName, disabledMessage, onFile }: UploadZoneProps) => {
   const [dragOver, setDragOver] = useState(false);
+  const isDisabled = status === 'disabled';
   return (
     <label
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e) => { if (isDisabled) return; e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {
+        if (isDisabled) return;
         e.preventDefault(); setDragOver(false);
         const f = e.dataTransfer.files?.[0];
         if (f) onFile(f);
       }}
-      className={`flex-1 cursor-pointer border-2 border-dashed rounded-lg p-4 text-center transition-colors relative ${
-        dragOver ? 'border-primary bg-primary/5' :
-        status === 'loaded' ? 'border-success bg-success/5' :
-        'border-border hover:border-primary/50'
+      className={`flex-1 border-2 border-dashed rounded-lg p-4 text-center transition-colors relative ${
+        isDisabled ? 'border-muted bg-muted/30 opacity-60 cursor-not-allowed' :
+        dragOver ? 'border-primary bg-primary/5 cursor-pointer' :
+        status === 'loaded' ? 'border-success bg-success/5 cursor-pointer' :
+        'border-border hover:border-primary/50 cursor-pointer'
       }`}
     >
       {badge && (
@@ -841,16 +845,20 @@ const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName
             : 'bg-primary/10 text-primary'
         }`}>{badge.text}</span>
       )}
-      <input type="file" accept={accept} className="hidden"
+      <input type="file" accept={accept} className="hidden" disabled={isDisabled}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
       <div className="flex flex-col items-center gap-2">
-        {status === 'loaded'
+        {isDisabled
+          ? <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
+          : status === 'loaded'
           ? <CheckCircle2 className="h-8 w-8 text-success" />
           : <Upload className="h-8 w-8 text-muted-foreground" />}
         <div className="font-semibold text-sm text-foreground">{label}</div>
         {subtitle && <div className="text-[11px] text-muted-foreground">{subtitle}</div>}
         <div className="text-xs">
-          {status === 'loaded' && fileName
+          {isDisabled
+            ? <span className="text-muted-foreground font-medium italic">{disabledMessage || 'Desabilitado'}</span>
+            : status === 'loaded' && fileName
             ? <span className="text-success font-medium">✓ {fileName}</span>
             : <span className="text-muted-foreground">Arraste ou clique para selecionar</span>}
         </div>
