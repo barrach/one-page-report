@@ -1222,6 +1222,7 @@ interface ImportResult {
   hist: HistExtract | { error: string } | null;
   projectDates: ProjectDates;
   formatB?: FormatBBlock | null;
+  formatC?: FormatCBundle | null;
   errors: string[];
 }
 
@@ -1229,7 +1230,31 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const scans = await Promise.all(files.map(scanFile));
   const allSheets = scans.flatMap(s => s.sheets);
 
-  // Try FORMAT B first (integrated curve + histogram in same sheet)
+  // Try FORMAT C first (Relatório Integrado: curve + hist em abas separadas + RESUMO)
+  const formatC = detectFormatC(allSheets);
+  if (formatC) {
+    const curve = extractFormatCCurve(formatC.curve);
+    const hist = formatC.hist ? extractFormatCHist(formatC.hist, formatC.curve) : null;
+    const projectDates: ProjectDates = {
+      inicio: formatC.info.inicio,
+      terminoLB: formatC.info.terminoLB,
+      terminoPrev: formatC.info.terminoPrev,
+    };
+    const errors: string[] = [];
+    if ('error' in curve) errors.push(curve.error);
+    return {
+      curveBlock: null,
+      curve,
+      histBlock: hist?.block ?? null,
+      hist,
+      projectDates,
+      formatB: null,
+      formatC,
+      errors,
+    };
+  }
+
+  // Try FORMAT B (integrated curve + histogram in same sheet)
   let formatB: FormatBBlock | null = null;
   for (const ref of allSheets) {
     const fb = findFormatBBlock(ref);
@@ -1249,9 +1274,11 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
       hist,
       projectDates,
       formatB,
+      formatC: null,
       errors,
     };
   }
+
 
   // FORMAT A — fallback
   const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
