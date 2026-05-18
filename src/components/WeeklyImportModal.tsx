@@ -49,15 +49,10 @@ const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
     tasks = xmlDoc.getElementsByTagNameNS('*', 'Task');
   }
 
-  // 3. Helper para ler tag com segurança (apenas filhos diretos da Task)
+  // 3. Helper para ler tag com e sem namespace
   function getTag(task: Element, tagName: string): string | null {
-    const directChild = Array.from(task.children).find(
-      (c) => c.localName === tagName || c.tagName === tagName,
-    );
-    if (directChild) return (directChild.textContent ?? '').trim();
-    const el =
-      task.getElementsByTagName(tagName)[0] ||
-      task.getElementsByTagNameNS('*', tagName)[0];
+    const el = task.getElementsByTagName(tagName)[0]
+             || task.getElementsByTagNameNS('*', tagName)[0];
     return el ? (el.textContent ?? '').trim() : null;
   }
 
@@ -83,11 +78,11 @@ const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
     const uid = getTag(task, 'UID');
     if (uid === '0') continue; // ignorar tarefa raiz
 
-    const id = getTag(task, 'ID');
+    const rawId = getTag(task, 'ID');
     const name = getTag(task, 'Name');
     if (!name) continue;
     const outlineLevel = parseInt(getTag(task, 'OutlineLevel') || '1') || 1;
-    const outlineNumber = getTag(task, 'OutlineNumber') || (id ?? '');
+    const outlineNumber = getTag(task, 'OutlineNumber') || (rawId ?? '');
     const prevPct = parseFloat(getTag(task, 'PercentComplete') || '0') || 0;
     const trabPct = parseFloat(getTag(task, 'PercentWorkComplete') || '0') || 0;
     const isSummary = getTag(task, 'Summary') === '1';
@@ -96,15 +91,27 @@ const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
     const inicio = formatDate(getTag(task, 'Start'));
     const termino = formatDate(getTag(task, 'Finish'));
 
-    const baseStart = getTag(task, 'BaselineStart');
-    const baseFinish = getTag(task, 'BaselineFinish');
-    const inicioBase = !baseStart || baseStart === 'NA' ? 'ND' : formatDate(baseStart);
-    const terminoBase = !baseFinish || baseFinish === 'NA' ? 'ND' : formatDate(baseFinish);
+    const rawBaseStart  = getTag(task, 'BaselineStart');
+    const rawBaseFinish = getTag(task, 'BaselineFinish');
+
+    const inicioBase = (
+      !rawBaseStart ||
+      rawBaseStart === 'NA' ||
+      rawBaseStart === '' ||
+      rawBaseStart.startsWith('NA')
+    ) ? 'ND' : formatDate(rawBaseStart);
+
+    const terminoBase = (
+      !rawBaseFinish ||
+      rawBaseFinish === 'NA' ||
+      rawBaseFinish === '' ||
+      rawBaseFinish.startsWith('NA')
+    ) ? 'ND' : formatDate(rawBaseFinish);
 
     const desvio = Math.round((prevPct - trabPct) * 100) / 100;
 
     result.push({
-      id: id ?? String(i + 1),
+      id: rawId ?? String(i + 1),
       tarefa: name,
       previsto: prevPct,
       trabalhoConcluido: trabPct,
@@ -124,6 +131,11 @@ const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
   console.log('XML tasks encontradas:', tasks.length);
   console.log('Primeira task:', result[0]);
   console.log('Total importado:', result.length);
+  console.log('=== DEBUG CRONOGRAMA ===');
+  console.log('Total tasks:', result.length);
+  console.log('Task ID=1:', JSON.stringify(result.find(t => Number(t.id) === 1)));
+  console.log('Task ID=21:', JSON.stringify(result.find(t => Number(t.id) === 21)));
+  console.log('OutlineLevels encontrados:', [...new Set(result.map(t => t.outlineLevel))].sort());
 
   return result;
 };

@@ -35,11 +35,11 @@ export const computeVisibleIndices = (
   const out: number[] = [];
   const stack: number[] = []; // ancestor indices
   for (let i = 0; i < rows.length; i++) {
-    const lvl = rows[i].outlineLevel ?? 1;
+    const lvl = Math.max(1, Number(rows[i].outlineLevel) || 1);
     while (stack.length && (rows[stack[stack.length - 1]].outlineLevel ?? 1) >= lvl) stack.pop();
     const exceedsMax = lvl > maxLevel;
     const hiddenByAncestor = stack.some((a) => collapsed.has(a));
-    const ancestorExceeds = stack.some((a) => (rows[a].outlineLevel ?? 1) > maxLevel);
+    const ancestorExceeds = stack.some((a) => (Math.max(1, Number(rows[a].outlineLevel) || 1)) > maxLevel);
     if (!exceedsMax && !hiddenByAncestor && !ancestorExceeds) out.push(i);
     stack.push(i);
   }
