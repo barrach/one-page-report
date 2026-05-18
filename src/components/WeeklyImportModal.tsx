@@ -892,8 +892,12 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     if (label && !(label in labelMap)) labelMap[label] = i;
   });
 
-  // SHEET CHECK: deve conter REALIZADO GERAL (ACUMULADO)
-  if (findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)') < 0) return null;
+  // SHEET CHECK (3 labels obrigatórios): Curva S = Evento + LB Acu + Real Acu
+  const hasEvento = !!Object.keys(labelMap).find(k => k.trim().startsWith('Evento'));
+  const hasLbAcu  = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)') >= 0;
+  const hasReAcu  = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)') >= 0;
+  if (!(hasEvento && hasLbAcu && hasReAcu)) return null;
+  console.log('[FORMATO C] ✅ Aba Curva S =', ref.sheetName);
 
   // 2. Buscas dinâmicas (tolerantes a espaço extra)
   let rowDates       = findRowByLabel(labelMap, 'Evento ( Cronograma)', 'Evento (Cronograma)', 'EVENTO');
@@ -1213,14 +1217,26 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
 
 
 const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
-  // Find a sheet with Resumo
+  // Sinais de Formato C: aba RESUMO ou aba EQUIPE DO PROJETO - TOTAL/PLAN
   const hasResumo = allSheets.some(s => norm(s.sheetName).includes('resumo'));
+  const hasHistSig = allSheets.some(s =>
+    (s.grid || []).some(r => (r as unknown[])?.some(v => v != null && String(v).includes('EQUIPE DO PROJETO - TOTAL')))
+  );
+  const isFormatC = hasResumo || hasHistSig;
+
+  // Varre TODAS as abas em busca da Curva S
   let curve: FormatCCurveBlock | null = null;
   for (const ref of allSheets) {
     const c = findFormatCCurveBlock(ref);
     if (c) { curve = c; break; }
   }
-  if (!curve) return null;
+  if (!curve) {
+    if (isFormatC) {
+      console.error('[FORMATO C] ❌ Aba da Curva S não encontrada. Abas:', allSheets.map(s => s.sheetName));
+      toast.error('FORMATO C: aba da Curva S não encontrada. Verifique se o arquivo é o correto.');
+    }
+    return null;
+  }
   // Format C signature: has RESUMO sheet OR an EQUIPE DO PROJETO hist sheet
   let hist: FormatCHistBlock | null = null;
   for (const ref of allSheets) {
