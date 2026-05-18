@@ -1524,15 +1524,17 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                   <div className="text-xs space-y-2">
                     <div className="font-medium text-foreground">
                       📊 Curva S / Semanal / Prev x Mês
-                      {result.formatB && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO B (integrado)</span>}
+                      {result.formatC && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO C (Relatório Integrado)</span>}
+                      {result.formatB && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO B (Arquivo Integrado)</span>}
+                      {result.curveBlock && !result.formatB && !result.formatC && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO A (Curva S Padrão)</span>}
                     </div>
-                    {!result.curveBlock && !result.formatB ? (
+                    {!result.curveBlock && !result.formatB && !result.formatC ? (
                       <div className="pl-4 text-destructive">Aba não identificada</div>
                     ) : (
                       <div className="pl-4 space-y-1">
                         <div className="text-muted-foreground">
-                          Arquivo: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB!.ref).fileName}</span> ·
-                          Aba: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB!.ref).sheetName}</span>
+                          Arquivo: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB?.ref || result.formatC!.curve.ref).fileName}</span> ·
+                          Aba: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB?.ref || result.formatC!.curve.ref).sheetName}</span>
                         </div>
                         {result.curveBlock && (
                           <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
@@ -1549,6 +1551,18 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                             {chip('MOD Real', result.formatB.rowModReal >= 0)}
                           </div>
                         )}
+                        {result.formatC && (
+                          <div>
+                            {chip('Prev. LB Acu.', result.formatC.curve.rowPrevAcu >= 0)}
+                            {chip('Real Acu.', result.formatC.curve.rowRealAcu >= 0)}
+                            {chip('Tend. Acu.', result.formatC.curve.rowTendAcu >= 0)}
+                            {chip('Prev. Sem.', result.formatC.curve.rowPrevSem >= 0)}
+                            {chip('Real Sem.', result.formatC.curve.rowRealSem >= 0)}
+                            {chip('Replanej.', result.formatC.curve.rowReplanjAcu >= 0)}
+                            {chip('Hist. PLAN/REAL', !!result.formatC.hist)}
+                            {chip('RESUMO', !!(result.formatC.info.projeto || result.formatC.info.cliente))}
+                          </div>
+                        )}
                         {result.curve && ('error' in result.curve ? (
                           <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
                         ) : (() => {
@@ -1556,8 +1570,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           const sd = c.statusDate;
                           const sdFull = `${String(sd.getDate()).padStart(2, '0')}/${MONTHS_PT[sd.getMonth()]}/${sd.getFullYear()}`;
                           const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
-                          const updateDate = result.formatB?.updateDate ?? sd;
+                          const updateDate = result.formatC?.curve.updateDate ?? result.formatB?.updateDate ?? sd;
                           const udFull = `${String(updateDate.getDate()).padStart(2, '0')}/${MONTHS_PT[updateDate.getMonth()]}/${updateDate.getFullYear()}`;
+
                           return (
                             <>
                               <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground space-y-0.5">
