@@ -951,23 +951,17 @@ const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   }
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // Find first numeric column > 0 in plan row, starting from col 5
+  // FORMATO C: dados sempre começam em col 5 (S1). Aceita zeros (semana de mobilização).
   const planRow = grid[rowPlan] || [];
   let colStart = -1;
   for (let c = 5; c < planRow.length; c++) {
-    const v = planRow[c];
-    if (typeof v === 'number' && v > 0) { colStart = c; break; }
-  }
-  if (colStart < 0) {
-    // fallback: any numeric
-    for (let c = 5; c < planRow.length; c++) {
-      if (typeof planRow[c] === 'number') { colStart = c; break; }
-    }
+    if (typeof planRow[c] === 'number') { colStart = c; break; }
   }
   if (colStart < 0) return null;
 
   return { ref, rowPlan, rowReal, colStart };
 };
+
 
 const extractFormatCInfo = (refs: SheetRef[]): FormatCInfo => {
   const info: FormatCInfo = {};
