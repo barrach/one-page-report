@@ -859,17 +859,19 @@ interface FormatCBundle {
 
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
-  // Row of dates: col 0 contains "evento" + subsequent are Date
+  // Row of dates: col 0 contains "evento ( cronograma)" exact + subsequent are Date
+  // Stricter than just "evento" to avoid matching financial curves ("Evento de Pagamento")
   let rowDates = -1, colStart = -1;
   for (let r = 0; r < Math.min(grid.length, 20); r++) {
     const row = grid[r] || [];
     const n = norm(row[0]);
-    if (!(n.includes('evento') || n.includes('cronograma'))) continue;
+    if (!(n === 'evento ( cronograma)' || n === 'evento (cronograma)' || n === 'evento cronograma')) continue;
     for (let c = 1; c < row.length; c++) {
       if (toDate(row[c])) { rowDates = r; colStart = c; break; }
     }
     if (rowDates >= 0) break;
   }
+
   if (rowDates < 0) return null;
 
   let rowPrevAcu = -1, rowPrevSem = -1, rowRealAcu = -1, rowRealSem = -1;
@@ -949,23 +951,17 @@ const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   }
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // Find first numeric column > 0 in plan row, starting from col 5
+  // FORMATO C: dados sempre começam em col 5 (S1). Aceita zeros (semana de mobilização).
   const planRow = grid[rowPlan] || [];
   let colStart = -1;
   for (let c = 5; c < planRow.length; c++) {
-    const v = planRow[c];
-    if (typeof v === 'number' && v > 0) { colStart = c; break; }
-  }
-  if (colStart < 0) {
-    // fallback: any numeric
-    for (let c = 5; c < planRow.length; c++) {
-      if (typeof planRow[c] === 'number') { colStart = c; break; }
-    }
+    if (typeof planRow[c] === 'number') { colStart = c; break; }
   }
   if (colStart < 0) return null;
 
   return { ref, rowPlan, rowReal, colStart };
 };
+
 
 const extractFormatCInfo = (refs: SheetRef[]): FormatCInfo => {
   const info: FormatCInfo = {};
@@ -1074,29 +1070,37 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
 
-  // Determine total columns (find last column with any numeric value in plan)
-  let lastCol = h.colStart;
+  // Determine valid columns: numeric and NOT a total (values >= 400 são acumulados/totais — IGNORAR)
+  // FORMATO C: parar de iterar ao encontrar primeiro valor >= 400 (tudo após é sumário/totais)
+  const isTotal = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v >= 400;
+
+  let lastCol = h.colStart - 1;
   for (let c = h.colStart; c < Math.max(planRow.length, realRow.length); c++) {
+    if (isTotal(planRow[c]) || isTotal(realRow[c])) break;
     if (typeof planRow[c] === 'number' || typeof realRow[c] === 'number') lastCol = c;
   }
+  if (lastCol < h.colStart) lastCol = h.colStart;
 
-  // Date alignment: try to align with curve's date row by column index offset
-  // Otherwise generate sequential weekly labels starting from curve's first date or generic "S1"...
-  const items: { date: Date | null; label: string; prev: number; real: number }[] = [];
+
+  // Date alignment FORMAT C: hist col c → curve col (c - 4) (S1 hist@5 = curve@1)
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const curveColStart = curveBlock ? curveBlock.colStart : -1;
+  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0; // = 1 - 5 = -4
 
+  const items: { date: Date | null; label: string; prev: number; real: number }[] = [];
   for (let c = h.colStart, i = 0; c <= lastCol; c++, i++) {
-    const prev = toNum(planRow[c]);
-    const real = toNum(realRow[c]);
+    const rawPrev = planRow[c];
+    const rawReal = realRow[c];
+    const prev = (typeof rawPrev === 'number' && isFinite(rawPrev) && rawPrev < 400) ? rawPrev : 0;
+    const real = (typeof rawReal === 'number' && isFinite(rawReal) && rawReal < 400) ? rawReal : 0;
+
     let date: Date | null = null;
     if (curveDateRow) {
-      const candidate = curveDateRow[curveColStart + i];
-      const d = toDate(candidate);
+      const d = toDate(curveDateRow[c + offset]);
       if (d) date = d;
     }
     items.push({ date, label: date ? fmtDDmmm(date) : `S${i + 1}`, prev, real });
   }
+
 
   let ultimaReal = -1;
   items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
