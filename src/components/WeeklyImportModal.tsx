@@ -90,6 +90,35 @@ const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   for (const name of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true });
+
+    // MS Project Excel export: row 0 = "Nome da Tarefa" | "Início" | "Término"
+    const h0 = grid[0] || [];
+    const c0 = String(h0[0] ?? '').trim().toLowerCase();
+    const c1 = String(h0[1] ?? '').trim().toLowerCase();
+    const c2 = String(h0[2] ?? '').trim().toLowerCase();
+    if (/nome.*tarefa/.test(c0) && /(in[ií]cio|start)/.test(c1) && /(t[eé]rmino|finish)/.test(c2)) {
+      const fd = (v: unknown) => { const d = parseAnyDate(v); return d ? fmtScheduleDate(d) : ''; };
+      const out: ScheduleRow[] = [];
+      for (let r = 1; r < grid.length; r++) {
+        const rr = grid[r] || [];
+        const raw = rr[0];
+        if (raw == null || String(raw).trim() === '') continue;
+        const rawName = String(raw);
+        const leading = rawName.length - rawName.trimStart().length;
+        const outlineLevel = Math.floor(leading / 3) + 1;
+        out.push({
+          id: String(r),
+          tarefa: rawName.trim(),
+          previsto: 0, trabalhoConcluido: 0, desvio: 0,
+          inicio: fd(rr[1]), termino: fd(rr[2]),
+          inicioBase: '', terminoBase: '',
+          outlineLevel, summary: false, milestone: false,
+          bold: outlineLevel <= 2,
+        });
+      }
+      if (out.length) return out;
+    }
+
     for (let i = 0; i < Math.min(grid.length, 5); i++) {
       const row = grid[i] || [];
       const idx: Record<string, number> = {};
@@ -453,6 +482,210 @@ const extractHist = (block: HistBlock): HistExtract | { error: string } => {
   return { block, total: items.length, ultimaReal, histogram };
 };
 
+// ===================== FORMAT B (integrated curve + histogram in same sheet) =====================
+
+interface FormatBBlock {
+  ref: SheetRef;
+  rowDates: number;
+  colStart: number;
+  rowPrevAcu: number;
+  rowPrevSem: number;
+  rowRealAcu: number;
+  rowRealSem: number;
+  rowTendAcu: number;
+  rowTendSem: number;
+  rowReplanjAcu: number;
+  rowReplanjSem: number;
+  rowModPrev: number;
+  rowModReal: number;
+  updateDate?: Date;
+}
+
+const findFormatBBlock = (ref: SheetRef): FormatBBlock | null => {
+  const { grid } = ref;
+
+  // 1. ROW_DATES: in first 12 rows, col 0 contains "evento" or "cronograma", subsequent cols are Dates
+  let rowDates = -1, colStart = -1;
+  for (let r = 0; r < Math.min(grid.length, 12); r++) {
+    const row = grid[r] || [];
+    const n = norm(row[0]);
+    if (!(n.includes('evento') || n.includes('cronograma'))) continue;
+    for (let c = 1; c < row.length; c++) {
+      if (toDate(row[c])) { rowDates = r; colStart = c; break; }
+    }
+    if (rowDates >= 0) break;
+  }
+  if (rowDates < 0) return null;
+
+  // 2. Search col 0 for labels
+  let rowPrevAcu = -1, rowPrevSem = -1;
+  let rowRealAcu = -1, rowRealSem = -1;
+  let rowTendAcu = -1, rowTendSem = -1;
+  let rowReplanjAcu = -1, rowReplanjSem = -1;
+  let rowModPrev = -1, rowModReal = -1;
+  let updateDate: Date | undefined;
+
+  for (let r = 0; r < grid.length; r++) {
+    const n = norm((grid[r] || [])[0]);
+    if (!n) continue;
+    // Acumulados (contain "(acumulado)")
+    if (n.includes('(acumulado)')) {
+      if (rowPrevAcu < 0 && n.includes('previsto geral lb')) rowPrevAcu = r;
+      else if (rowRealAcu < 0 && n.includes('realizado geral')) rowRealAcu = r;
+      else if (rowTendAcu < 0 && (n.includes('tendência geral') || n.includes('tendencia geral'))) rowTendAcu = r;
+      else if (rowReplanjAcu < 0 && n.includes('replanejado')) rowReplanjAcu = r;
+    } else if (n.includes('(semanal)')) {
+      if (rowReplanjSem < 0 && n.includes('replanejado')) rowReplanjSem = r;
+    } else {
+      // Semanais (exact-ish, no parens)
+      if (rowPrevSem < 0 && n === 'previsto geral lb') rowPrevSem = r;
+      else if (rowRealSem < 0 && n === 'realizado geral') rowRealSem = r;
+      else if (rowTendSem < 0 && (n === 'tendência geral' || n === 'tendencia geral')) rowTendSem = r;
+    }
+    if (rowModPrev < 0 && n === 'mod - prev') rowModPrev = r;
+    if (rowModReal < 0 && n === 'mod - real') rowModReal = r;
+    if (n.includes('data da atualização') || n.includes('data da atualizacao')) {
+      const next = (grid[r + 1] || [])[0];
+      const d = toDate(next);
+      if (d) updateDate = d;
+    }
+  }
+
+  // Required: prevAcu + realAcu + (modPrev OR modReal)
+  if (rowPrevAcu < 0 || rowRealAcu < 0) return null;
+  if (rowModPrev < 0 && rowModReal < 0) return null;
+
+  return {
+    ref, rowDates, colStart,
+    rowPrevAcu, rowPrevSem, rowRealAcu, rowRealSem,
+    rowTendAcu, rowTendSem, rowReplanjAcu, rowReplanjSem,
+    rowModPrev, rowModReal, updateDate,
+  };
+};
+
+const extractFormatBCurve = (b: FormatBBlock): CurveExtract | { error: string } => {
+  const { grid } = b.ref;
+  const dateRow = grid[b.rowDates] || [];
+  const rd = (r: number) => r >= 0 ? (grid[r] || []) : null;
+  const rPa = rd(b.rowPrevAcu)!, rPs = rd(b.rowPrevSem);
+  const rRa = rd(b.rowRealAcu)!, rRs = rd(b.rowRealSem);
+  const rTa = rd(b.rowTendAcu), rTs = rd(b.rowTendSem);
+  const rRpa = rd(b.rowReplanjAcu), rRps = rd(b.rowReplanjSem);
+
+  const cols: CurveExtract['cols'] = [];
+  for (let j = b.colStart; j < dateRow.length; j++) {
+    const d = toDate(dateRow[j]);
+    if (!d) continue;
+    const get = (row: unknown[] | null) => row ? toNum(row[j]) : 0;
+    cols.push({
+      date: d,
+      prevSem: get(rPs), prevAcu: get(rPa),
+      realSem: get(rRs), realAcu: get(rRa),
+      tendSem: get(rTs), tendAcu: get(rTa),
+      replanjSem: get(rRps), replanjAcu: get(rRpa),
+    });
+  }
+
+  let ultimaReal = -1;
+  cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
+  if (ultimaReal < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO B)' };
+
+  const hasReplanejado = cols.some(c => c.replanjAcu > 0);
+
+  const sCurve = cols
+    .filter(c => c.prevAcu > 0 || c.realAcu > 0 || c.tendAcu > 0 || c.replanjAcu > 0)
+    .map(c => ({
+      date: fmtDDmmm(c.date),
+      previsto: round2(c.prevAcu * 100),
+      real: round2(c.realAcu * 100),
+      tendencia: round2(c.tendAcu * 100),
+      ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
+    }));
+
+  const wStart = Math.max(0, ultimaReal - 4);
+  const weekly = cols.slice(wStart, ultimaReal + 1).map(c => ({
+    date: fmtDDmmm(c.date),
+    previsto: round2(c.prevSem * 100),
+    real: round2(c.realSem * 100),
+  }));
+
+  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
+  cols.slice(0, ultimaReal + 1).forEach(c => {
+    const key = `${c.date.getFullYear()}-${String(c.date.getMonth()).padStart(2, '0')}`;
+    monthMap.set(key, { date: c.date, prevAcu: c.prevAcu, realAcu: c.realAcu });
+  });
+  const monthly = [...monthMap.values()]
+    .filter(m => m.prevAcu > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-4)
+    .map(m => ({
+      label: fmtMmmAaaa(m.date),
+      previsto: round2(m.prevAcu * 100),
+      real: round2(m.realAcu * 100),
+    }));
+
+  return {
+    block: null as never,
+    cols, ultimaReal,
+    statusDate: cols[ultimaReal].date,
+    realAcuLast: round2(cols[ultimaReal].realAcu * 100),
+    prevAcuLast: round2(cols[ultimaReal].prevAcu * 100),
+    hasReplanejado, sCurve, weekly, monthly,
+  };
+};
+
+const extractFormatBHist = (b: FormatBBlock): HistExtract => {
+  const { grid } = b.ref;
+  const dateRow = grid[b.rowDates] || [];
+  const rPrev = b.rowModPrev >= 0 ? (grid[b.rowModPrev] || []) : [];
+  const rReal = b.rowModReal >= 0 ? (grid[b.rowModReal] || []) : [];
+
+  const items: { date: Date; prev: number; real: number }[] = [];
+  for (let j = b.colStart; j < dateRow.length; j++) {
+    const d = toDate(dateRow[j]);
+    if (!d) continue;
+    items.push({ date: d, prev: toNum(rPrev[j]), real: toNum(rReal[j]) });
+  }
+
+  let ultimaReal = -1;
+  items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
+
+  // Window: past 5 + future 4
+  let windowItems = items;
+  if (ultimaReal >= 0) {
+    const start = Math.max(0, ultimaReal - 4);
+    const futureEnd = Math.min(items.length, ultimaReal + 1 + 4);
+    windowItems = items.slice(start, futureEnd);
+  }
+
+  const localUltimaReal = ultimaReal >= 0
+    ? Math.max(0, Math.min(ultimaReal, ultimaReal) - Math.max(0, ultimaReal - 4))
+    : -1;
+
+  const result = windowItems.map((x, i) => {
+    const isFuture = localUltimaReal >= 0 ? i > localUltimaReal : x.real === 0;
+    return isFuture
+      ? { date: x.date, prev: x.prev, real: 0 }
+      : { date: x.date, prev: 0, real: x.real };
+  });
+
+  const histogram = result.map(c => ({
+    date: fmtDDmmm(c.date),
+    semana: '',
+    previsto: Math.round(c.prev),
+    real: Math.round(c.real),
+  }));
+
+  return {
+    block: { ref: b.ref, rowDia: b.rowDates, colDia: b.colStart - 1, rowPrev: b.rowModPrev, rowReal: b.rowModReal, realCount: items.reduce((s, x) => s + (x.real > 0 ? x.real : 0), 0) },
+    total: windowItems.length,
+    ultimaReal: localUltimaReal,
+    histogram,
+  };
+};
+
+
+
 interface FileScan {
   fileName: string;
   sheets: SheetRef[];
@@ -519,6 +752,7 @@ interface ImportResult {
   histBlock: HistBlock | null;
   hist: HistExtract | { error: string } | null;
   projectDates: ProjectDates;
+  formatB?: FormatBBlock | null;
   errors: string[];
 }
 
@@ -526,10 +760,32 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const scans = await Promise.all(files.map(scanFile));
   const allSheets = scans.flatMap(s => s.sheets);
 
-  // Identify CURVA_GERAL — best block across all sheets (most realAcu>0 cols)
-  const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
+  // Try FORMAT B first (integrated curve + histogram in same sheet)
+  let formatB: FormatBBlock | null = null;
+  for (const ref of allSheets) {
+    const fb = findFormatBBlock(ref);
+    if (fb) { formatB = fb; break; }
+  }
 
-  // Identify HISTOGRAMA — pick max realCount
+  if (formatB) {
+    const curve = extractFormatBCurve(formatB);
+    const hist = extractFormatBHist(formatB);
+    const projectDates = extractProjectDates(allSheets);
+    const errors: string[] = [];
+    if ('error' in curve) errors.push(curve.error);
+    return {
+      curveBlock: null,
+      curve,
+      histBlock: hist.block,
+      hist,
+      projectDates,
+      formatB,
+      errors,
+    };
+  }
+
+  // FORMAT A — fallback
+  const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
   const histCandidates = allSheets
     .map(findHistBlock)
     .filter((b): b is HistBlock => !!b)
@@ -544,7 +800,7 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const hist = histBlock ? extractHist(histBlock) : null;
   const projectDates = extractProjectDates(allSheets);
 
-  return { curveBlock, curve, histBlock, hist, projectDates, errors };
+  return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, errors };
 };
 
 interface UploadZoneProps {
@@ -552,26 +808,30 @@ interface UploadZoneProps {
   subtitle?: string;
   badge?: { text: string; variant: 'required' | 'optional' };
   accept?: string;
-  status: 'idle' | 'loaded';
+  status: 'idle' | 'loaded' | 'disabled';
   fileName?: string;
+  disabledMessage?: string;
   onFile: (f: File) => void;
 }
 
-const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName, onFile }: UploadZoneProps) => {
+const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName, disabledMessage, onFile }: UploadZoneProps) => {
   const [dragOver, setDragOver] = useState(false);
+  const isDisabled = status === 'disabled';
   return (
     <label
-      onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+      onDragOver={(e) => { if (isDisabled) return; e.preventDefault(); setDragOver(true); }}
       onDragLeave={() => setDragOver(false)}
       onDrop={(e) => {
+        if (isDisabled) return;
         e.preventDefault(); setDragOver(false);
         const f = e.dataTransfer.files?.[0];
         if (f) onFile(f);
       }}
-      className={`flex-1 cursor-pointer border-2 border-dashed rounded-lg p-4 text-center transition-colors relative ${
-        dragOver ? 'border-primary bg-primary/5' :
-        status === 'loaded' ? 'border-success bg-success/5' :
-        'border-border hover:border-primary/50'
+      className={`flex-1 border-2 border-dashed rounded-lg p-4 text-center transition-colors relative ${
+        isDisabled ? 'border-muted bg-muted/30 opacity-60 cursor-not-allowed' :
+        dragOver ? 'border-primary bg-primary/5 cursor-pointer' :
+        status === 'loaded' ? 'border-success bg-success/5 cursor-pointer' :
+        'border-border hover:border-primary/50 cursor-pointer'
       }`}
     >
       {badge && (
@@ -581,16 +841,20 @@ const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName
             : 'bg-primary/10 text-primary'
         }`}>{badge.text}</span>
       )}
-      <input type="file" accept={accept} className="hidden"
+      <input type="file" accept={accept} className="hidden" disabled={isDisabled}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
       <div className="flex flex-col items-center gap-2">
-        {status === 'loaded'
+        {isDisabled
+          ? <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
+          : status === 'loaded'
           ? <CheckCircle2 className="h-8 w-8 text-success" />
           : <Upload className="h-8 w-8 text-muted-foreground" />}
         <div className="font-semibold text-sm text-foreground">{label}</div>
         {subtitle && <div className="text-[11px] text-muted-foreground">{subtitle}</div>}
         <div className="text-xs">
-          {status === 'loaded' && fileName
+          {isDisabled
+            ? <span className="text-muted-foreground font-medium italic">{disabledMessage || 'Desabilitado'}</span>
+            : status === 'loaded' && fileName
             ? <span className="text-success font-medium">✓ {fileName}</span>
             : <span className="text-muted-foreground">Arraste ou clique para selecionar</span>}
         </div>
@@ -665,7 +929,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (c.weekly.length) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
       // Always overwrite: status date + avanço prev/real come from the file
-      infoPatch.atualizadoEm = toIsoDate(c.statusDate);
+      // FORMAT B may override "Atualizado em" with explicit "Data da atualização:" label
+      const updateDate = result?.formatB?.updateDate ?? c.statusDate;
+      infoPatch.atualizadoEm = toIsoDate(updateDate);
       infoPatch.avancoPrev = c.prevAcuLast;
       infoPatch.avancoReal = c.realAcuLast;
     }
@@ -709,11 +975,18 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
-          <UploadZone label="Arquivo 2 — Histograma MOD (.xlsx)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file2 ? 'loaded' : 'idle'} fileName={file2?.name} onFile={onFile2} />
+          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A (separado) ou FORMATO B (integrado)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
+          <UploadZone
+            label="Arquivo 2 — Histograma MOD (.xlsx)"
+            badge={{ text: result?.formatB ? 'Não necessário' : 'Obrigatório', variant: result?.formatB ? 'optional' : 'required' }}
+            status={result?.formatB ? 'disabled' : (file2 ? 'loaded' : 'idle')}
+            fileName={file2?.name}
+            disabledMessage="Incluído no Arquivo 1 (FORMATO B)"
+            onFile={onFile2}
+          />
           <UploadZone
             label="Arquivo 3 — Cronograma (.xml ou .xlsx)"
-            subtitle="Opcional — MS Project: Arquivo → Salvar Como → XML"
+            subtitle="Opcional — MS Project: XML ou Excel exportado"
             badge={{ text: 'Opcional', variant: 'optional' }}
             accept=".xml,.xlsx,.xls"
             status={file3 ? 'loaded' : 'idle'}
@@ -743,16 +1016,33 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                 <>
                   {/* CURVA_GERAL */}
                   <div className="text-xs space-y-2">
-                    <div className="font-medium text-foreground">📊 Curva S / Semanal / Prev x Mês (CURVA_GERAL)</div>
-                    {!result.curveBlock ? (
+                    <div className="font-medium text-foreground">
+                      📊 Curva S / Semanal / Prev x Mês
+                      {result.formatB && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO B (integrado)</span>}
+                    </div>
+                    {!result.curveBlock && !result.formatB ? (
                       <div className="pl-4 text-destructive">Aba não identificada</div>
                     ) : (
                       <div className="pl-4 space-y-1">
                         <div className="text-muted-foreground">
-                          Arquivo: <span className="font-mono text-foreground">{result.curveBlock.ref.fileName}</span> ·
-                          Aba: <span className="font-mono text-foreground">{result.curveBlock.ref.sheetName}</span>
+                          Arquivo: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB!.ref).fileName}</span> ·
+                          Aba: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB!.ref).sheetName}</span>
                         </div>
-                        <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
+                        {result.curveBlock && (
+                          <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
+                        )}
+                        {result.formatB && (
+                          <div>
+                            {chip('Prev. LB Acu.', result.formatB.rowPrevAcu >= 0)}
+                            {chip('Real Acu.', result.formatB.rowRealAcu >= 0)}
+                            {chip('Tend. Acu.', result.formatB.rowTendAcu >= 0)}
+                            {chip('Prev. Sem.', result.formatB.rowPrevSem >= 0)}
+                            {chip('Real Sem.', result.formatB.rowRealSem >= 0)}
+                            {chip('Replanej.', result.formatB.rowReplanjAcu >= 0)}
+                            {chip('MOD Prev', result.formatB.rowModPrev >= 0)}
+                            {chip('MOD Real', result.formatB.rowModReal >= 0)}
+                          </div>
+                        )}
                         {result.curve && ('error' in result.curve ? (
                           <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
                         ) : (() => {
@@ -760,6 +1050,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                           const sd = c.statusDate;
                           const sdFull = `${String(sd.getDate()).padStart(2, '0')}/${MONTHS_PT[sd.getMonth()]}/${sd.getFullYear()}`;
                           const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
+                          const updateDate = result.formatB?.updateDate ?? sd;
+                          const udFull = `${String(updateDate.getDate()).padStart(2, '0')}/${MONTHS_PT[updateDate.getMonth()]}/${updateDate.getFullYear()}`;
                           return (
                             <>
                               <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground space-y-0.5">
@@ -769,7 +1061,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                                   <div className="font-semibold">Informações do Projeto:</div>
                                   <div>· Avanço Prev.: <strong>{c.prevAcuLast.toFixed(2).replace('.', ',')}%</strong></div>
                                   <div>· Avanço Real: <strong>{realStr}%</strong></div>
-                                  <div>· Atualizado em: <strong>{sdFull}</strong></div>
+                                  <div>· Atualizado em: <strong>{udFull}</strong></div>
                                 </div>
                               </div>
                               <div className="text-muted-foreground">
