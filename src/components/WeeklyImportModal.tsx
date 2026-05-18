@@ -911,6 +911,14 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     }
   }
 
+  // FORMATO C (RHODIA): data de atualização frequentemente em grid[51][0] como Date
+  if (!updateDate) {
+    for (let r = 45; r < Math.min(grid.length, 60); r++) {
+      const d = toDate((grid[r] || [])[0]);
+      if (d) { updateDate = d; break; }
+    }
+  }
+
   if (rowPrevAcu < 0 || rowRealAcu < 0) return null;
 
   return {
@@ -1020,47 +1028,65 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   const hasReplanejado = cols.some(c => c.replanjAcu > 0);
 
+  // S-Curve: usar null em vez de 0 para que as linhas LB e Replanejado terminem/iniciem corretamente
   const sCurve = cols
     .filter(c => c.prevAcu > 0 || c.realAcu > 0 || c.tendAcu > 0 || c.replanjAcu > 0)
     .map(c => ({
       date: fmtDDmmm(c.date),
-      previsto: round2(c.prevAcu * 100),
-      real: round2(c.realAcu * 100),
-      tendencia: round2(c.tendAcu * 100),
-      ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
+      previsto: c.prevAcu > 0 ? round2(c.prevAcu * 100) : null,
+      real: c.realAcu > 0 ? round2(c.realAcu * 100) : null,
+      tendencia: c.tendAcu > 0 ? round2(c.tendAcu * 100) : null,
+      ...(hasReplanejado ? { replanejado: c.replanjAcu > 0 ? round2(c.replanjAcu * 100) : null } : {}),
     }));
 
+  // Resultado Semanal: usar REPLANJ_SEM (Previsto Replanejado semanal) com fallback para PREV_SEM (LB semanal).
+  // Real usa REAL_REPL_SEM (Realizado Replanejado semanal) com fallback para REAL_SEM.
   let wStart = ultimaReal - 2;
   let wEnd = ultimaReal + 3;
   if (wStart < 0) { wEnd -= wStart; wStart = 0; }
   if (wEnd > cols.length) { wStart -= (wEnd - cols.length); wEnd = cols.length; wStart = Math.max(0, wStart); }
-  const weekly = cols.slice(wStart, wEnd).map(c => ({
-    date: fmtDDmmm(c.date),
-    previsto: round2(c.prevSem * 100),
-    real: round2(c.realSem * 100),
-  }));
+  const rRrs = rd(b.rowRealReplanjSem);
+  const weekly = cols.slice(wStart, wEnd).map((c, idx) => {
+    const j = b.colStart + wStart + idx;
+    const prevReplSem = rRps ? toNum(rRps[j]) : 0;
+    const realReplSem = rRrs ? toNum(rRrs[j]) : 0;
+    const previsto = prevReplSem > 0 ? prevReplSem : c.prevSem;
+    const real = realReplSem > 0 ? realReplSem : c.realSem;
+    return {
+      date: fmtDDmmm(c.date),
+      previsto: round2(previsto * 100),
+      real: round2(real * 100),
+    };
+  });
 
-  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
-  cols.slice(0, ultimaReal + 1).forEach(c => {
+  // Prev x Mês: previsto = REPLANJ_ACU fallback PREV_ACU; real = REAL_REPL_ACU fallback REAL_ACU.
+  const rRra = rd(b.rowRealReplanjAcu);
+  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number; replanjAcu: number; realReplAcu: number }>();
+  cols.slice(0, ultimaReal + 1).forEach((c, i) => {
+    const j = b.colStart + i;
+    const replanjAcu = rRpa ? toNum(rRpa[j]) : 0;
+    const realReplAcu = rRra ? toNum(rRra[j]) : 0;
     const key = `${c.date.getFullYear()}-${String(c.date.getMonth()).padStart(2, '0')}`;
-    monthMap.set(key, { date: c.date, prevAcu: c.prevAcu, realAcu: c.realAcu });
+    monthMap.set(key, { date: c.date, prevAcu: c.prevAcu, realAcu: c.realAcu, replanjAcu, realReplAcu });
   });
   const monthly = [...monthMap.values()]
-    .filter(m => m.prevAcu > 0)
+    .filter(m => m.prevAcu > 0 || m.replanjAcu > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .slice(-4)
     .map(m => ({
       label: fmtMmmAaaa(m.date),
-      previsto: round2(m.prevAcu * 100),
-      real: round2(m.realAcu * 100),
+      previsto: round2((m.replanjAcu > 0 ? m.replanjAcu : m.prevAcu) * 100),
+      real: round2((m.realReplAcu > 0 ? m.realReplAcu : m.realAcu) * 100),
     }));
 
+  const lastCol = cols[ultimaReal];
+  const lastPrev = lastCol.replanjAcu > 0 ? lastCol.replanjAcu : lastCol.prevAcu;
   return {
     block: null as never,
     cols, ultimaReal,
-    statusDate: cols[ultimaReal].date,
-    realAcuLast: round2(cols[ultimaReal].realAcu * 100),
-    prevAcuLast: round2(cols[ultimaReal].prevAcu * 100),
+    statusDate: lastCol.date,
+    realAcuLast: round2(lastCol.realAcu * 100),
+    prevAcuLast: round2(lastPrev * 100),
     hasReplanejado, sCurve, weekly, monthly,
   };
 };
