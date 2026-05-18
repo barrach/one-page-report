@@ -90,6 +90,35 @@ const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   for (const name of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true });
+
+    // MS Project Excel export: row 0 = "Nome da Tarefa" | "Início" | "Término"
+    const h0 = grid[0] || [];
+    const c0 = String(h0[0] ?? '').trim().toLowerCase();
+    const c1 = String(h0[1] ?? '').trim().toLowerCase();
+    const c2 = String(h0[2] ?? '').trim().toLowerCase();
+    if (/nome.*tarefa/.test(c0) && /(in[ií]cio|start)/.test(c1) && /(t[eé]rmino|finish)/.test(c2)) {
+      const fd = (v: unknown) => { const d = parseAnyDate(v); return d ? fmtScheduleDate(d) : ''; };
+      const out: ScheduleRow[] = [];
+      for (let r = 1; r < grid.length; r++) {
+        const rr = grid[r] || [];
+        const raw = rr[0];
+        if (raw == null || String(raw).trim() === '') continue;
+        const rawName = String(raw);
+        const leading = rawName.length - rawName.trimStart().length;
+        const outlineLevel = Math.floor(leading / 3) + 1;
+        out.push({
+          id: String(r),
+          tarefa: rawName.trim(),
+          previsto: 0, trabalhoConcluido: 0, desvio: 0,
+          inicio: fd(rr[1]), termino: fd(rr[2]),
+          inicioBase: '', terminoBase: '',
+          outlineLevel, summary: false, milestone: false,
+          bold: outlineLevel <= 2,
+        });
+      }
+      if (out.length) return out;
+    }
+
     for (let i = 0; i < Math.min(grid.length, 5); i++) {
       const row = grid[i] || [];
       const idx: Record<string, number> = {};
