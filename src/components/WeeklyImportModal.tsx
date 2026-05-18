@@ -1079,12 +1079,14 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
       real: round2((m.realReplAcu > 0 ? m.realReplAcu : m.realAcu) * 100),
     }));
 
+  const lastCol = cols[ultimaReal];
+  const lastPrev = lastCol.replanjAcu > 0 ? lastCol.replanjAcu : lastCol.prevAcu;
   return {
     block: null as never,
     cols, ultimaReal,
-    statusDate: cols[ultimaReal].date,
-    realAcuLast: round2(cols[ultimaReal].realAcu * 100),
-    prevAcuLast: round2(cols[ultimaReal].prevAcu * 100),
+    statusDate: lastCol.date,
+    realAcuLast: round2(lastCol.realAcu * 100),
+    prevAcuLast: round2(lastPrev * 100),
     hasReplanejado, sCurve, weekly, monthly,
   };
 };
