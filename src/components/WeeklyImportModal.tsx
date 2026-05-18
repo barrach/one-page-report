@@ -925,7 +925,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (c.weekly.length) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
       // Always overwrite: status date + avanço prev/real come from the file
-      infoPatch.atualizadoEm = toIsoDate(c.statusDate);
+      // FORMAT B may override "Atualizado em" with explicit "Data da atualização:" label
+      const updateDate = result?.formatB?.updateDate ?? c.statusDate;
+      infoPatch.atualizadoEm = toIsoDate(updateDate);
       infoPatch.avancoPrev = c.prevAcuLast;
       infoPatch.avancoReal = c.realAcuLast;
     }
