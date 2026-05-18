@@ -857,69 +857,90 @@ interface FormatCBundle {
   info: FormatCInfo;
 }
 
-// Strict trim comparison (preserves case + accents). Format C labels are uppercase.
-const trimStr = (v: unknown): string => (v == null ? '' : String(v).trim());
+
+// Busca dinâmica de linha por label, com trim e variações de espaço
+const findRowByLabel = (labelMap: Record<string, number>, ...candidates: string[]): number => {
+  for (const c of candidates) {
+    if (labelMap[c] !== undefined) return labelMap[c];
+    const target = c.trim();
+    const found = Object.keys(labelMap).find(k => k.trim() === target);
+    if (found !== undefined) return labelMap[found];
+  }
+  return -1;
+};
+
+const isExcelDateSerial = (v: unknown): boolean =>
+  typeof v === 'number' && v > 40000 && v < 60000;
 
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
 
-  // SHEET CHECK: must contain a row where col 0 trimmed === 'REALIZADO GERAL (ACUMULADO)'
-  const hasRealAcuLabel = grid.some(row => trimStr((row || [])[0]) === 'REALIZADO GERAL (ACUMULADO)');
-  if (!hasRealAcuLabel) return null;
-
-  let rowDates = -1, colStart = -1;
-  let rowPrevAcu = -1, rowPrevSem = -1, rowRealAcu = -1, rowRealSem = -1;
-  let rowTendAcu = -1, rowTendSem = -1;
-  let rowReplanjAcu = -1, rowReplanjSem = -1;
-  let rowRealReplanjAcu = -1, rowRealReplanjSem = -1;
-  let rowDataAtu = -1;
-
+  // 1. Mapear TODOS os labels da col 0 dinamicamente
+  const labelMap: Record<string, number> = {};
   grid.forEach((row, i) => {
-    const label = trimStr((row || [])[0]);
-    if (!label) return;
-    if (label === 'Evento ( Cronograma)' || label === 'Evento (Cronograma)') rowDates = i;
-    else if (label === 'PREVISTO GERAL LB') rowPrevSem = i;
-    else if (label === 'PREVISTO GERAL LB (ACUMULADO)') rowPrevAcu = i;
-    else if (label === 'REALIZADO GERAL') rowRealSem = i;
-    else if (label === 'REALIZADO GERAL (ACUMULADO)') rowRealAcu = i;
-    else if (label === 'PREVISTO GERAL REPLANEJADO (SEMANAL)') rowReplanjSem = i;
-    else if (label === 'PREVISTO GERAL REPLANEJADO (ACUMULADO)') rowReplanjAcu = i;
-    else if (label === 'REALIZADO GERAL REPLANEJADO (SEMANAL)') rowRealReplanjSem = i;
-    else if (label === 'REALIZADO GERAL REPLANEJADO (ACUMULADO)') rowRealReplanjAcu = i;
-    else if (label === 'TENDÊNCIA GERAL' || label === 'TENDENCIA GERAL') rowTendSem = i;
-    else if (label === 'TENDÊNCIA GERAL (ACUMULADO)' || label === 'TENDENCIA GERAL (ACUMULADO)') rowTendAcu = i;
-    else if (label === 'Data da atualização:' || label === 'Data da atualizacao:') rowDataAtu = i + 1;
+    const v = (row || [])[0];
+    if (v == null) return;
+    const label = String(v).trim();
+    if (label && !(label in labelMap)) labelMap[label] = i;
   });
 
-  console.log('[FORMATO C] Linhas encontradas:', {
-    rowDates, rowPrevAcu, rowRealAcu, rowTendAcu, rowReplanjAcu,
-    rowRealReplanjAcu, rowRealReplanjSem, rowPrevSem, rowRealSem,
-    rowReplanjSem, rowTendSem,
-  });
+  // SHEET CHECK: deve conter REALIZADO GERAL (ACUMULADO)
+  if (findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)') < 0) return null;
+
+  // 2. Buscas dinâmicas (tolerantes a espaço extra)
+  let rowDates       = findRowByLabel(labelMap, 'Evento ( Cronograma)', 'Evento (Cronograma)', 'EVENTO');
+  const rowPrevSem   = findRowByLabel(labelMap, 'PREVISTO GERAL LB', 'PREVISTO GERAL LB ');
+  const rowPrevAcu   = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)');
+  const rowRealSem   = findRowByLabel(labelMap, 'REALIZADO GERAL', 'REALIZADO GERAL ');
+  const rowRealAcu   = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');
+  const rowReplanjSem    = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (SEMANAL)');
+  const rowReplanjAcu    = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)');
+  const rowRealReplanjSem = findRowByLabel(labelMap, 'REALIZADO GERAL REPLANEJADO (SEMANAL)');
+  const rowRealReplanjAcu = findRowByLabel(labelMap, 'REALIZADO GERAL REPLANEJADO (ACUMULADO)');
+  const rowTendSem   = findRowByLabel(labelMap, 'TENDÊNCIA GERAL', 'TENDENCIA GERAL', 'TENDÊNCIA GERAL ', 'TENDENCIA GERAL ');
+  const rowTendAcu   = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)');
+
+  // Fallback rowDates: qualquer linha cujo col 0 contenha "Evento" e cujas cols seguintes tenham datas
+  if (rowDates < 0) {
+    for (let i = 0; i < grid.length; i++) {
+      const row = grid[i] || [];
+      if (row[0] && String(row[0]).includes('Evento')) {
+        const temDatas = row.slice(1).some(v => v instanceof Date || isExcelDateSerial(v));
+        if (temDatas) { rowDates = i; break; }
+      }
+    }
+  }
 
   if (rowDates < 0 || rowRealAcu < 0 || rowPrevAcu < 0) return null;
 
-  // COL_START = first column after col 0 with a Date in the dates row
+  // 3. COL_START dinâmico: primeira col > 0 com Date na linha de datas
   const dateRow = grid[rowDates] || [];
+  let colStart = -1;
   for (let j = 1; j < dateRow.length; j++) {
-    if (toDate(dateRow[j])) { colStart = j; break; }
+    const v = dateRow[j];
+    if (v instanceof Date || toDate(v)) { colStart = j; break; }
   }
   if (colStart < 0) return null;
 
+  // 4. Data de atualização: buscar label dinamicamente
   let updateDate: Date | undefined;
-  if (rowDataAtu >= 0) {
-    const d = toDate((grid[rowDataAtu] || [])[0]);
-    if (d) updateDate = d;
+  const rowAtu = findRowByLabel(labelMap, 'Data da atualização:', 'Data da atualização', 'Data da atualizacao:', 'Atualizado em:');
+  if (rowAtu >= 0) {
+    const v1 = (grid[rowAtu + 1] || [])[0];
+    const v2 = (grid[rowAtu] || [])[1];
+    updateDate = toDate(v1) || toDate(v2) || undefined;
   }
-  // Fallback: RHODIA tem data em grid[51][0]
   if (!updateDate) {
-    for (let r = 45; r < Math.min(grid.length, 60); r++) {
+    // Fallback: varredura nas linhas após o bloco de dados
+    for (let r = rowRealAcu + 1; r < grid.length; r++) {
       const d = toDate((grid[r] || [])[0]);
       if (d) { updateDate = d; break; }
     }
   }
 
-  console.log('[FORMATO C] colStart:', colStart, 'updateDate:', updateDate);
+  console.log('[FORMATO C] labelMap encontrado:', {
+    rowDates, rowPrevAcu, rowRealAcu, rowTendAcu, rowReplanjAcu, colStart, updateDate,
+  });
 
   return {
     ref, rowDates, colStart,
@@ -933,23 +954,35 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 
 const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   const { grid } = ref;
-  // Procurar linha onde row[1].trim() === 'EQUIPE DO PROJETO - TOTAL' E row[4].trim() === 'PLAN'
+
+  // Busca dinâmica: linha PLAN tem "TOTAL" em alguma col + "PLAN" em outra
   let rowPlan = -1, rowReal = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
-    if (trimStr(row[1]) === 'EQUIPE DO PROJETO - TOTAL' && trimStr(row[4]) === 'PLAN') {
-      rowPlan = r;
-      for (let r2 = r + 1; r2 < Math.min(grid.length, r + 6); r2++) {
-        if (trimStr((grid[r2] || [])[4]) === 'REAL') { rowReal = r2; break; }
-      }
-      break;
+    const hasTotal = row.some(v => v != null && String(v).toUpperCase().includes('TOTAL'));
+    const hasPlan  = row.some(v => v != null && String(v).trim().toUpperCase() === 'PLAN');
+    if (hasTotal && hasPlan) { rowPlan = r; break; }
+  }
+  if (rowPlan >= 0) {
+    for (let r2 = rowPlan + 1; r2 < Math.min(grid.length, rowPlan + 8); r2++) {
+      const row = grid[r2] || [];
+      if (row.some(v => v != null && String(v).trim().toUpperCase() === 'REAL')) { rowReal = r2; break; }
     }
   }
-  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal);
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // FORMATO C: dados sempre em colunas 5-28
-  return { ref, rowPlan, rowReal, colStart: 5 };
+  // COL_START dinâmico: primeira coluna com valor numérico > 0 na linha PLAN
+  const planRow = grid[rowPlan] || [];
+  let colStart = -1;
+  for (let j = 1; j < Math.min(planRow.length, 15); j++) {
+    const v = planRow[j];
+    if (typeof v === 'number' && v > 0 && v < 1000) { colStart = j; break; }
+  }
+  if (colStart < 0) colStart = 5;
+
+  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal, 'colStart:', colStart);
+
+  return { ref, rowPlan, rowReal, colStart };
 };
 
 
@@ -1102,13 +1135,22 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
   const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
 
-  // Coletar somente colunas 5..28 (ignorar 29+ que são acumulados)
+  // COL_END dinâmico: parar antes de colunas de total acumulado (valores > 1000)
+  let colEnd = planRow.length - 1;
+  for (let j = h.colStart; j < planRow.length; j++) {
+    const pv = planRow[j], rv = realRow[j];
+    if ((typeof pv === 'number' && pv > 1000) || (typeof rv === 'number' && rv > 1000)) {
+      colEnd = j - 1; break;
+    }
+  }
+
+  // Coletar somente colunas h.colStart..colEnd (ignorar colunas de totais)
   type Item = { j: number; label: string; prev: number; real: number };
   const items: Item[] = [];
-  for (let j = h.colStart; j <= 28; j++) {
+  for (let j = h.colStart; j <= colEnd; j++) {
     const p = parseFloat(String(planRow[j])) || 0;
     const r = parseFloat(String(realRow[j])) || 0;
-    let label = `S${j - 4}`;
+    let label = `S${j - h.colStart + 1}`;
     if (curveDateRow) {
       const d = toDate(curveDateRow[j + offset]);
       if (d) label = fmtDDmmm(d);
