@@ -1154,9 +1154,9 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const { grid } = h.ref;
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
-  // Curva: hist_col 5 corresponde a curve colStart (geralmente 1) → offset = colStart - 5
+  // Histograma começa 1 semana depois da Curva S: hist_col j ↔ curva_col (j - histColStart + curveColStart + 1)
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
+  const offset = curveBlock ? (curveBlock.colStart + 1 - h.colStart) : 0;
 
   // COL_END dinâmico: parar antes de colunas de total acumulado (valores > 1000)
   let colEnd = planRow.length - 1;
