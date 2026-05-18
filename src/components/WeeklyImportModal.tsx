@@ -1090,9 +1090,9 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   for (let c = h.colStart, i = 0; c <= lastCol; c++, i++) {
     const rawPrev = planRow[c];
     const rawReal = realRow[c];
-    // Skip totals (large accumulated values)
-    const prev = isWeekCell(rawPrev) ? (rawPrev as number) : 0;
-    const real = isWeekCell(rawReal) ? (rawReal as number) : 0;
+    const prev = (typeof rawPrev === 'number' && isFinite(rawPrev) && rawPrev < 400) ? rawPrev : 0;
+    const real = (typeof rawReal === 'number' && isFinite(rawReal) && rawReal < 400) ? rawReal : 0;
+
     let date: Date | null = null;
     if (curveDateRow) {
       const d = toDate(curveDateRow[c + offset]);
