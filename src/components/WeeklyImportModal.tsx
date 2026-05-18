@@ -1137,13 +1137,22 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
   const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
 
-  // Coletar somente colunas 5..28 (ignorar 29+ que são acumulados)
+  // COL_END dinâmico: parar antes de colunas de total acumulado (valores > 1000)
+  let colEnd = planRow.length - 1;
+  for (let j = h.colStart; j < planRow.length; j++) {
+    const pv = planRow[j], rv = realRow[j];
+    if ((typeof pv === 'number' && pv > 1000) || (typeof rv === 'number' && rv > 1000)) {
+      colEnd = j - 1; break;
+    }
+  }
+
+  // Coletar somente colunas h.colStart..colEnd (ignorar colunas de totais)
   type Item = { j: number; label: string; prev: number; real: number };
   const items: Item[] = [];
-  for (let j = h.colStart; j <= 28; j++) {
+  for (let j = h.colStart; j <= colEnd; j++) {
     const p = parseFloat(String(planRow[j])) || 0;
     const r = parseFloat(String(realRow[j])) || 0;
-    let label = `S${j - 4}`;
+    let label = `S${j - h.colStart + 1}`;
     if (curveDateRow) {
       const d = toDate(curveDateRow[j + offset]);
       if (d) label = fmtDDmmm(d);
