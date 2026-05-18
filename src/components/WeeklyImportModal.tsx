@@ -979,11 +979,18 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
-          <UploadZone label="Arquivo 2 — Histograma MOD (.xlsx)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file2 ? 'loaded' : 'idle'} fileName={file2?.name} onFile={onFile2} />
+          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A (separado) ou FORMATO B (integrado)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
+          <UploadZone
+            label="Arquivo 2 — Histograma MOD (.xlsx)"
+            badge={{ text: result?.formatB ? 'Não necessário' : 'Obrigatório', variant: result?.formatB ? 'optional' : 'required' }}
+            status={result?.formatB ? 'disabled' : (file2 ? 'loaded' : 'idle')}
+            fileName={file2?.name}
+            disabledMessage="Incluído no Arquivo 1 (FORMATO B)"
+            onFile={onFile2}
+          />
           <UploadZone
             label="Arquivo 3 — Cronograma (.xml ou .xlsx)"
-            subtitle="Opcional — MS Project: Arquivo → Salvar Como → XML"
+            subtitle="Opcional — MS Project: XML ou Excel exportado"
             badge={{ text: 'Opcional', variant: 'optional' }}
             accept=".xml,.xlsx,.xls"
             status={file3 ? 'loaded' : 'idle'}
