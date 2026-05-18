@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
+import { cn } from '@/lib/utils';
 
 const fmtPct = (n: number) => Math.round(n).toString();
 
@@ -19,20 +21,43 @@ const levelStyle = (level: number): React.CSSProperties =>
   level === 4 ? { backgroundColor: '#ffffff', color: '#333333' } :
                 { backgroundColor: '#ffffff', color: '#555555' };
 
+const LEVEL_BUTTONS = [
+  { label: '1', value: 1 }, { label: '2', value: 2 }, { label: '3', value: 3 },
+  { label: '4', value: 4 }, { label: '5', value: 5 }, { label: 'Todos', value: 99 },
+];
+
 const ScheduleTable = () => {
   const { scheduleData } = useCurrentProject();
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+  const [expandedMobile, setExpandedMobile] = useState<Record<number, boolean>>({});
+  const [maxLevel, setMaxLevel] = useState<number>(4);
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   const all = (scheduleData || []).filter(r => r.tarefa);
-  const data = search
-    ? all.filter(r =>
-        r.tarefa.toLowerCase().includes(search.toLowerCase()) ||
-        String(r.id ?? '').includes(search) ||
-        (r.outlineNumber || '').includes(search)
-      )
-    : all;
+
+  const toggleCollapse = (idx: number) =>
+    setCollapsed((s) => {
+      const next = new Set(s);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+
+  // Visibility: when searching, ignore the hierarchical filter (show every match).
+  const visibleIdx = useMemo(() => {
+    if (search) {
+      const q = search.toLowerCase();
+      return all
+        .map((r, i) => ({ r, i }))
+        .filter(({ r }) =>
+          r.tarefa.toLowerCase().includes(q) ||
+          String(r.id ?? '').includes(search) ||
+          (r.outlineNumber || '').includes(search),
+        )
+        .map(({ i }) => i);
+    }
+    return computeVisibleIndices(all, maxLevel, collapsed);
+  }, [all, maxLevel, collapsed, search]);
 
   if (all.length === 0) {
     return (
@@ -47,11 +72,32 @@ const ScheduleTable = () => {
 
   return (
     <div className="bg-card rounded-xl p-3 sm:p-6 card-shadow border">
-      <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
-      <p className="text-xs text-muted-foreground mb-3">Status das atividades planejadas</p>
+      <div className="flex items-start justify-between mb-1 gap-2 flex-wrap">
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
+          <p className="text-xs text-muted-foreground">Status das atividades planejadas</p>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+          <span className="text-muted-foreground">Exibir até nível:</span>
+          {LEVEL_BUTTONS.map((b) => (
+            <button
+              key={b.value}
+              onClick={() => setMaxLevel(b.value)}
+              className={cn(
+                'px-2 py-0.5 rounded border font-medium transition-colors',
+                maxLevel === b.value
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background text-foreground border-border hover:bg-muted',
+              )}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* Search */}
-      <div className="relative mb-3">
+      <div className="relative mb-3 mt-3">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           type="text"
@@ -65,9 +111,10 @@ const ScheduleTable = () => {
       {isMobile ? (
         /* Mobile: card per task */
         <div className="space-y-2">
-          {data.map((row, i) => {
+          {visibleIdx.map((i) => {
+            const row = all[i];
             const level = row.outlineLevel ?? 1;
-            const isOpen = !!expanded[i];
+            const isOpen = !!expandedMobile[i];
             const isMilestone = !!row.milestone && !row.summary;
             const borderColor = row.desvio < 0 ? '#dc2626' : '#16a34a';
             const desvioColor = row.desvio < 0 ? '#dc2626' : row.desvio > 0 ? '#16a34a' : '#999';
@@ -77,7 +124,7 @@ const ScheduleTable = () => {
             return (
               <div
                 key={i}
-                onClick={() => setExpanded(s => ({ ...s, [i]: !s[i] }))}
+                onClick={() => setExpandedMobile((s) => ({ ...s, [i]: !s[i] }))}
                 className="rounded-lg p-3 cursor-pointer transition-shadow active:shadow-inner"
                 style={{
                   ...levelStyle(level),
@@ -114,7 +161,7 @@ const ScheduleTable = () => {
               </div>
             );
           })}
-          {data.length === 0 && (
+          {visibleIdx.length === 0 && (
             <p className="text-xs text-muted-foreground text-center py-6">Nenhuma tarefa encontrada.</p>
           )}
         </div>
@@ -137,10 +184,13 @@ const ScheduleTable = () => {
               </tr>
             </thead>
             <tbody>
-              {data.map((row, i) => {
+              {visibleIdx.map((i) => {
+                const row = all[i];
                 const level = row.outlineLevel ?? 1;
                 const isMilestone = !!row.milestone && !row.summary;
                 const indentPx = Math.min(Math.max(level - 1, 0), 5) * 16;
+                const hasKids = !search && rowHasChildren(all, i);
+                const isCollapsed = collapsed.has(i);
 
                 const rowStyle: React.CSSProperties = {
                   ...levelStyle(level),
@@ -164,9 +214,22 @@ const ScheduleTable = () => {
                     <td className="px-2 py-1.5 text-center border border-border/30" style={{ fontFamily: 'monospace', fontSize: '11px', color: level <= 2 ? '#ffffff' : '#444444' }}>{row.outlineNumber || ''}</td>
                     <td className="px-2 py-1.5 text-center border border-border/30 opacity-80">{row.id}</td>
                     <td className="px-2 py-1.5 border border-border/30">
-                      <span style={{ paddingLeft: `${indentPx}px` }} className="inline-block">
-                        {isMilestone && <span className="mr-1">🔷</span>}
-                        {row.tarefa}
+                      <span style={{ paddingLeft: `${indentPx}px` }} className="inline-flex items-center gap-1 align-middle">
+                        {hasKids ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleCollapse(i)}
+                            className="shrink-0 hover:opacity-70"
+                            style={{ color: 'inherit' }}
+                            title={isCollapsed ? 'Expandir' : 'Colapsar'}
+                          >
+                            {isCollapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
+                        ) : (
+                          <span className="inline-block w-3" />
+                        )}
+                        {isMilestone && <span>🔷</span>}
+                        <span>{row.tarefa}</span>
                       </span>
                     </td>
                     <td className="px-2 py-1.5 text-center border border-border/30">{fmtPct(row.previsto)}</td>
@@ -185,6 +248,10 @@ const ScheduleTable = () => {
           </table>
         </div>
       )}
+
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Exibindo {visibleIdx.length} de {all.length} linhas.
+      </p>
     </div>
   );
 };
