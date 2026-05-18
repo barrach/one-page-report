@@ -109,10 +109,9 @@ const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
     ) ? 'ND' : formatDate(rawBaseFinish);
 
     const desvio = Math.round((prevPct - trabPct) * 100) / 100;
-    const numericId = parseInt(rawId || '', 10);
 
     result.push({
-      id: Number.isFinite(numericId) ? numericId : String(i + 1),
+      id: rawId ?? String(i + 1),
       tarefa: name,
       previsto: prevPct,
       trabalhoConcluido: trabPct,
@@ -134,8 +133,8 @@ const parseScheduleXML = (xmlString: string): ScheduleRow[] => {
   console.log('Total importado:', result.length);
   console.log('=== DEBUG CRONOGRAMA ===');
   console.log('Total tasks:', result.length);
-  console.log('Task ID=1:', JSON.stringify(result.find(t => t.id === 1)));
-  console.log('Task ID=21:', JSON.stringify(result.find(t => t.id === 21)));
+  console.log('Task ID=1:', JSON.stringify(result.find(t => Number(t.id) === 1)));
+  console.log('Task ID=21:', JSON.stringify(result.find(t => Number(t.id) === 21)));
   console.log('OutlineLevels encontrados:', [...new Set(result.map(t => t.outlineLevel))].sort());
 
   return result;
