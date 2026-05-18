@@ -22,6 +22,21 @@ export default defineConfig(({ mode }) => ({
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        runtimeCaching: [
+          {
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: { cacheName: "html", networkTimeoutSeconds: 3 },
+          },
+          {
+            urlPattern: ({ request }) => ["script", "style"].includes(request.destination),
+            handler: "NetworkFirst",
+            options: { cacheName: "assets", networkTimeoutSeconds: 3 },
+          },
+        ],
       },
       manifest: {
         name: "One Page Report Mega",
