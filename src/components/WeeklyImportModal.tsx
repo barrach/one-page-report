@@ -857,61 +857,61 @@ interface FormatCBundle {
   info: FormatCInfo;
 }
 
+// Strict trim comparison (preserves case + accents). Format C labels are uppercase.
+const trimStr = (v: unknown): string => (v == null ? '' : String(v).trim());
+
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
-  // Row of dates: col 0 contains "evento ( cronograma)" exact + subsequent are Date
-  // Stricter than just "evento" to avoid matching financial curves ("Evento de Pagamento")
+
+  // SHEET CHECK: must contain a row where col 0 trimmed === 'REALIZADO GERAL (ACUMULADO)'
+  const hasRealAcuLabel = grid.some(row => trimStr((row || [])[0]) === 'REALIZADO GERAL (ACUMULADO)');
+  if (!hasRealAcuLabel) return null;
+
   let rowDates = -1, colStart = -1;
-  for (let r = 0; r < Math.min(grid.length, 20); r++) {
-    const row = grid[r] || [];
-    const n = norm(row[0]);
-    if (!(n === 'evento ( cronograma)' || n === 'evento (cronograma)' || n === 'evento cronograma')) continue;
-    for (let c = 1; c < row.length; c++) {
-      if (toDate(row[c])) { rowDates = r; colStart = c; break; }
-    }
-    if (rowDates >= 0) break;
-  }
-
-  if (rowDates < 0) return null;
-
   let rowPrevAcu = -1, rowPrevSem = -1, rowRealAcu = -1, rowRealSem = -1;
   let rowTendAcu = -1, rowTendSem = -1;
   let rowReplanjAcu = -1, rowReplanjSem = -1;
   let rowRealReplanjAcu = -1, rowRealReplanjSem = -1;
-  let updateDate: Date | undefined;
+  let rowDataAtu = -1;
 
-  for (let r = 0; r < grid.length; r++) {
-    const n = norm((grid[r] || [])[0]);
-    if (!n) continue;
-    const isAcu = n.includes('(acumulado)');
-    const isSem = n.includes('(semanal)');
-    const isReplanj = n.includes('replanejado');
-    const isReal = n.includes('realizado geral');
-    const isPrev = n.includes('previsto geral');
-    const isTend = n.includes('tendência geral') || n.includes('tendencia geral');
+  grid.forEach((row, i) => {
+    const label = trimStr((row || [])[0]);
+    if (!label) return;
+    if (label === 'Evento ( Cronograma)' || label === 'Evento (Cronograma)') rowDates = i;
+    else if (label === 'PREVISTO GERAL LB') rowPrevSem = i;
+    else if (label === 'PREVISTO GERAL LB (ACUMULADO)') rowPrevAcu = i;
+    else if (label === 'REALIZADO GERAL') rowRealSem = i;
+    else if (label === 'REALIZADO GERAL (ACUMULADO)') rowRealAcu = i;
+    else if (label === 'PREVISTO GERAL REPLANEJADO (SEMANAL)') rowReplanjSem = i;
+    else if (label === 'PREVISTO GERAL REPLANEJADO (ACUMULADO)') rowReplanjAcu = i;
+    else if (label === 'REALIZADO GERAL REPLANEJADO (SEMANAL)') rowRealReplanjSem = i;
+    else if (label === 'REALIZADO GERAL REPLANEJADO (ACUMULADO)') rowRealReplanjAcu = i;
+    else if (label === 'TENDÊNCIA GERAL' || label === 'TENDENCIA GERAL') rowTendSem = i;
+    else if (label === 'TENDÊNCIA GERAL (ACUMULADO)' || label === 'TENDENCIA GERAL (ACUMULADO)') rowTendAcu = i;
+    else if (label === 'Data da atualização:' || label === 'Data da atualizacao:') rowDataAtu = i + 1;
+  });
 
-    if (isAcu) {
-      if (isReplanj && isReal && rowRealReplanjAcu < 0) rowRealReplanjAcu = r;
-      else if (isReplanj && isPrev && rowReplanjAcu < 0) rowReplanjAcu = r;
-      else if (isReal && rowRealAcu < 0) rowRealAcu = r;
-      else if (isPrev && rowPrevAcu < 0) rowPrevAcu = r;
-      else if (isTend && rowTendAcu < 0) rowTendAcu = r;
-    } else if (isSem) {
-      if (isReplanj && isReal && rowRealReplanjSem < 0) rowRealReplanjSem = r;
-      else if (isReplanj && isPrev && rowReplanjSem < 0) rowReplanjSem = r;
-    } else {
-      if (rowPrevSem < 0 && n === 'previsto geral lb') rowPrevSem = r;
-      else if (rowRealSem < 0 && n === 'realizado geral') rowRealSem = r;
-      else if (rowTendSem < 0 && (n === 'tendência geral' || n === 'tendencia geral')) rowTendSem = r;
-    }
-    if (n.includes('data da atualização') || n.includes('data da atualizacao')) {
-      const next = (grid[r + 1] || [])[0];
-      const d = toDate(next);
-      if (d) updateDate = d;
-    }
+  console.log('[FORMATO C] Linhas encontradas:', {
+    rowDates, rowPrevAcu, rowRealAcu, rowTendAcu, rowReplanjAcu,
+    rowRealReplanjAcu, rowRealReplanjSem, rowPrevSem, rowRealSem,
+    rowReplanjSem, rowTendSem,
+  });
+
+  if (rowDates < 0 || rowRealAcu < 0 || rowPrevAcu < 0) return null;
+
+  // COL_START = first column after col 0 with a Date in the dates row
+  const dateRow = grid[rowDates] || [];
+  for (let j = 1; j < dateRow.length; j++) {
+    if (toDate(dateRow[j])) { colStart = j; break; }
   }
+  if (colStart < 0) return null;
 
-  // FORMATO C (RHODIA): data de atualização frequentemente em grid[51][0] como Date
+  let updateDate: Date | undefined;
+  if (rowDataAtu >= 0) {
+    const d = toDate((grid[rowDataAtu] || [])[0]);
+    if (d) updateDate = d;
+  }
+  // Fallback: RHODIA tem data em grid[51][0]
   if (!updateDate) {
     for (let r = 45; r < Math.min(grid.length, 60); r++) {
       const d = toDate((grid[r] || [])[0]);
@@ -919,7 +919,7 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     }
   }
 
-  if (rowPrevAcu < 0 || rowRealAcu < 0) return null;
+  console.log('[FORMATO C] colStart:', colStart, 'updateDate:', updateDate);
 
   return {
     ref, rowDates, colStart,
@@ -933,42 +933,25 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 
 const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   const { grid } = ref;
-  let rowEquipe = -1, colEquipe = -1;
+  // Procurar linha onde row[1].trim() === 'EQUIPE DO PROJETO - TOTAL' E row[4].trim() === 'PLAN'
+  let rowPlan = -1, rowReal = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
-    for (let c = 0; c < row.length; c++) {
-      const n = norm(row[c]);
-      if (n.includes('equipe do projeto') && n.includes('total')) {
-        rowEquipe = r; colEquipe = c; break;
+    if (trimStr(row[1]) === 'EQUIPE DO PROJETO - TOTAL' && trimStr(row[4]) === 'PLAN') {
+      rowPlan = r;
+      for (let r2 = r + 1; r2 < Math.min(grid.length, r + 6); r2++) {
+        if (trimStr((grid[r2] || [])[4]) === 'REAL') { rowReal = r2; break; }
       }
+      break;
     }
-    if (rowEquipe >= 0) break;
   }
-  if (rowEquipe < 0) return null;
-
-  // Search PLAN and REAL within next 8 rows, any column
-  let rowPlan = -1, rowReal = -1;
-  for (let r = rowEquipe; r < Math.min(grid.length, rowEquipe + 12); r++) {
-    const row = grid[r] || [];
-    for (let c = 0; c < row.length; c++) {
-      const n = norm(row[c]);
-      if (rowPlan < 0 && n === 'plan') rowPlan = r;
-      if (rowReal < 0 && n === 'real') rowReal = r;
-    }
-    if (rowPlan >= 0 && rowReal >= 0) break;
-  }
+  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal);
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // FORMATO C: dados sempre começam em col 5 (S1). Aceita zeros (semana de mobilização).
-  const planRow = grid[rowPlan] || [];
-  let colStart = -1;
-  for (let c = 5; c < planRow.length; c++) {
-    if (typeof planRow[c] === 'number') { colStart = c; break; }
-  }
-  if (colStart < 0) return null;
-
-  return { ref, rowPlan, rowReal, colStart };
+  // FORMATO C: dados sempre em colunas 5-28
+  return { ref, rowPlan, rowReal, colStart: 5 };
 };
+
 
 
 const extractFormatCInfo = (refs: SheetRef[]): FormatCInfo => {
@@ -998,6 +981,14 @@ const extractFormatCInfo = (refs: SheetRef[]): FormatCInfo => {
   return info;
 };
 
+// Converte valor decimal/percentual em percentual com 2 casas
+const toPercentC = (v: unknown): number => {
+  if (v == null || v === '') return 0;
+  const n = typeof v === 'number' ? v : parseFloat(String(v));
+  if (!isFinite(n)) return 0;
+  return n <= 1 ? Math.round(n * 10000) / 100 : Math.round(n * 100) / 100;
+};
+
 const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: string } => {
   const { grid } = b.ref;
   const dateRow = grid[b.rowDates] || [];
@@ -1005,88 +996,100 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   const rPa = rd(b.rowPrevAcu)!, rPs = rd(b.rowPrevSem);
   const rRa = rd(b.rowRealAcu)!, rRs = rd(b.rowRealSem);
   const rTa = rd(b.rowTendAcu), rTs = rd(b.rowTendSem);
-  // Prefer "Realizado Replanejado" for replanj actuals; fallback to Previsto Replanejado
   const rRpa = rd(b.rowReplanjAcu), rRps = rd(b.rowReplanjSem);
+  const rRra = rd(b.rowRealReplanjAcu), rRrs = rd(b.rowRealReplanjSem);
 
-  const cols: CurveExtract['cols'] = [];
-  for (let j = b.colStart; j < dateRow.length; j++) {
+  // 1. ULTIMA_REAL = última coluna com realAcu > 0
+  let ultimaRealCol = -1;
+  for (let j = b.colStart; j < rRa.length; j++) {
+    const v = parseFloat(String(rRa[j]));
+    if (!isNaN(v) && v > 0) ultimaRealCol = j;
+  }
+  if (ultimaRealCol < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO C)' };
+
+  // 2. Construir array de semanas COL_START até ULTIMA_REAL (valores já em %)
+  type Semana = {
+    j: number; date: Date; label: string;
+    lb: number; ra: number; rpa: number; ta: number;
+    ps: number; rs: number; rps: number; rrps: number; rra: number;
+  };
+  const semanas: Semana[] = [];
+  for (let j = b.colStart; j <= ultimaRealCol; j++) {
     const d = toDate(dateRow[j]);
     if (!d) continue;
-    const get = (row: unknown[] | null) => row ? toNum(row[j]) : 0;
-    cols.push({
-      date: d,
-      prevSem: get(rPs), prevAcu: get(rPa),
-      realSem: get(rRs), realAcu: get(rRa),
-      tendSem: get(rTs), tendAcu: get(rTa),
-      replanjSem: get(rRps), replanjAcu: get(rRpa),
+    semanas.push({
+      j, date: d, label: fmtDDmmm(d),
+      lb:   toPercentC(rPa[j]),
+      ra:   toPercentC(rRa[j]),
+      rpa:  rRpa ? toPercentC(rRpa[j]) : 0,
+      ta:   rTa ? toPercentC(rTa[j]) : 0,
+      ps:   rPs ? toPercentC(rPs[j]) : 0,
+      rs:   rRs ? toPercentC(rRs[j]) : 0,
+      rps:  rRps ? toPercentC(rRps[j]) : 0,
+      rrps: rRrs ? toPercentC(rRrs[j]) : 0,
+      rra:  rRra ? toPercentC(rRra[j]) : 0,
     });
   }
+  console.log('[FORMATO C] Total semanas:', semanas.length);
+  console.log('[FORMATO C] Primeira:', semanas[0]);
+  console.log('[FORMATO C] Última:', semanas[semanas.length - 1]);
 
-  let ultimaReal = -1;
-  cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
-  if (ultimaReal < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO C)' };
+  const hasReplanejado = semanas.some(s => s.rpa > 0);
 
-  const hasReplanejado = cols.some(c => c.replanjAcu > 0);
+  // 3. sCurve: null onde lb/ta/rpa = 0 para criar lacunas no gráfico
+  const sCurve = semanas.map(s => ({
+    date: s.label,
+    previsto: s.lb > 0 ? s.lb : null as unknown as number,
+    real: s.ra > 0 ? s.ra : null as unknown as number,
+    tendencia: s.ta > 0 ? s.ta : null as unknown as number,
+    ...(hasReplanejado ? { replanejado: s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
+  }));
 
-  // S-Curve: usar null em vez de 0 para que as linhas LB e Replanejado terminem/iniciem corretamente
-  const sCurve = cols
-    .filter(c => c.prevAcu > 0 || c.realAcu > 0 || c.tendAcu > 0 || c.replanjAcu > 0)
-    .map(c => ({
-      date: fmtDDmmm(c.date),
-      previsto: c.prevAcu > 0 ? round2(c.prevAcu * 100) : null,
-      real: c.realAcu > 0 ? round2(c.realAcu * 100) : null,
-      tendencia: c.tendAcu > 0 ? round2(c.tendAcu * 100) : null,
-      ...(hasReplanejado ? { replanejado: c.replanjAcu > 0 ? round2(c.replanjAcu * 100) : null } : {}),
-    }));
+  // 4. Resultado Semanal: últimas 5 semanas até ULTIMA_REAL
+  // Previsto = REPLANJ_SEM > 0 ? REPLANJ_SEM : PREV_SEM (LB)
+  // Real     = REAL_REPL_SEM > 0 ? REAL_REPL_SEM : REAL_SEM
+  const weekly = semanas.slice(-5).map(s => ({
+    date: s.label,
+    previsto: s.rps > 0 ? s.rps : s.ps,
+    real: s.rrps > 0 ? s.rrps : s.rs,
+  }));
 
-  // Resultado Semanal: usar REPLANJ_SEM (Previsto Replanejado semanal) com fallback para PREV_SEM (LB semanal).
-  // Real usa REAL_REPL_SEM (Realizado Replanejado semanal) com fallback para REAL_SEM.
-  let wStart = ultimaReal - 2;
-  let wEnd = ultimaReal + 3;
-  if (wStart < 0) { wEnd -= wStart; wStart = 0; }
-  if (wEnd > cols.length) { wStart -= (wEnd - cols.length); wEnd = cols.length; wStart = Math.max(0, wStart); }
-  const rRrs = rd(b.rowRealReplanjSem);
-  const weekly = cols.slice(wStart, wEnd).map((c, idx) => {
-    const j = b.colStart + wStart + idx;
-    const prevReplSem = rRps ? toNum(rRps[j]) : 0;
-    const realReplSem = rRrs ? toNum(rRrs[j]) : 0;
-    const previsto = prevReplSem > 0 ? prevReplSem : c.prevSem;
-    const real = realReplSem > 0 ? realReplSem : c.realSem;
-    return {
-      date: fmtDDmmm(c.date),
-      previsto: round2(previsto * 100),
-      real: round2(real * 100),
-    };
+  // 5. Prev x Mês: agrupar por mês, últimos 4 meses
+  // Previsto = REPLANJ_ACU > 0 ? REPLANJ_ACU : PREV_ACU
+  // Real     = REAL_REPL_ACU > 0 ? REAL_REPL_ACU : REAL_ACU
+  const mesesMap = new Map<string, { date: Date; previsto: number; real: number }>();
+  semanas.forEach(s => {
+    const previsto = s.rpa > 0 ? s.rpa : s.lb;
+    const real = s.rra > 0 ? s.rra : s.ra;
+    if (previsto > 0 || real > 0) {
+      const key = `${s.date.getFullYear()}-${String(s.date.getMonth()).padStart(2, '0')}`;
+      mesesMap.set(key, { date: s.date, previsto, real });
+    }
   });
-
-  // Prev x Mês: previsto = REPLANJ_ACU fallback PREV_ACU; real = REAL_REPL_ACU fallback REAL_ACU.
-  const rRra = rd(b.rowRealReplanjAcu);
-  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number; replanjAcu: number; realReplAcu: number }>();
-  cols.slice(0, ultimaReal + 1).forEach((c, i) => {
-    const j = b.colStart + i;
-    const replanjAcu = rRpa ? toNum(rRpa[j]) : 0;
-    const realReplAcu = rRra ? toNum(rRra[j]) : 0;
-    const key = `${c.date.getFullYear()}-${String(c.date.getMonth()).padStart(2, '0')}`;
-    monthMap.set(key, { date: c.date, prevAcu: c.prevAcu, realAcu: c.realAcu, replanjAcu, realReplAcu });
-  });
-  const monthly = [...monthMap.values()]
-    .filter(m => m.prevAcu > 0 || m.replanjAcu > 0)
+  const monthly = [...mesesMap.values()]
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .slice(-4)
-    .map(m => ({
-      label: fmtMmmAaaa(m.date),
-      previsto: round2((m.replanjAcu > 0 ? m.replanjAcu : m.prevAcu) * 100),
-      real: round2((m.realReplAcu > 0 ? m.realReplAcu : m.realAcu) * 100),
-    }));
+    .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.previsto, real: m.real }));
 
-  const lastCol = cols[ultimaReal];
-  const lastPrev = lastCol.replanjAcu > 0 ? lastCol.replanjAcu : lastCol.prevAcu;
+  // 6. KPIs — usar dados da última semana
+  const last = semanas[semanas.length - 1];
+  const prevLast = last.rpa > 0 ? last.rpa : last.lb;
+
+  // 7. cols compatível com CurveExtract (valores decimais para back-compat)
+  const cols: CurveExtract['cols'] = semanas.map(s => ({
+    date: s.date,
+    prevSem: s.ps / 100, prevAcu: s.lb / 100,
+    realSem: s.rs / 100, realAcu: s.ra / 100,
+    tendSem: 0, tendAcu: s.ta / 100,
+    replanjSem: s.rps / 100, replanjAcu: s.rpa / 100,
+  }));
+
   return {
     block: null as never,
-    cols, ultimaReal,
-    statusDate: lastCol.date,
-    realAcuLast: round2(lastCol.realAcu * 100),
-    prevAcuLast: round2(lastPrev * 100),
+    cols, ultimaReal: semanas.length - 1,
+    statusDate: last.date,
+    realAcuLast: last.ra,
+    prevAcuLast: prevLast,
     hasReplanejado, sCurve, weekly, monthly,
   };
 };
@@ -1095,64 +1098,45 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const { grid } = h.ref;
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
-
-  // Determine valid columns: numeric and NOT a total (values >= 400 são acumulados/totais — IGNORAR)
-  // FORMATO C: parar de iterar ao encontrar primeiro valor >= 400 (tudo após é sumário/totais)
-  const isTotal = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v >= 400;
-
-  let lastCol = h.colStart - 1;
-  for (let c = h.colStart; c < Math.max(planRow.length, realRow.length); c++) {
-    if (isTotal(planRow[c]) || isTotal(realRow[c])) break;
-    if (typeof planRow[c] === 'number' || typeof realRow[c] === 'number') lastCol = c;
-  }
-  if (lastCol < h.colStart) lastCol = h.colStart;
-
-
-  // Date alignment FORMAT C: hist col c → curve col (c - 4) (S1 hist@5 = curve@1)
+  // Curva: hist_col 5 corresponde a curve colStart (geralmente 1) → offset = colStart - 5
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0; // = 1 - 5 = -4
+  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
 
-  const items: { date: Date | null; label: string; prev: number; real: number }[] = [];
-  for (let c = h.colStart, i = 0; c <= lastCol; c++, i++) {
-    const rawPrev = planRow[c];
-    const rawReal = realRow[c];
-    const prev = (typeof rawPrev === 'number' && isFinite(rawPrev) && rawPrev < 400) ? rawPrev : 0;
-    const real = (typeof rawReal === 'number' && isFinite(rawReal) && rawReal < 400) ? rawReal : 0;
-
-    let date: Date | null = null;
+  // Coletar somente colunas 5..28 (ignorar 29+ que são acumulados)
+  type Item = { j: number; label: string; prev: number; real: number };
+  const items: Item[] = [];
+  for (let j = h.colStart; j <= 28; j++) {
+    const p = parseFloat(String(planRow[j])) || 0;
+    const r = parseFloat(String(realRow[j])) || 0;
+    let label = `S${j - 4}`;
     if (curveDateRow) {
-      const d = toDate(curveDateRow[c + offset]);
-      if (d) date = d;
+      const d = toDate(curveDateRow[j + offset]);
+      if (d) label = fmtDDmmm(d);
     }
-    items.push({ date, label: date ? fmtDDmmm(date) : `S${i + 1}`, prev, real });
+    if (p > 0 || r > 0) items.push({ j, label, prev: p, real: r });
   }
+  console.log('[FORMATO C HIST] items coletados:', items.length, items);
 
-
+  // ULTIMA_REAL = última posição com real > 0
   let ultimaReal = -1;
-  items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
+  items.forEach((it, i) => { if (it.real > 0) ultimaReal = i; });
 
-  let windowItems = items;
-  let localUltimaReal = ultimaReal;
-  if (ultimaReal >= 0) {
-    const start = Math.max(0, ultimaReal - 4);
-    const futureEnd = Math.min(items.length, ultimaReal + 1 + 4);
-    windowItems = items.slice(start, futureEnd);
-    localUltimaReal = ultimaReal - start;
-  }
+  // Janela: 6 passadas (incluindo ULTIMA_REAL) + 4 futuras
+  const start = Math.max(0, ultimaReal - 5);
+  const passadas = items.slice(start, ultimaReal + 1);
+  const futuras = items.slice(ultimaReal + 1, ultimaReal + 5);
+  const windowItems = [...passadas, ...futuras];
+  const localUltimaReal = passadas.length - 1;
 
-  const result = windowItems.map((x, i) => {
-    const isFuture = localUltimaReal >= 0 ? i > localUltimaReal : x.real === 0;
-    return isFuture
-      ? { label: x.label, prev: x.prev, real: 0 }
-      : { label: x.label, prev: 0, real: x.real };
+  const histogram = windowItems.map((x, i) => {
+    const isFuture = i > localUltimaReal;
+    return {
+      date: x.label,
+      semana: '',
+      previsto: isFuture ? Math.round(x.prev) : 0,
+      real: isFuture ? 0 : Math.round(x.real),
+    };
   });
-
-  const histogram = result.map(c => ({
-    date: c.label,
-    semana: '',
-    previsto: Math.round(c.prev),
-    real: Math.round(c.real),
-  }));
 
   return {
     block: { ref: h.ref, rowDia: h.rowPlan, colDia: h.colStart - 1, rowPrev: h.rowPlan, rowReal: h.rowReal, realCount: items.reduce((s, x) => s + (x.real > 0 ? x.real : 0), 0) },
@@ -1161,6 +1145,7 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
     histogram,
   };
 };
+
 
 const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
   // Find a sheet with Resumo
