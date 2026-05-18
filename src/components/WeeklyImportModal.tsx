@@ -859,17 +859,19 @@ interface FormatCBundle {
 
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
-  // Row of dates: col 0 contains "evento" + subsequent are Date
+  // Row of dates: col 0 contains "evento ( cronograma)" exact + subsequent are Date
+  // Stricter than just "evento" to avoid matching financial curves ("Evento de Pagamento")
   let rowDates = -1, colStart = -1;
   for (let r = 0; r < Math.min(grid.length, 20); r++) {
     const row = grid[r] || [];
     const n = norm(row[0]);
-    if (!(n.includes('evento') || n.includes('cronograma'))) continue;
+    if (!(n === 'evento ( cronograma)' || n === 'evento (cronograma)' || n === 'evento cronograma')) continue;
     for (let c = 1; c < row.length; c++) {
       if (toDate(row[c])) { rowDates = r; colStart = c; break; }
     }
     if (rowDates >= 0) break;
   }
+
   if (rowDates < 0) return null;
 
   let rowPrevAcu = -1, rowPrevSem = -1, rowRealAcu = -1, rowRealSem = -1;
