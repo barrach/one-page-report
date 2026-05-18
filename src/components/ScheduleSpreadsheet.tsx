@@ -56,14 +56,6 @@ const ScheduleSpreadsheet = () => {
     <div className="bg-card rounded-lg p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-foreground">Cronograma</h2>
-        <div className="flex gap-2 flex-wrap justify-end">
-          <Button size="sm" variant="outline" onClick={() => setShowPaste(!showPaste)} className="gap-1">
-            <ClipboardPaste className="h-4 w-4" /> Colar do Excel
-          </Button>
-          <Button size="sm" variant="outline" onClick={addScheduleRow} className="gap-1">
-            <Plus className="h-4 w-4" /> Linha
-          </Button>
-        </div>
       </div>
 
       {showPaste && (
