@@ -1217,14 +1217,26 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
 
 
 const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
-  // Find a sheet with Resumo
+  // Sinais de Formato C: aba RESUMO ou aba EQUIPE DO PROJETO - TOTAL/PLAN
   const hasResumo = allSheets.some(s => norm(s.sheetName).includes('resumo'));
+  const hasHistSig = allSheets.some(s =>
+    (s.grid || []).some(r => (r as unknown[])?.some(v => v != null && String(v).includes('EQUIPE DO PROJETO - TOTAL')))
+  );
+  const isFormatC = hasResumo || hasHistSig;
+
+  // Varre TODAS as abas em busca da Curva S
   let curve: FormatCCurveBlock | null = null;
   for (const ref of allSheets) {
     const c = findFormatCCurveBlock(ref);
     if (c) { curve = c; break; }
   }
-  if (!curve) return null;
+  if (!curve) {
+    if (isFormatC) {
+      console.error('[FORMATO C] ❌ Aba da Curva S não encontrada. Abas:', allSheets.map(s => s.sheetName));
+      toast.error('FORMATO C: aba da Curva S não encontrada. Verifique se o arquivo é o correto.');
+    }
+    return null;
+  }
   // Format C signature: has RESUMO sheet OR an EQUIPE DO PROJETO hist sheet
   let hist: FormatCHistBlock | null = null;
   for (const ref of allSheets) {
