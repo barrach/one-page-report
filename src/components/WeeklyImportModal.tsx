@@ -1480,15 +1480,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         </DialogHeader>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A (separado) ou FORMATO B (integrado)" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
+          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A, B ou C" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
           <UploadZone
             label="Arquivo 2 — Histograma MOD (.xlsx)"
-            badge={{ text: result?.formatB ? 'Não necessário' : 'Obrigatório', variant: result?.formatB ? 'optional' : 'required' }}
-            status={result?.formatB ? 'disabled' : (file2 ? 'loaded' : 'idle')}
+            badge={{ text: (result?.formatB || result?.formatC) ? 'Não necessário' : 'Obrigatório', variant: (result?.formatB || result?.formatC) ? 'optional' : 'required' }}
+            status={(result?.formatB || result?.formatC) ? 'disabled' : (file2 ? 'loaded' : 'idle')}
             fileName={file2?.name}
-            disabledMessage="Incluído no Arquivo 1 (FORMATO B)"
+            disabledMessage={result?.formatC ? 'Incluído no Arquivo 1 (FORMATO C)' : 'Incluído no Arquivo 1 (FORMATO B)'}
             onFile={onFile2}
           />
+
           <UploadZone
             label="Arquivo 3 — Cronograma (.xml ou .xlsx)"
             subtitle="Opcional — MS Project: XML ou Excel exportado"
