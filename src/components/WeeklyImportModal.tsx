@@ -1070,15 +1070,17 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
 
-  // Determine valid columns: numeric and NOT a total (values > 400 são acumulados/totais — IGNORAR)
-  const isValidCell = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v < 400;
-  const isWeekCell = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v >= 0 && v < 400;
+  // Determine valid columns: numeric and NOT a total (values >= 400 são acumulados/totais — IGNORAR)
+  // FORMATO C: parar de iterar ao encontrar primeiro valor >= 400 (tudo após é sumário/totais)
+  const isTotal = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v >= 400;
 
-  // Last valid column: starting from colStart, last column where plan or real is a valid week value (< 400)
-  let lastCol = h.colStart;
+  let lastCol = h.colStart - 1;
   for (let c = h.colStart; c < Math.max(planRow.length, realRow.length); c++) {
-    if (isWeekCell(planRow[c]) || isWeekCell(realRow[c])) lastCol = c;
+    if (isTotal(planRow[c]) || isTotal(realRow[c])) break;
+    if (typeof planRow[c] === 'number' || typeof realRow[c] === 'number') lastCol = c;
   }
+  if (lastCol < h.colStart) lastCol = h.colStart;
+
 
   // Date alignment FORMAT C: hist col c → curve col (c - 4) (S1 hist@5 = curve@1)
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
