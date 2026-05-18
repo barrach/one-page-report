@@ -538,8 +538,12 @@ const extractCurve = (block: CurveBlock): CurveExtract | { error: string } => {
       ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
     }));
 
-  const wStart = Math.max(0, ultimaReal - 4);
-  const weekly = cols.slice(wStart, ultimaReal + 1).map(c => ({
+  // Janela de 5 semanas centrada na data de atualização (2 antes + central + 2 depois)
+  let wStart = ultimaReal - 2;
+  let wEnd = ultimaReal + 3; // exclusivo
+  if (wStart < 0) { wEnd -= wStart; wStart = 0; }
+  if (wEnd > cols.length) { wStart -= (wEnd - cols.length); wEnd = cols.length; wStart = Math.max(0, wStart); }
+  const weekly = cols.slice(wStart, wEnd).map(c => ({
     date: fmtDDmmm(c.date),
     previsto: round2(c.prevSem * 100),
     real: round2(c.realSem * 100),
@@ -735,8 +739,12 @@ const extractFormatBCurve = (b: FormatBBlock): CurveExtract | { error: string } 
       ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
     }));
 
-  const wStart = Math.max(0, ultimaReal - 4);
-  const weekly = cols.slice(wStart, ultimaReal + 1).map(c => ({
+  // Janela de 5 semanas centrada na data de atualização (2 antes + central + 2 depois)
+  let wStart = ultimaReal - 2;
+  let wEnd = ultimaReal + 3;
+  if (wStart < 0) { wEnd -= wStart; wStart = 0; }
+  if (wEnd > cols.length) { wStart -= (wEnd - cols.length); wEnd = cols.length; wStart = Math.max(0, wStart); }
+  const weekly = cols.slice(wStart, wEnd).map(c => ({
     date: fmtDDmmm(c.date),
     previsto: round2(c.prevSem * 100),
     real: round2(c.realSem * 100),
