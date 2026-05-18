@@ -322,6 +322,14 @@ const toDate = (v: unknown): Date | null => {
     const d = new Date(Math.round((v - 25569) * 86400 * 1000));
     return isNaN(d.getTime()) ? null : d;
   }
+  if (typeof v === 'string') {
+    // ISO yyyy-mm-dd or yyyy-mm-dd hh:mm:ss
+    const m = v.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) {
+      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+      return isNaN(d.getTime()) ? null : d;
+    }
+  }
   return null;
 };
 const toNum = (v: unknown): number => {
