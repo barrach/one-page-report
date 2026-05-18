@@ -91,23 +91,58 @@ const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
   for (const name of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true });
 
-    // MS Project Excel export: row 0 = "Nome da Tarefa" | "Início" | "Término"
-    const h0 = grid[0] || [];
-    const c0 = String(h0[0] ?? '').trim().toLowerCase();
-    const c1 = String(h0[1] ?? '').trim().toLowerCase();
-    const c2 = String(h0[2] ?? '').trim().toLowerCase();
-    if (/nome.*tarefa/.test(c0) && /(in[ií]cio|start)/.test(c1) && /(t[eé]rmino|finish)/.test(c2)) {
+    // MS Project Excel export: header row contains "Nome da Tarefa"/"Name" + "Início"/"Start" + "Término"/"Finish"
+    const h0 = (grid[0] || []) as unknown[];
+    const headerStr = h0.map((c) => String(c ?? '').trim().toLowerCase());
+    const hasName = headerStr.some((s) => /nome.*tarefa|^name$|task\s*name/.test(s));
+    const hasStart = headerStr.some((s) => /^in[ií]cio$|^start$/.test(s));
+    const hasFinish = headerStr.some((s) => /^t[eé]rmino$|^finish$/.test(s));
+    if (hasName && hasStart && hasFinish) {
+      // Dynamic column mapping (case-insensitive, partial match)
+      const findIdx = (matcher: (s: string) => boolean): number => headerStr.findIndex(matcher);
+      const findAll = (matcher: (s: string) => boolean): number[] =>
+        headerStr.reduce<number[]>((acc, s, i) => (matcher(s) ? [...acc, i] : acc), []);
+
+      const colName = findIdx((s) => /nome.*tarefa|^name$|task\s*name/.test(s));
+
+      // Baseline first (more specific)
+      const colInicioBase = findIdx((s) => /(in[ií]cio.*linha.*base|baseline\s*start)/.test(s));
+      const colTerminoBase = findIdx((s) => /(t[eé]rmino.*linha.*base|baseline\s*finish)/.test(s));
+
+      // Real Start/Finish: pick first occurrence of "início"/"start" that is NOT the baseline column
+      const startCandidates = findAll((s) => /in[ií]cio|start/.test(s)).filter((i) => i !== colInicioBase);
+      const finishCandidates = findAll((s) => /t[eé]rmino|finish/.test(s)).filter((i) => i !== colTerminoBase);
+      const colInicio = startCandidates[0] ?? -1;
+      const colTermino = finishCandidates[0] ?? -1;
+
+      const colPrev = findIdx((s) => /%\s*previsto|%\s*conclu[ií]do/.test(s));
+      const colTrab = findIdx((s) => /%\s*trabalho|%\s*work/.test(s));
+      const colId = findIdx((s) => /^id$/.test(s));
+
       const fd = (v: unknown) => { const d = parseAnyDate(v); return d ? fmtScheduleDate(d) : ''; };
+      const fdBase = (v: unknown) => {
+        if (v == null) return 'ND';
+        const s = String(v).trim();
+        if (!s || s.toLowerCase() === 'na' || s.toLowerCase() === 'nd') return 'ND';
+        const d = parseAnyDate(v);
+        if (!d || d.getFullYear() < 1990) return 'ND';
+        return fmtScheduleDate(d);
+      };
+      const num = (v: unknown) => {
+        if (typeof v === 'number') return v <= 1 && v > 0 ? v * 100 : v;
+        if (typeof v === 'string') { const n = parseFloat(v.replace('%', '').replace(',', '.')); return isFinite(n) ? n : 0; }
+        return 0;
+      };
+
       const out: ScheduleRow[] = [];
       const counters: number[] = [];
       for (let r = 1; r < grid.length; r++) {
-        const rr = grid[r] || [];
-        const raw = rr[0];
+        const rr = (grid[r] || []) as unknown[];
+        const raw = colName >= 0 ? rr[colName] : rr[0];
         if (raw == null || String(raw).trim() === '') continue;
         const rawName = String(raw);
         const leading = rawName.length - rawName.trimStart().length;
         const outlineLevel = Math.max(1, Math.floor(leading / 3) + 1);
-        // build OutlineNumber (1, 1.1, 1.1.2…) based on position+level
         if (counters.length < outlineLevel) {
           while (counters.length < outlineLevel) counters.push(0);
         } else {
@@ -115,18 +150,26 @@ const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
         }
         counters[outlineLevel - 1] = (counters[outlineLevel - 1] || 0) + 1;
         const outlineNumber = counters.slice(0, outlineLevel).join('.');
+        const previsto = colPrev >= 0 ? num(rr[colPrev]) : 0;
+        const trabalhoConcluido = colTrab >= 0 ? num(rr[colTrab]) : 0;
         out.push({
-          id: String(r),
+          id: colId >= 0 ? String(rr[colId] ?? '').trim() || String(r) : String(r),
           tarefa: rawName.trim(),
-          previsto: 0, trabalhoConcluido: 0, desvio: 0,
-          inicio: fd(rr[1]), termino: fd(rr[2]),
-          inicioBase: '', terminoBase: '',
+          previsto,
+          trabalhoConcluido,
+          desvio: Math.round((previsto - trabalhoConcluido) * 100) / 100,
+          inicio: colInicio >= 0 ? fd(rr[colInicio]) : '',
+          termino: colTermino >= 0 ? fd(rr[colTermino]) : '',
+          inicioBase: colInicioBase >= 0 ? fdBase(rr[colInicioBase]) : 'ND',
+          terminoBase: colTerminoBase >= 0 ? fdBase(rr[colTerminoBase]) : 'ND',
           outlineLevel, outlineNumber, summary: false, milestone: false,
           bold: outlineLevel <= 2,
         });
       }
       if (out.length) return out;
     }
+
+
 
 
     for (let i = 0; i < Math.min(grid.length, 5); i++) {
