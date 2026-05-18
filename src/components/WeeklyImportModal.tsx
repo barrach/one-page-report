@@ -892,8 +892,12 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     if (label && !(label in labelMap)) labelMap[label] = i;
   });
 
-  // SHEET CHECK: deve conter REALIZADO GERAL (ACUMULADO)
-  if (findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)') < 0) return null;
+  // SHEET CHECK (3 labels obrigatórios): Curva S = Evento + LB Acu + Real Acu
+  const hasEvento = !!Object.keys(labelMap).find(k => k.trim().startsWith('Evento'));
+  const hasLbAcu  = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)') >= 0;
+  const hasReAcu  = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)') >= 0;
+  if (!(hasEvento && hasLbAcu && hasReAcu)) return null;
+  console.log('[FORMATO C] ✅ Aba Curva S =', ref.sheetName);
 
   // 2. Buscas dinâmicas (tolerantes a espaço extra)
   let rowDates       = findRowByLabel(labelMap, 'Evento ( Cronograma)', 'Evento (Cronograma)', 'EVENTO');
