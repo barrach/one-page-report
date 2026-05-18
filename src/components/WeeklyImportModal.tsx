@@ -1209,11 +1209,50 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                   {scheduleError ? (
                     <div className="pl-4 text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{scheduleError}</div>
                   ) : schedule && (
-                    <div className="pl-4 text-muted-foreground">
-                      Cronograma: <span className="font-semibold text-foreground">{schedule.rows.length}</span> tarefas encontradas
-                      {' · '}formato: <span className="font-mono text-foreground">{schedule.format === 'xml' ? 'XML do Project' : 'Excel'}</span>
+                    <div className="pl-4 space-y-1">
+                      <div className="text-muted-foreground">
+                        Cronograma: <span className="font-semibold text-foreground">{schedule.rows.length}</span> tarefas encontradas
+                        {' · '}formato: <span className="font-mono text-foreground">{schedule.format === 'xml' ? 'XML do Project' : 'Excel'}</span>
+                      </div>
+                      {schedule.mapping && schedule.mapping.length > 0 && (() => {
+                        const labels: Record<ScheduleField, string> = {
+                          tarefa: 'Nome da Tarefa', id: 'Id', previsto: 'Prev. %',
+                          trabalhoConcluido: '% Trab.', desvio: 'Desvio',
+                          inicio: 'Início', termino: 'Término',
+                          inicioBase: 'Início Base', terminoBase: 'Término Base',
+                          nivel: 'Nível',
+                        };
+                        const order: ScheduleField[] = ['tarefa', 'id', 'previsto', 'trabalhoConcluido', 'desvio', 'inicio', 'termino', 'inicioBase', 'terminoBase'];
+                        const found = new Map(schedule.mapping.map((m) => [m.field, m]));
+                        return (
+                          <div className="rounded-md border bg-muted/30 p-2 font-mono text-[11px] leading-relaxed">
+                            <div className="text-muted-foreground mb-1">Mapeamento detectado:</div>
+                            {order.map((f) => {
+                              const e = found.get(f);
+                              const label = labels[f].padEnd(14, ' ');
+                              if (e) {
+                                return (
+                                  <div key={f} className="text-foreground">
+                                    <span className="text-green-600">✓</span> {label} ← col {e.col} <span className="text-muted-foreground">'{e.header}'</span>
+                                  </div>
+                                );
+                              }
+                              const fallback = f === 'id' ? 'usando sequencial'
+                                : f === 'desvio' ? 'calculado (Prev − %Trab)'
+                                : f === 'inicioBase' || f === 'terminoBase' ? 'exibido como ND'
+                                : 'vazio';
+                              return (
+                                <div key={f} className="text-amber-600">
+                                  ⚠ {label} ← não encontrado ({fallback})
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   )}
+
                 </div>
               )}
             </div>
