@@ -1226,23 +1226,71 @@ const scanFile = async (file: File): Promise<FileScan> => {
     grid: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true }),
   }));
 
-  // ===== DEBUG MODAL =====
-  // Identifica aba da Curva S (contém "curva" no nome) ou usa a primeira
-  const curvaSheet = sheets.find(s => /curva/i.test(s.sheetName)) || sheets[0];
-  const rows = curvaSheet?.grid || [];
-  const debugInfo = {
-    arquivo: file.name,
-    abas: wb.SheetNames,
-    abaInspecionada: curvaSheet?.sheetName,
-    totalLinhas: rows.length,
-    labels_col0: rows.slice(0, 20).map((r, i) => `L${i}: ${(r as unknown[])?.[0]}`),
-    tipo_L7_C1: `${typeof (rows[6] as unknown[])?.[1]} = ${(rows[6] as unknown[])?.[1]}`,
-    valor_L12_C23: (rows[11] as unknown[])?.[23],
-    valor_L10_C23: (rows[9] as unknown[])?.[23],
-  };
-  console.log('[DEBUG IMPORT]', debugInfo);
-  try { alert(JSON.stringify(debugInfo, null, 2)); } catch { /* noop */ }
-  // =======================
+  // ===== DEBUG: varre TODAS as abas em busca dos blocos do Formato C =====
+  console.log('[FormatoC] arquivo:', file.name, 'abas:', wb.SheetNames);
+
+  let curvaSheetName: string | null = null;
+  let histSheetName: string | null = null;
+  let resumoSheetName: string | null = null;
+
+  for (const s of sheets) {
+    const rows = s.grid;
+    const hasRealAcu = rows.some(r => r && String((r as unknown[])[0] ?? '').trim() === 'REALIZADO GERAL (ACUMULADO)');
+    const hasEvento  = rows.some(r => r && String((r as unknown[])[0] ?? '').trim().startsWith('Evento'));
+    if (!curvaSheetName && hasRealAcu && hasEvento) {
+      curvaSheetName = s.sheetName;
+      console.log('[FormatoC] aba Curva S encontrada =', s.sheetName);
+    }
+    const hasTotal = rows.some(r => (r as unknown[])?.some(v => v != null && String(v).includes('EQUIPE DO PROJETO - TOTAL')));
+    if (!histSheetName && hasTotal) {
+      histSheetName = s.sheetName;
+      console.log('[FormatoC] aba Histograma encontrada =', s.sheetName);
+    }
+    if (!resumoSheetName && s.sheetName.toUpperCase().includes('RESUMO')) {
+      resumoSheetName = s.sheetName;
+      console.log('[FormatoC] aba Resumo encontrada =', s.sheetName);
+    }
+  }
+
+  if (curvaSheetName) {
+    const curvaRows = sheets.find(s => s.sheetName === curvaSheetName)!.grid as unknown[][];
+    const labelMap: Record<string, number> = {};
+    curvaRows.forEach((row, i) => {
+      const v = row?.[0];
+      if (v != null) {
+        const k = String(v).trim();
+        if (k && !(k in labelMap)) labelMap[k] = i;
+      }
+    });
+    const ROW_DATES    = labelMap['Evento ( Cronograma)'] ?? labelMap['Evento (Cronograma)'] ?? -1;
+    const ROW_PREV_ACU = labelMap['PREVISTO GERAL LB (ACUMULADO)'] ?? -1;
+    const ROW_REAL_ACU = labelMap['REALIZADO GERAL (ACUMULADO)'] ?? -1;
+    const ROW_REPL_ACU = labelMap['PREVISTO GERAL REPLANEJADO (ACUMULADO)'] ?? -1;
+    const ROW_TEND_ACU = labelMap['TENDÊNCIA GERAL (ACUMULADO)'] ?? labelMap['TENDENCIA GERAL (ACUMULADO)'] ?? -1;
+    console.log('[FormatoC] labelMap:', { ROW_DATES, ROW_PREV_ACU, ROW_REAL_ACU, ROW_REPL_ACU, ROW_TEND_ACU });
+
+    let COL_START = -1;
+    if (ROW_DATES >= 0) {
+      (curvaRows[ROW_DATES] || []).forEach((v, j) => {
+        if (j > 0 && COL_START < 0 && v instanceof Date) COL_START = j;
+      });
+    }
+    console.log('[FormatoC] COL_START:', COL_START, 'data:', curvaRows[ROW_DATES]?.[COL_START]);
+
+    let ULTIMA_REAL = -1;
+    if (ROW_REAL_ACU >= 0) {
+      (curvaRows[ROW_REAL_ACU] || []).forEach((v, j) => {
+        if (j >= COL_START && typeof v === 'number' && v > 0) ULTIMA_REAL = j;
+      });
+    }
+    console.log('[FormatoC] ULTIMA_REAL:', ULTIMA_REAL,
+      'valor:', curvaRows[ROW_REAL_ACU]?.[ULTIMA_REAL],
+      'data:', curvaRows[ROW_DATES]?.[ULTIMA_REAL]);
+  } else {
+    console.log('[FormatoC] aba Curva S NÃO encontrada. Abas:', wb.SheetNames);
+  }
+  // ===== fim debug =====
+
 
   return { fileName: file.name, sheets };
 };
