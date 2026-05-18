@@ -771,12 +771,8 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
     const curve = extractFormatBCurve(formatB);
     const hist = extractFormatBHist(formatB);
     const projectDates = extractProjectDates(allSheets);
-    // Override "Atualizado em" from Format B's explicit update date label, if present
-    if (formatB.updateDate) {
-      // Pass via projectDates? — handled in confirm() via formatB.updateDate
-    }
     const errors: string[] = [];
-    if (!curve.sCurve.length) errors.push('Nenhuma coluna com Real Acumulado > 0 (FORMATO B)');
+    if ('error' in curve) errors.push(curve.error);
     return {
       curveBlock: null,
       curve,
