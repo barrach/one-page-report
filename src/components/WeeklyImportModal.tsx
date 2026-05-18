@@ -1443,6 +1443,14 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (pd.terminoLB && !currentInfo.terminoLB) infoPatch.terminoLB = toIsoDate(pd.terminoLB);
       if (pd.terminoPrev && !currentInfo.terminoPrev) infoPatch.terminoPrev = toIsoDate(pd.terminoPrev);
     }
+    // FORMAT C: projeto/cliente/gestor (don't overwrite if user filled)
+    const fcInfo = result?.formatC?.info;
+    if (fcInfo && currentInfo) {
+      if (fcInfo.projeto && !currentInfo.projeto) infoPatch.projeto = fcInfo.projeto;
+      if (fcInfo.cliente && !currentInfo.cliente) infoPatch.cliente = fcInfo.cliente;
+      if (fcInfo.gestor && !currentInfo.gestor) infoPatch.gestor = fcInfo.gestor;
+    }
+
     if (Object.keys(infoPatch).length) setInfo(infoPatch);
     if (schedule && schedule.rows.length) {
       setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
