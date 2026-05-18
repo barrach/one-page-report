@@ -857,8 +857,6 @@ interface FormatCBundle {
   info: FormatCInfo;
 }
 
-// Strict trim comparison (preserves case + accents). Format C labels are uppercase.
-const trimStr = (v: unknown): string => (v == null ? '' : String(v).trim());
 
 // Busca dinâmica de linha por label, com trim e variações de espaço
 const findRowByLabel = (labelMap: Record<string, number>, ...candidates: string[]): number => {
