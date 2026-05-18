@@ -89,147 +89,159 @@ const parseScheduleXML = (text: string): ScheduleRow[] => {
   return rows;
 };
 
-const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
+// ─── Schedule (XLSX) — fully dynamic, header-driven column mapping ───
+const normHeader = (v: unknown): string =>
+  String(v ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // strip accents
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+// Field matchers — each returns true when the (normalised) header is a candidate
+// for that field. Order matters: more specific fields run first so they can
+// claim columns before generic ones (e.g. baseline before plain start/finish).
+const FIELD_MATCHERS: Array<{ field: ScheduleField; match: (h: string) => boolean }> = [
+  { field: 'tarefa', match: (h) => /nome.*tarefa|task\s*name|^tarefa$|^atividade$|^descricao$|^name$/.test(h) },
+  { field: 'nivel', match: (h) => /^(nivel|level|outline\s*level)$/.test(h) },
+  { field: 'inicioBase', match: (h) => (h.includes('base') || h.includes('linha')) && (h.includes('inicio') || h.includes('start')) },
+  { field: 'terminoBase', match: (h) => (h.includes('base') || h.includes('linha')) && (h.includes('termino') || h.includes('fim') || h.includes('finish')) },
+  { field: 'trabalhoConcluido', match: (h) => (h.includes('trabalho') || h.includes('work')) && (h.includes('%') || h.includes('conclu')) },
+  { field: 'previsto', match: (h) => !h.includes('trabalho') && !h.includes('work') && (
+      /%\s*previsto|%\s*prev\b|^previsto$|%\s*conclu|percent\s*complete|fisico\s*prev|avanco\s*prev/.test(h)
+    ) },
+  { field: 'desvio', match: (h) => /\b(desvio|variance|spi|diferenca)\b/.test(h) },
+  { field: 'inicio', match: (h) => !h.includes('base') && !h.includes('linha') && /\b(inicio|start)\b/.test(h) },
+  { field: 'termino', match: (h) => !h.includes('base') && !h.includes('linha') && /\b(termino|finish|conclusao)\b/.test(h) },
+  { field: 'id', match: (h) => /^(id|wbs|codigo|cod|numero|n)$/.test(h) },
+];
+
+const buildScheduleMapping = (headers: string[]): { map: Partial<Record<ScheduleField, ScheduleMapEntry>>; missing: ScheduleField[] } => {
+  const map: Partial<Record<ScheduleField, ScheduleMapEntry>> = {};
+  const used = new Set<number>();
+  for (const { field, match } of FIELD_MATCHERS) {
+    if (map[field]) continue;
+    for (let c = 0; c < headers.length; c++) {
+      if (used.has(c)) continue;
+      if (!headers[c]) continue;
+      if (match(headers[c])) {
+        map[field] = { field, col: c, header: headers[c] };
+        used.add(c);
+        break;
+      }
+    }
+  }
+  const missing = (['id', 'tarefa', 'previsto', 'trabalhoConcluido', 'desvio', 'inicio', 'termino', 'inicioBase', 'terminoBase'] as ScheduleField[])
+    .filter((f) => !map[f]);
+  return { map, missing };
+};
+
+const fdSchedule = (v: unknown): string => {
+  const d = parseAnyDate(v);
+  return d ? fmtScheduleDate(d) : '';
+};
+const fdScheduleBase = (v: unknown): string => {
+  if (v == null) return 'ND';
+  const s = String(v).trim();
+  if (!s || /^(na|nd|n\/?d)$/i.test(s)) return 'ND';
+  const d = parseAnyDate(v);
+  if (!d || d.getFullYear() < 1990) return 'ND';
+  return fmtScheduleDate(d);
+};
+const numSchedule = (v: unknown): number => {
+  if (typeof v === 'number') return v <= 1 && v > 0 ? v * 100 : v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v.replace('%', '').replace(/\s/g, '').replace(',', '.'));
+    return isFinite(n) ? n : 0;
+  }
+  return 0;
+};
+
+interface XlsxParseResult { rows: ScheduleRow[]; mapping: ScheduleMapEntry[]; missing: ScheduleField[]; }
+
+const parseScheduleXLSX = (buf: ArrayBuffer): XlsxParseResult => {
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
   for (const name of wb.SheetNames) {
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true });
 
-    // MS Project Excel export: header row contains "Nome da Tarefa"/"Name" + "Início"/"Start" + "Término"/"Finish"
-    const h0 = (grid[0] || []) as unknown[];
-    const norm = (v: unknown) =>
-      String(v ?? '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // strip accents
-        .trim()
-        .toLowerCase();
-    const headerStr = h0.map(norm); // accent-insensitive, lowercased
-    const hasName = headerStr.some((s) => /nome.*tarefa|^name$|task\s*name/.test(s));
-    const hasStart = headerStr.some((s) => /\binicio\b|\bstart\b/.test(s));
-    const hasFinish = headerStr.some((s) => /\btermino\b|\bfinish\b/.test(s));
-    if (hasName && hasStart && hasFinish) {
-      // Dynamic column mapping (case-insensitive, accent-insensitive, partial match)
-      const findIdx = (matcher: (s: string) => boolean): number => headerStr.findIndex(matcher);
-      const findAll = (matcher: (s: string) => boolean): number[] =>
-        headerStr.reduce<number[]>((acc, s, i) => (matcher(s) ? [...acc, i] : acc), []);
+    // PASSO 1 — find header row: first row whose cells contain "nome", "task" or "tarefa"
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(grid.length, 15); i++) {
+      const cells = (grid[i] || []) as unknown[];
+      const normed = cells.map(normHeader);
+      if (normed.some((h) => /nome|tarefa|task/.test(h))) { headerRowIdx = i; break; }
+    }
+    if (headerRowIdx < 0) continue;
 
-      const colName = findIdx((s) => /nome.*tarefa|^name$|task\s*name/.test(s));
+    const headers = ((grid[headerRowIdx] || []) as unknown[]).map(normHeader);
 
-      // Baseline first (more specific). Header may be "Início da Linha de Base" or
-      // "Término da linha de base" (mixed case) — handled by norm() above.
-      const colInicioBase = findIdx(
-        (s) => (s.includes('linha de base') && s.includes('inicio')) || /baseline\s*start/.test(s),
-      );
-      const colTerminoBase = findIdx(
-        (s) => (s.includes('linha de base') && s.includes('termino')) || /baseline\s*finish/.test(s),
-      );
+    // PASSO 2/3 — dynamic field → column mapping with conflict resolution
+    const { map, missing } = buildScheduleMapping(headers);
+    if (!map.tarefa) continue;
 
-      // Real Start/Finish: first occurrence that is NOT the baseline column
-      const startCandidates = findAll((s) => /inicio|start/.test(s)).filter((i) => i !== colInicioBase);
-      const finishCandidates = findAll((s) => /termino|finish/.test(s)).filter((i) => i !== colTerminoBase);
-      const colInicio = startCandidates[0] ?? -1;
+    const get = (row: unknown[], f: ScheduleField) => {
+      const e = map[f]; return e ? row[e.col] : null;
+    };
 
-      const colTermino = finishCandidates[0] ?? -1;
+    const out: ScheduleRow[] = [];
+    const counters: number[] = [];
+    const hasDesvio = !!map.desvio;
+    const hasNivelCol = !!map.nivel;
 
-      const colPrev = findIdx((s) => /%\s*previsto|%\s*conclu[ií]do/.test(s));
-      const colTrab = findIdx((s) => /%\s*trabalho|%\s*work/.test(s));
-      const colId = findIdx((s) => /^id$/.test(s));
+    for (let r = headerRowIdx + 1; r < grid.length; r++) {
+      const rr = (grid[r] || []) as unknown[];
+      const rawTar = get(rr, 'tarefa');
+      if (rawTar == null || String(rawTar).trim() === '') continue;
+      const rawName = String(rawTar);
 
-      const fd = (v: unknown) => { const d = parseAnyDate(v); return d ? fmtScheduleDate(d) : ''; };
-      const fdBase = (v: unknown) => {
-        if (v == null) return 'ND';
-        const s = String(v).trim();
-        if (!s || s.toLowerCase() === 'na' || s.toLowerCase() === 'nd') return 'ND';
-        const d = parseAnyDate(v);
-        if (!d || d.getFullYear() < 1990) return 'ND';
-        return fmtScheduleDate(d);
-      };
-      const num = (v: unknown) => {
-        if (typeof v === 'number') return v <= 1 && v > 0 ? v * 100 : v;
-        if (typeof v === 'string') { const n = parseFloat(v.replace('%', '').replace(',', '.')); return isFinite(n) ? n : 0; }
-        return 0;
-      };
-
-      const out: ScheduleRow[] = [];
-      const counters: number[] = [];
-      for (let r = 1; r < grid.length; r++) {
-        const rr = (grid[r] || []) as unknown[];
-        const raw = colName >= 0 ? rr[colName] : rr[0];
-        if (raw == null || String(raw).trim() === '') continue;
-        const rawName = String(raw);
+      // PASSO 4 — outline level
+      let outlineLevel: number;
+      if (hasNivelCol) {
+        const v = get(rr, 'nivel');
+        const n = typeof v === 'number' ? v : parseInt(String(v ?? ''), 10);
+        outlineLevel = Number.isFinite(n) && n > 0 ? n : 1;
+      } else {
         const leading = rawName.length - rawName.trimStart().length;
-        const outlineLevel = Math.max(1, Math.floor(leading / 3) + 1);
-        if (counters.length < outlineLevel) {
-          while (counters.length < outlineLevel) counters.push(0);
-        } else {
-          counters.length = outlineLevel;
-        }
-        counters[outlineLevel - 1] = (counters[outlineLevel - 1] || 0) + 1;
-        const outlineNumber = counters.slice(0, outlineLevel).join('.');
-        const previsto = colPrev >= 0 ? num(rr[colPrev]) : 0;
-        const trabalhoConcluido = colTrab >= 0 ? num(rr[colTrab]) : 0;
-        out.push({
-          id: colId >= 0 ? String(rr[colId] ?? '').trim() || String(r) : String(r),
-          tarefa: rawName.trim(),
-          previsto,
-          trabalhoConcluido,
-          desvio: Math.round((previsto - trabalhoConcluido) * 100) / 100,
-          inicio: colInicio >= 0 ? fd(rr[colInicio]) : '',
-          termino: colTermino >= 0 ? fd(rr[colTermino]) : '',
-          inicioBase: colInicioBase >= 0 ? fdBase(rr[colInicioBase]) : 'ND',
-          terminoBase: colTerminoBase >= 0 ? fdBase(rr[colTerminoBase]) : 'ND',
-          outlineLevel, outlineNumber, summary: false, milestone: false,
-          bold: outlineLevel <= 2,
-        });
+        outlineLevel = Math.max(1, Math.floor(leading / 3) + 1);
       }
-      if (out.length) return out;
+
+      if (counters.length < outlineLevel) {
+        while (counters.length < outlineLevel) counters.push(0);
+      } else {
+        counters.length = outlineLevel;
+      }
+      counters[outlineLevel - 1] = (counters[outlineLevel - 1] || 0) + 1;
+      const outlineNumber = counters.slice(0, outlineLevel).join('.');
+
+      const previsto = numSchedule(get(rr, 'previsto'));
+      const trab = numSchedule(get(rr, 'trabalhoConcluido'));
+      // PASSO 5 — desvio: usar do arquivo se existir, senão Prev - %Trab
+      const desvio = hasDesvio
+        ? numSchedule(get(rr, 'desvio'))
+        : Math.round((previsto - trab) * 100) / 100;
+
+      const idVal = map.id ? String(get(rr, 'id') ?? '').trim() : '';
+      out.push({
+        id: idVal || String(r - headerRowIdx),
+        tarefa: rawName.trim(),
+        previsto,
+        trabalhoConcluido: trab,
+        desvio,
+        inicio: map.inicio ? fdSchedule(get(rr, 'inicio')) : '',
+        termino: map.termino ? fdSchedule(get(rr, 'termino')) : '',
+        inicioBase: map.inicioBase ? fdScheduleBase(get(rr, 'inicioBase')) : 'ND',
+        terminoBase: map.terminoBase ? fdScheduleBase(get(rr, 'terminoBase')) : 'ND',
+        outlineLevel,
+        outlineNumber,
+        summary: false,
+        milestone: false,
+        bold: outlineLevel <= 2,
+      });
     }
 
-
-
-
-    for (let i = 0; i < Math.min(grid.length, 5); i++) {
-      const row = grid[i] || [];
-      const idx: Record<string, number> = {};
-      for (let c = 0; c < row.length; c++) {
-        const cell = row[c];
-        if (typeof cell !== 'string') continue;
-        const n = cell.trim().toLowerCase();
-        if (idx.id == null && /^\s*id\s*$/.test(n)) idx.id = c;
-        if (idx.tarefa == null && /(nome|tarefa|task)/.test(n)) idx.tarefa = c;
-        if (idx.previsto == null && /(%\s*conc|prev|f[ií]sico)/.test(n)) idx.previsto = c;
-        if (idx.trabalhoConcluido == null && /(%\s*trab|work)/.test(n)) idx.trabalhoConcluido = c;
-        if (idx.desvio == null && /(desvio|variance)/.test(n)) idx.desvio = c;
-        if (idx.inicioBase == null && /base/.test(n) && /(in[ií]cio|start)/.test(n)) idx.inicioBase = c;
-        else if (idx.inicio == null && /(in[ií]cio|start)/.test(n)) idx.inicio = c;
-        if (idx.terminoBase == null && /base/.test(n) && /(t[eé]rmino|finish)/.test(n)) idx.terminoBase = c;
-        else if (idx.termino == null && /(t[eé]rmino|finish)/.test(n)) idx.termino = c;
-      }
-      if (idx.tarefa == null || Object.keys(idx).length < 3) continue;
-      const out: ScheduleRow[] = [];
-      for (let r = i + 1; r < grid.length; r++) {
-        const rr = grid[r] || [];
-        const tarefa = rr[idx.tarefa];
-        if (tarefa == null || String(tarefa).trim() === '') continue;
-        const cell = (k: string) => idx[k] != null ? rr[idx[k]] : null;
-        const num = (v: unknown) => {
-          if (typeof v === 'number') return v <= 1 && v > 0 ? v * 100 : v;
-          if (typeof v === 'string') { const n = parseFloat(v.replace(',', '.')); return isFinite(n) ? n : 0; }
-          return 0;
-        };
-        const fd = (v: unknown) => { const d = parseAnyDate(v); return d ? fmtScheduleDate(d) : ''; };
-        out.push({
-          id: String(cell('id') ?? '').trim(),
-          tarefa: String(tarefa).trim(),
-          previsto: num(cell('previsto')),
-          trabalhoConcluido: num(cell('trabalhoConcluido')),
-          desvio: num(cell('desvio')),
-          inicio: fd(cell('inicio')),
-          termino: fd(cell('termino')),
-          inicioBase: fd(cell('inicioBase')),
-          terminoBase: fd(cell('terminoBase')),
-        });
-      }
-      if (out.length) return out;
+    if (out.length) {
+      const mapping: ScheduleMapEntry[] = Object.values(map).filter((m): m is ScheduleMapEntry => !!m);
+      return { rows: out, mapping, missing };
     }
   }
   throw new Error('Não foi possível detectar colunas do cronograma');
@@ -242,8 +254,10 @@ const parseScheduleFile = async (file: File): Promise<ScheduleExtract> => {
     return { rows: parseScheduleXML(text), format: 'xml' };
   }
   const buf = await file.arrayBuffer();
-  return { rows: parseScheduleXLSX(buf), format: 'xlsx' };
+  const { rows, mapping, missing } = parseScheduleXLSX(buf);
+  return { rows, format: 'xlsx', mapping, missing };
 };
+
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const fmtDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
