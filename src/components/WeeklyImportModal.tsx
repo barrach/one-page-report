@@ -32,7 +32,10 @@ const parseAnyDate = (v: unknown): Date | null => {
 };
 
 type ScheduleFormat = 'xml' | 'xlsx';
-interface ScheduleExtract { rows: ScheduleRow[]; format: ScheduleFormat; }
+type ScheduleField = 'id' | 'tarefa' | 'previsto' | 'trabalhoConcluido' | 'desvio' | 'inicio' | 'termino' | 'inicioBase' | 'terminoBase' | 'nivel';
+interface ScheduleMapEntry { field: ScheduleField; col: number; header: string; }
+interface ScheduleExtract { rows: ScheduleRow[]; format: ScheduleFormat; mapping?: ScheduleMapEntry[]; missing?: ScheduleField[]; }
+
 
 const parseScheduleXML = (text: string): ScheduleRow[] => {
   const doc = new DOMParser().parseFromString(text, 'application/xml');
