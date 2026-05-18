@@ -563,7 +563,7 @@ const findFormatBBlock = (ref: SheetRef): FormatBBlock | null => {
   };
 };
 
-const extractFormatBCurve = (b: FormatBBlock): CurveExtract => {
+const extractFormatBCurve = (b: FormatBBlock): CurveExtract | { error: string } => {
   const { grid } = b.ref;
   const dateRow = grid[b.rowDates] || [];
   const rd = (r: number) => r >= 0 ? (grid[r] || []) : null;
