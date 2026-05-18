@@ -482,6 +482,210 @@ const extractHist = (block: HistBlock): HistExtract | { error: string } => {
   return { block, total: items.length, ultimaReal, histogram };
 };
 
+// ===================== FORMAT B (integrated curve + histogram in same sheet) =====================
+
+interface FormatBBlock {
+  ref: SheetRef;
+  rowDates: number;
+  colStart: number;
+  rowPrevAcu: number;
+  rowPrevSem: number;
+  rowRealAcu: number;
+  rowRealSem: number;
+  rowTendAcu: number;
+  rowTendSem: number;
+  rowReplanjAcu: number;
+  rowReplanjSem: number;
+  rowModPrev: number;
+  rowModReal: number;
+  updateDate?: Date;
+}
+
+const findFormatBBlock = (ref: SheetRef): FormatBBlock | null => {
+  const { grid } = ref;
+
+  // 1. ROW_DATES: in first 12 rows, col 0 contains "evento" or "cronograma", subsequent cols are Dates
+  let rowDates = -1, colStart = -1;
+  for (let r = 0; r < Math.min(grid.length, 12); r++) {
+    const row = grid[r] || [];
+    const n = norm(row[0]);
+    if (!(n.includes('evento') || n.includes('cronograma'))) continue;
+    for (let c = 1; c < row.length; c++) {
+      if (toDate(row[c])) { rowDates = r; colStart = c; break; }
+    }
+    if (rowDates >= 0) break;
+  }
+  if (rowDates < 0) return null;
+
+  // 2. Search col 0 for labels
+  let rowPrevAcu = -1, rowPrevSem = -1;
+  let rowRealAcu = -1, rowRealSem = -1;
+  let rowTendAcu = -1, rowTendSem = -1;
+  let rowReplanjAcu = -1, rowReplanjSem = -1;
+  let rowModPrev = -1, rowModReal = -1;
+  let updateDate: Date | undefined;
+
+  for (let r = 0; r < grid.length; r++) {
+    const n = norm((grid[r] || [])[0]);
+    if (!n) continue;
+    // Acumulados (contain "(acumulado)")
+    if (n.includes('(acumulado)')) {
+      if (rowPrevAcu < 0 && n.includes('previsto geral lb')) rowPrevAcu = r;
+      else if (rowRealAcu < 0 && n.includes('realizado geral')) rowRealAcu = r;
+      else if (rowTendAcu < 0 && (n.includes('tendência geral') || n.includes('tendencia geral'))) rowTendAcu = r;
+      else if (rowReplanjAcu < 0 && n.includes('replanejado')) rowReplanjAcu = r;
+    } else if (n.includes('(semanal)')) {
+      if (rowReplanjSem < 0 && n.includes('replanejado')) rowReplanjSem = r;
+    } else {
+      // Semanais (exact-ish, no parens)
+      if (rowPrevSem < 0 && n === 'previsto geral lb') rowPrevSem = r;
+      else if (rowRealSem < 0 && n === 'realizado geral') rowRealSem = r;
+      else if (rowTendSem < 0 && (n === 'tendência geral' || n === 'tendencia geral')) rowTendSem = r;
+    }
+    if (rowModPrev < 0 && n === 'mod - prev') rowModPrev = r;
+    if (rowModReal < 0 && n === 'mod - real') rowModReal = r;
+    if (n.includes('data da atualização') || n.includes('data da atualizacao')) {
+      const next = (grid[r + 1] || [])[0];
+      const d = toDate(next);
+      if (d) updateDate = d;
+    }
+  }
+
+  // Required: prevAcu + realAcu + (modPrev OR modReal)
+  if (rowPrevAcu < 0 || rowRealAcu < 0) return null;
+  if (rowModPrev < 0 && rowModReal < 0) return null;
+
+  return {
+    ref, rowDates, colStart,
+    rowPrevAcu, rowPrevSem, rowRealAcu, rowRealSem,
+    rowTendAcu, rowTendSem, rowReplanjAcu, rowReplanjSem,
+    rowModPrev, rowModReal, updateDate,
+  };
+};
+
+const extractFormatBCurve = (b: FormatBBlock): CurveExtract => {
+  const { grid } = b.ref;
+  const dateRow = grid[b.rowDates] || [];
+  const rd = (r: number) => r >= 0 ? (grid[r] || []) : null;
+  const rPa = rd(b.rowPrevAcu)!, rPs = rd(b.rowPrevSem);
+  const rRa = rd(b.rowRealAcu)!, rRs = rd(b.rowRealSem);
+  const rTa = rd(b.rowTendAcu), rTs = rd(b.rowTendSem);
+  const rRpa = rd(b.rowReplanjAcu), rRps = rd(b.rowReplanjSem);
+
+  const cols: CurveExtract['cols'] = [];
+  for (let j = b.colStart; j < dateRow.length; j++) {
+    const d = toDate(dateRow[j]);
+    if (!d) continue;
+    const get = (row: unknown[] | null) => row ? toNum(row[j]) : 0;
+    cols.push({
+      date: d,
+      prevSem: get(rPs), prevAcu: get(rPa),
+      realSem: get(rRs), realAcu: get(rRa),
+      tendSem: get(rTs), tendAcu: get(rTa),
+      replanjSem: get(rRps), replanjAcu: get(rRpa),
+    });
+  }
+
+  let ultimaReal = -1;
+  cols.forEach((c, i) => { if (c.realAcu > 0) ultimaReal = i; });
+  if (ultimaReal < 0) return { block: null as never, cols, ultimaReal, statusDate: new Date(), realAcuLast: 0, prevAcuLast: 0, hasReplanejado: false, sCurve: [], weekly: [], monthly: [] };
+
+  const hasReplanejado = cols.some(c => c.replanjAcu > 0);
+
+  const sCurve = cols
+    .filter(c => c.prevAcu > 0 || c.realAcu > 0 || c.tendAcu > 0 || c.replanjAcu > 0)
+    .map(c => ({
+      date: fmtDDmmm(c.date),
+      previsto: round2(c.prevAcu * 100),
+      real: round2(c.realAcu * 100),
+      tendencia: round2(c.tendAcu * 100),
+      ...(hasReplanejado ? { replanejado: round2(c.replanjAcu * 100) } : {}),
+    }));
+
+  const wStart = Math.max(0, ultimaReal - 4);
+  const weekly = cols.slice(wStart, ultimaReal + 1).map(c => ({
+    date: fmtDDmmm(c.date),
+    previsto: round2(c.prevSem * 100),
+    real: round2(c.realSem * 100),
+  }));
+
+  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
+  cols.slice(0, ultimaReal + 1).forEach(c => {
+    const key = `${c.date.getFullYear()}-${String(c.date.getMonth()).padStart(2, '0')}`;
+    monthMap.set(key, { date: c.date, prevAcu: c.prevAcu, realAcu: c.realAcu });
+  });
+  const monthly = [...monthMap.values()]
+    .filter(m => m.prevAcu > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-4)
+    .map(m => ({
+      label: fmtMmmAaaa(m.date),
+      previsto: round2(m.prevAcu * 100),
+      real: round2(m.realAcu * 100),
+    }));
+
+  return {
+    block: null as never,
+    cols, ultimaReal,
+    statusDate: cols[ultimaReal].date,
+    realAcuLast: round2(cols[ultimaReal].realAcu * 100),
+    prevAcuLast: round2(cols[ultimaReal].prevAcu * 100),
+    hasReplanejado, sCurve, weekly, monthly,
+  };
+};
+
+const extractFormatBHist = (b: FormatBBlock): HistExtract => {
+  const { grid } = b.ref;
+  const dateRow = grid[b.rowDates] || [];
+  const rPrev = b.rowModPrev >= 0 ? (grid[b.rowModPrev] || []) : [];
+  const rReal = b.rowModReal >= 0 ? (grid[b.rowModReal] || []) : [];
+
+  const items: { date: Date; prev: number; real: number }[] = [];
+  for (let j = b.colStart; j < dateRow.length; j++) {
+    const d = toDate(dateRow[j]);
+    if (!d) continue;
+    items.push({ date: d, prev: toNum(rPrev[j]), real: toNum(rReal[j]) });
+  }
+
+  let ultimaReal = -1;
+  items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
+
+  // Window: past 5 + future 4
+  let windowItems = items;
+  if (ultimaReal >= 0) {
+    const start = Math.max(0, ultimaReal - 4);
+    const futureEnd = Math.min(items.length, ultimaReal + 1 + 4);
+    windowItems = items.slice(start, futureEnd);
+  }
+
+  const localUltimaReal = ultimaReal >= 0
+    ? Math.max(0, Math.min(ultimaReal, ultimaReal) - Math.max(0, ultimaReal - 4))
+    : -1;
+
+  const result = windowItems.map((x, i) => {
+    const isFuture = localUltimaReal >= 0 ? i > localUltimaReal : x.real === 0;
+    return isFuture
+      ? { date: x.date, prev: x.prev, real: 0 }
+      : { date: x.date, prev: 0, real: x.real };
+  });
+
+  const histogram = result.map(c => ({
+    date: fmtDDmmm(c.date),
+    semana: '',
+    previsto: Math.round(c.prev),
+    real: Math.round(c.real),
+  }));
+
+  return {
+    block: { ref: b.ref, rowDia: b.rowDates, colDia: b.colStart - 1, rowPrev: b.rowModPrev, rowReal: b.rowModReal, realCount: items.reduce((s, x) => s + (x.real > 0 ? x.real : 0), 0) },
+    total: windowItems.length,
+    ultimaReal: localUltimaReal,
+    histogram,
+  };
+};
+
+
+
 interface FileScan {
   fileName: string;
   sheets: SheetRef[];
