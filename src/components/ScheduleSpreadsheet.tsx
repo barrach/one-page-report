@@ -106,21 +106,6 @@ const ScheduleSpreadsheet = () => {
               return (
               <tr key={i} style={rowStyle} className={`border-b border-border ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}>
                 <td className="border border-border px-1 py-0.5 text-center" style={{ fontFamily: 'monospace', fontSize: '11px', color: level <= 2 ? '#ffffff' : '#444444' }}>{row.outlineNumber || ''}</td>
-                <td className="border border-border px-1 py-0.5 text-center">
-                  <Checkbox checked={!!row.highlight} onCheckedChange={(checked) => {
-                    setScheduleData(data.map((r, j) => j === i ? { ...r, highlight: !!checked } : r));
-                  }} />
-                </td>
-                <td className="border border-border px-1 py-0.5 text-center">
-                  <Checkbox checked={!!row.bold} onCheckedChange={(checked) => {
-                    setScheduleData(data.map((r, j) => j === i ? { ...r, bold: !!checked } : r));
-                  }} />
-                </td>
-                <td className="border border-border px-1 py-0.5 text-center">
-                  <Checkbox checked={!!row.criticalPath} onCheckedChange={(checked) => {
-                    setScheduleData(data.map((r, j) => j === i ? { ...r, criticalPath: !!checked } : r));
-                  }} />
-                </td>
                 <td className="border border-border px-1 py-0.5">
                   <input className="w-full text-center bg-transparent outline-none text-xs" style={inheritStyle} value={row.id} onChange={(e) => updateRow(i, 'id', e.target.value)} />
                 </td>
