@@ -93,26 +93,38 @@ const parseScheduleXLSX = (buf: ArrayBuffer): ScheduleRow[] => {
 
     // MS Project Excel export: header row contains "Nome da Tarefa"/"Name" + "Início"/"Start" + "Término"/"Finish"
     const h0 = (grid[0] || []) as unknown[];
-    const headerStr = h0.map((c) => String(c ?? '').trim().toLowerCase());
+    const norm = (v: unknown) =>
+      String(v ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // strip accents
+        .trim()
+        .toLowerCase();
+    const headerStr = h0.map(norm); // accent-insensitive, lowercased
     const hasName = headerStr.some((s) => /nome.*tarefa|^name$|task\s*name/.test(s));
-    const hasStart = headerStr.some((s) => /^in[ií]cio$|^start$/.test(s));
-    const hasFinish = headerStr.some((s) => /^t[eé]rmino$|^finish$/.test(s));
+    const hasStart = headerStr.some((s) => /\binicio\b|\bstart\b/.test(s));
+    const hasFinish = headerStr.some((s) => /\btermino\b|\bfinish\b/.test(s));
     if (hasName && hasStart && hasFinish) {
-      // Dynamic column mapping (case-insensitive, partial match)
+      // Dynamic column mapping (case-insensitive, accent-insensitive, partial match)
       const findIdx = (matcher: (s: string) => boolean): number => headerStr.findIndex(matcher);
       const findAll = (matcher: (s: string) => boolean): number[] =>
         headerStr.reduce<number[]>((acc, s, i) => (matcher(s) ? [...acc, i] : acc), []);
 
       const colName = findIdx((s) => /nome.*tarefa|^name$|task\s*name/.test(s));
 
-      // Baseline first (more specific)
-      const colInicioBase = findIdx((s) => /(in[ií]cio.*linha.*base|baseline\s*start)/.test(s));
-      const colTerminoBase = findIdx((s) => /(t[eé]rmino.*linha.*base|baseline\s*finish)/.test(s));
+      // Baseline first (more specific). Header may be "Início da Linha de Base" or
+      // "Término da linha de base" (mixed case) — handled by norm() above.
+      const colInicioBase = findIdx(
+        (s) => (s.includes('linha de base') && s.includes('inicio')) || /baseline\s*start/.test(s),
+      );
+      const colTerminoBase = findIdx(
+        (s) => (s.includes('linha de base') && s.includes('termino')) || /baseline\s*finish/.test(s),
+      );
 
-      // Real Start/Finish: pick first occurrence of "início"/"start" that is NOT the baseline column
-      const startCandidates = findAll((s) => /in[ií]cio|start/.test(s)).filter((i) => i !== colInicioBase);
-      const finishCandidates = findAll((s) => /t[eé]rmino|finish/.test(s)).filter((i) => i !== colTerminoBase);
+      // Real Start/Finish: first occurrence that is NOT the baseline column
+      const startCandidates = findAll((s) => /inicio|start/.test(s)).filter((i) => i !== colInicioBase);
+      const finishCandidates = findAll((s) => /termino|finish/.test(s)).filter((i) => i !== colTerminoBase);
       const colInicio = startCandidates[0] ?? -1;
+
       const colTermino = finishCandidates[0] ?? -1;
 
       const colPrev = findIdx((s) => /%\s*previsto|%\s*conclu[ií]do/.test(s));
