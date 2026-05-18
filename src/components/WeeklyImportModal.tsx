@@ -1048,14 +1048,27 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   }
   if (ultimaRealCol < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO C)' };
 
-  // 2. Construir array de semanas COL_START até ULTIMA_REAL (valores já em %)
+  // 1b. LAST_COL = última coluna com QUALQUER série acumulada > 0 (LB/Real/Replanj/Tend)
+  // garante que Replanejado/Tendência futuros (até 26/jun) sejam plotados
+  let lastCol = ultimaRealCol;
+  const accRows = [rPa, rRa, rRpa, rTa].filter(Boolean) as unknown[][];
+  for (const r of accRows) {
+    for (let j = b.colStart; j < r.length; j++) {
+      const v = parseFloat(String(r[j]));
+      if (!isNaN(v) && v > 0 && j > lastCol) lastCol = j;
+    }
+  }
+  // truncar para colunas que ainda têm Date na linha de datas
+  while (lastCol > ultimaRealCol && !toDate(dateRow[lastCol])) lastCol--;
+
+  // 2. Construir array de semanas COL_START até LAST_COL (valores em %)
   type Semana = {
     j: number; date: Date; label: string;
     lb: number; ra: number; rpa: number; ta: number;
     ps: number; rs: number; rps: number; rrps: number; rra: number;
   };
   const semanas: Semana[] = [];
-  for (let j = b.colStart; j <= ultimaRealCol; j++) {
+  for (let j = b.colStart; j <= lastCol; j++) {
     const d = toDate(dateRow[j]);
     if (!d) continue;
     semanas.push({
@@ -1071,13 +1084,15 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
       rra:  rRra ? toPercentC(rRra[j]) : 0,
     });
   }
-  console.log('[FORMATO C] Total semanas:', semanas.length);
+  const ultimaRealIdx = semanas.findIndex(s => s.j === ultimaRealCol);
+  console.log('[FORMATO C] Total semanas:', semanas.length, 'ultimaRealIdx:', ultimaRealIdx);
   console.log('[FORMATO C] Primeira:', semanas[0]);
+  console.log('[FORMATO C] ULTIMA_REAL:', semanas[ultimaRealIdx]);
   console.log('[FORMATO C] Última:', semanas[semanas.length - 1]);
 
   const hasReplanejado = semanas.some(s => s.rpa > 0);
 
-  // 3. sCurve: null onde lb/ta/rpa = 0 para criar lacunas no gráfico
+  // 3. sCurve: null onde série = 0 para criar lacunas no gráfico
   const sCurve = semanas.map(s => ({
     date: s.label,
     previsto: s.lb > 0 ? s.lb : null as unknown as number,
@@ -1086,14 +1101,14 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     ...(hasReplanejado ? { replanejado: s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
   }));
 
-  // 4. Resultado Semanal: últimas 5 semanas até ULTIMA_REAL
-  // Previsto = REPLANJ_SEM > 0 ? REPLANJ_SEM : PREV_SEM (LB)
-  // Real     = REAL_REPL_SEM > 0 ? REAL_REPL_SEM : REAL_SEM
-  const weekly = semanas.slice(-5).map(s => ({
+  // 4. Resultado Semanal: últimas 5 semanas ATÉ ULTIMA_REAL (inclusive)
+  const upToReal = ultimaRealIdx >= 0 ? semanas.slice(0, ultimaRealIdx + 1) : semanas;
+  const weekly = upToReal.slice(-5).map(s => ({
     date: s.label,
     previsto: s.rps > 0 ? s.rps : s.ps,
     real: s.rrps > 0 ? s.rrps : s.rs,
   }));
+
 
   // 5. Prev x Mês: agrupar por mês, últimos 4 meses
   // Previsto = REPLANJ_ACU > 0 ? REPLANJ_ACU : PREV_ACU
