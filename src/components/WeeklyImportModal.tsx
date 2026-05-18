@@ -1070,29 +1070,35 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
 
-  // Determine total columns (find last column with any numeric value in plan)
+  // Determine valid columns: numeric and NOT a total (values > 400 são acumulados/totais — IGNORAR)
+  const isValidCell = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v < 400;
+  const isWeekCell = (v: unknown): boolean => typeof v === 'number' && isFinite(v) && v >= 0 && v < 400;
+
+  // Last valid column: starting from colStart, last column where plan or real is a valid week value (< 400)
   let lastCol = h.colStart;
   for (let c = h.colStart; c < Math.max(planRow.length, realRow.length); c++) {
-    if (typeof planRow[c] === 'number' || typeof realRow[c] === 'number') lastCol = c;
+    if (isWeekCell(planRow[c]) || isWeekCell(realRow[c])) lastCol = c;
   }
 
-  // Date alignment: try to align with curve's date row by column index offset
-  // Otherwise generate sequential weekly labels starting from curve's first date or generic "S1"...
-  const items: { date: Date | null; label: string; prev: number; real: number }[] = [];
+  // Date alignment FORMAT C: hist col c → curve col (c - 4) (S1 hist@5 = curve@1)
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const curveColStart = curveBlock ? curveBlock.colStart : -1;
+  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0; // = 1 - 5 = -4
 
+  const items: { date: Date | null; label: string; prev: number; real: number }[] = [];
   for (let c = h.colStart, i = 0; c <= lastCol; c++, i++) {
-    const prev = toNum(planRow[c]);
-    const real = toNum(realRow[c]);
+    const rawPrev = planRow[c];
+    const rawReal = realRow[c];
+    // Skip totals (large accumulated values)
+    const prev = isWeekCell(rawPrev) ? (rawPrev as number) : 0;
+    const real = isWeekCell(rawReal) ? (rawReal as number) : 0;
     let date: Date | null = null;
     if (curveDateRow) {
-      const candidate = curveDateRow[curveColStart + i];
-      const d = toDate(candidate);
+      const d = toDate(curveDateRow[c + offset]);
       if (d) date = d;
     }
     items.push({ date, label: date ? fmtDDmmm(date) : `S${i + 1}`, prev, real });
   }
+
 
   let ultimaReal = -1;
   items.forEach((c, i) => { if (c.real > 0) ultimaReal = i; });
