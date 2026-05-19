@@ -1246,7 +1246,9 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
       const label = `${mesAtual} ${sv}`;
       if (p > 0 || r > 0) items.push({ j, label, prev: p, real: r });
     }
-    console.log('[FORMATO C HIST] (meses/semanas) items:', items.length, items);
+    console.log('[Hist TIPO 2] total semanas:', items.length);
+    console.log('[Hist TIPO 2] primeira:', items[0]);
+    console.log('[Hist TIPO 2] última:', items[items.length - 1]);
   } else {
     // ===== Fallback: lógica antiga baseada em datas da curva =====
     const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
