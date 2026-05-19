@@ -113,8 +113,14 @@ const GaugeChart = ({
         );
       })}
 
-      <line x1={cx} y1={cy} x2={needleEnd.x} y2={needleEnd.y}
-        stroke="hsl(var(--foreground))" strokeWidth="3" strokeLinecap="round" />
+      {(() => {
+        const activeArc = arcs.find(a => a.originalIndex === activeIndex) ?? arcs[arcs.length - 1];
+        const angle = activeArc ? activeArc.midAngle : Math.PI / 2;
+        const nx = cx + needleLength * Math.cos(angle);
+        const ny = cy - needleLength * Math.sin(angle);
+        return <line x1={cx} y1={cy} x2={nx} y2={ny}
+          stroke="hsl(var(--foreground))" strokeWidth="3" strokeLinecap="round" />;
+      })()}
       <circle cx={cx} cy={cy} r="7" fill="hsl(var(--foreground))" />
       <circle cx={cx} cy={cy} r="4" fill="hsl(var(--card))" />
 
