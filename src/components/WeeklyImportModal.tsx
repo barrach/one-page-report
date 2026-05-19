@@ -1609,9 +1609,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (idx >= 0) setStatusDateIndex(idx);
         setLastImport('sCurve', now); count++;
       }
-      const weeklyValido = c.weekly.some(w => w.previsto > 1 || w.real > 1);
+      // Validação universal: pelo menos 3 das últimas 8 colunas (até ULTIMA_REAL)
+      // devem ter prevSem>0.5% OU realSem>0.5%. Ignora replanejado/tendência.
+      const upTo = c.cols.slice(0, c.ultimaReal + 1).slice(-8);
+      const validos = upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length;
+      const weeklyValido = validos >= 3;
       if (c.weekly.length && weeklyValido) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
-      else if (c.weekly.length) console.warn('[IMPORT] Resultado Semanal não atualizado: nenhuma das 5 últimas semanas tem prev>1% ou real>1%');
+      else if (c.weekly.length) console.warn('[IMPORT] Resultado Semanal não atualizado: apenas', validos, 'das últimas 8 colunas têm prev/real semanal > 0.5%');
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
       // Always overwrite: status date + avanço prev/real come from the file
       // FORMAT B may override "Atualizado em" with explicit "Data da atualização:" label
