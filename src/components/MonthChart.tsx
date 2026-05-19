@@ -5,9 +5,11 @@ import ChartInsight from '@/components/ChartInsight';
 const GaugeChart = ({
   metaRealizado,
   selectedIndex,
+  activeIndex,
 }: {
   metaRealizado: number;
   selectedIndex: number | null;
+  activeIndex: number;
 }) => {
   const { monthData } = useCurrentProject();
   const { setSelectedMonthIndex } = useReportInteraction();
@@ -21,14 +23,7 @@ const GaugeChart = ({
   const segments = monthData.filter(m => m.previsto > 0);
   const totalSegments = segments.reduce((s, seg) => s + seg.previsto, 0);
 
-  // Needle position based on metaRealizado relative to totalSegments (gauge scale)
-  const needlePercent = totalSegments > 0 ? Math.min(1, Math.max(0, metaRealizado / totalSegments)) : 0;
-  const needleAngle = Math.PI - needlePercent * Math.PI;
   const needleLength = outerR - 15;
-  const needleEnd = {
-    x: cx + needleLength * Math.cos(needleAngle),
-    y: cy - needleLength * Math.sin(needleAngle),
-  };
 
   const segmentColors = [
     'hsl(3, 80%, 52%)',
