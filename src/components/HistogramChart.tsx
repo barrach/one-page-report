@@ -43,12 +43,18 @@ const HistogramChart = () => {
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="date"
-            tick={{ fontSize: 11 }}
+            tick={{ fontSize: 10 }}
             stroke="hsl(var(--muted-foreground))"
             angle={-45}
             textAnchor="end"
             height={60}
-            interval={3}
+            interval={0}
+            tickFormatter={(v: string) => {
+              // "Dez/25 S2" → "S2" ; "Dez/25 S1" → "Dez/25 S1"
+              const m = /^(.+)\s(S[1-4])$/.exec(v);
+              if (m && m[2] !== 'S1') return m[2];
+              return v;
+            }}
           />
           <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
           <Tooltip
