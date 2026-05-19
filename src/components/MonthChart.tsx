@@ -148,7 +148,7 @@ const MonthChart = () => {
     lastWithReal >= 0 && Number(monthData[lastWithReal].previsto || 0) > 0
       ? (Number(monthData[lastWithReal].real) / Number(monthData[lastWithReal].previsto)) * 100
       : 0;
-  console.log('[MonthChart] monthData=', monthData, 'lastWithReal=', lastWithReal, 'metaRealizado=', metaRealizado);
+  
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
