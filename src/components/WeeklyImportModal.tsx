@@ -852,6 +852,9 @@ interface FormatCHistBlock {
   rowPlan: number;
   rowReal: number;
   colStart: number;
+  rowMeses?: number;
+  rowSemanas?: number;
+  colEnd?: number;
 }
 
 interface FormatCInfo {
