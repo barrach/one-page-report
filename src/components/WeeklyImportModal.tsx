@@ -967,13 +967,17 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   const { grid } = ref;
 
-  // Busca dinâmica: linha PLAN tem "TOTAL" em alguma col + "PLAN" em outra
-  let rowPlan = -1, rowReal = -1;
+  // Linha PLAN: alguma col contém "TOTAL" + outra col == "PLAN"
+  // colStart = (col onde está "PLAN") + 1
+  let rowPlan = -1, rowReal = -1, planLabelCol = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
     const hasTotal = row.some(v => v != null && String(v).toUpperCase().includes('TOTAL'));
-    const hasPlan  = row.some(v => v != null && String(v).trim().toUpperCase() === 'PLAN');
-    if (hasTotal && hasPlan) { rowPlan = r; break; }
+    let pc = -1;
+    row.forEach((v, ci) => {
+      if (pc < 0 && v != null && String(v).trim().toUpperCase() === 'PLAN') pc = ci;
+    });
+    if (hasTotal && pc >= 0) { rowPlan = r; planLabelCol = pc; break; }
   }
   if (rowPlan >= 0) {
     for (let r2 = rowPlan + 1; r2 < Math.min(grid.length, rowPlan + 8); r2++) {
@@ -983,17 +987,8 @@ const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   }
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // COL_START dinâmico: primeira coluna com valor numérico > 0 na linha PLAN
-  const planRow = grid[rowPlan] || [];
-  let colStart = -1;
-  for (let j = 1; j < Math.min(planRow.length, 15); j++) {
-    const v = planRow[j];
-    if (typeof v === 'number' && v > 0 && v < 1000) { colStart = j; break; }
-  }
-  if (colStart < 0) colStart = 5;
-
+  const colStart = planLabelCol + 1; // ex: PLAN no col4 → dados começam em col5
   console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal, 'colStart:', colStart);
-
   return { ref, rowPlan, rowReal, colStart };
 };
 
