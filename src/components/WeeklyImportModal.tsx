@@ -1028,7 +1028,7 @@ const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
     rowMeses: rowMeses >= 0 ? rowMeses : undefined,
     rowSemanas: rowSemanas >= 0 ? rowSemanas : undefined,
     colEnd: colEnd >= colStart ? colEnd : undefined };
-}
+};
 
 
 
