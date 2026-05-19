@@ -1112,12 +1112,14 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     ...(hasReplanejado ? { replanejado: s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
   }));
 
-  // 4. Resultado Semanal: últimas 5 semanas ATÉ ULTIMA_REAL (inclusive)
+  // 4. Resultado Semanal (FORMATO C): últimas 5 semanas ATÉ ULTIMA_REAL.
+  // Usar SOMENTE PREVISTO GERAL LB (ps) e REALIZADO GERAL (rs) — NUNCA os
+  // semanais de Replanejado (rps/rrps), que contêm deltas e não avanços.
   const upToReal = ultimaRealIdx >= 0 ? semanas.slice(0, ultimaRealIdx + 1) : semanas;
   const weekly = upToReal.slice(-5).map(s => ({
     date: s.label,
-    previsto: s.rps > 0 ? s.rps : s.ps,
-    real: s.rrps > 0 ? s.rrps : s.rs,
+    previsto: s.ps,
+    real: s.rs,
   }));
 
 
