@@ -1779,7 +1779,11 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                                 </div>
                               </div>
                               <div className="text-muted-foreground">
-                                Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.some(w => w.previsto > 1 || w.real > 1) ? `${c.weekly.length} sem` : 'não disponível neste arquivo'} · Mensal: {c.monthly.length} meses
+                                Curva S: {c.sCurve.length} sem · Semanal: {(() => {
+                                  const upTo = c.cols.slice(0, c.ultimaReal + 1).slice(-8);
+                                  const ok = upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length >= 3;
+                                  return ok ? `${c.weekly.length} sem` : <span className="text-amber-600 dark:text-amber-400">⚠ não disponível neste arquivo</span>;
+                                })()} · Mensal: {c.monthly.length} meses
                               </div>
                               {result.projectDates && (result.projectDates.inicio || result.projectDates.terminoLB || result.projectDates.terminoPrev) && (
                                 <div className="text-muted-foreground">
