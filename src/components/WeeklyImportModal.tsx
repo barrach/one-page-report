@@ -1223,19 +1223,27 @@ const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
   );
   const isFormatC = hasResumo || hasHistSig;
 
-  // Varre TODAS as abas em busca da Curva S
-  let curve: FormatCCurveBlock | null = null;
+  // Varre TODAS as abas em busca de candidatas à Curva S
+  const candidatas: { ref: SheetRef; curve: FormatCCurveBlock; semanasComReal: number }[] = [];
   for (const ref of allSheets) {
     const c = findFormatCCurveBlock(ref);
-    if (c) { curve = c; break; }
+    if (!c) continue;
+    const rowReal = (ref.grid[c.rowRealAcu] || []) as unknown[];
+    const semanasComReal = rowReal.filter(v => typeof v === 'number' && v > 0).length;
+    candidatas.push({ ref, curve: c, semanasComReal });
+    console.log('[FORMATO C] Candidata:', ref.sheetName, '| semanas com real:', semanasComReal);
   }
-  if (!curve) {
+  candidatas.sort((a, b) => b.semanasComReal - a.semanasComReal);
+  const melhor = candidatas[0];
+  console.log('[FORMATO C] Aba selecionada:', melhor?.ref.sheetName, '| semanas:', melhor?.semanasComReal);
+  if (!melhor || melhor.semanasComReal === 0) {
     if (isFormatC) {
-      console.error('[FORMATO C] ❌ Aba da Curva S não encontrada. Abas:', allSheets.map(s => s.sheetName));
-      toast.error('FORMATO C: aba da Curva S não encontrada. Verifique se o arquivo é o correto.');
+      console.error('[FORMATO C] ❌ Aba da Curva S não encontrada ou sem dados. Abas:', allSheets.map(s => s.sheetName));
+      toast.error('FORMATO C: aba da Curva S não encontrada ou sem dados.');
     }
     return null;
   }
+  const curve = melhor.curve;
   // Format C signature: has RESUMO sheet OR an EQUIPE DO PROJETO hist sheet
   let hist: FormatCHistBlock | null = null;
   for (const ref of allSheets) {
