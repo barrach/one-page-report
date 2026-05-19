@@ -991,9 +991,44 @@ const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   if (rowPlan < 0 || rowReal < 0) return null;
 
   const colStart = planLabelCol + 1; // ex: PLAN no col4 → dados começam em col5
-  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal, 'colStart:', colStart);
-  return { ref, rowPlan, rowReal, colStart };
-};
+
+  // Detectar ROW_SEMANAS: linha onde colStart..colStart+3 == S1,S2,S3,S4
+  // Detectar ROW_MESES: linha logo acima de ROW_SEMANAS com nomes de meses
+  let rowSemanas = -1, rowMeses = -1, colEnd = -1;
+  for (let r = 0; r < grid.length; r++) {
+    const row = grid[r] || [];
+    const c0 = String(row[colStart] ?? '').trim().toUpperCase();
+    const c1 = String(row[colStart + 1] ?? '').trim().toUpperCase();
+    const c2 = String(row[colStart + 2] ?? '').trim().toUpperCase();
+    const c3 = String(row[colStart + 3] ?? '').trim().toUpperCase();
+    if (c0 === 'S1' && c1 === 'S2' && c2 === 'S3' && c3 === 'S4') {
+      rowSemanas = r;
+      break;
+    }
+  }
+  if (rowSemanas > 0) {
+    // ROW_MESES: linha imediatamente anterior (procurar até 3 acima)
+    for (let r = rowSemanas - 1; r >= Math.max(0, rowSemanas - 3); r--) {
+      const row = grid[r] || [];
+      const v = row[colStart];
+      if (v != null && String(v).trim() !== '') { rowMeses = r; break; }
+    }
+    // colEnd: última coluna onde ROW_SEMANAS é S1..S4
+    const semRow = grid[rowSemanas] || [];
+    colEnd = colStart - 1;
+    for (let j = colStart; j < semRow.length; j++) {
+      const v = String(semRow[j] ?? '').trim().toUpperCase();
+      if (/^S[1-4]$/.test(v)) colEnd = j; else break;
+    }
+  }
+
+  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal, 'colStart:', colStart,
+    'rowMeses:', rowMeses, 'rowSemanas:', rowSemanas, 'colEnd:', colEnd);
+  return { ref, rowPlan, rowReal, colStart,
+    rowMeses: rowMeses >= 0 ? rowMeses : undefined,
+    rowSemanas: rowSemanas >= 0 ? rowSemanas : undefined,
+    colEnd: colEnd >= colStart ? colEnd : undefined };
+}
 
 
 
