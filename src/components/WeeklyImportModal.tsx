@@ -1084,10 +1084,16 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     });
   }
   const ultimaRealIdx = semanas.findIndex(s => s.j === ultimaRealCol);
-  console.log('[FORMATO C] Total semanas:', semanas.length, 'ultimaRealIdx:', ultimaRealIdx);
-  console.log('[FORMATO C] Primeira:', semanas[0]);
-  console.log('[FORMATO C] ULTIMA_REAL:', semanas[ultimaRealIdx]);
-  console.log('[FORMATO C] Última:', semanas[semanas.length - 1]);
+  console.log('=== FORMATO C DEBUG ===');
+  console.log('Aba Curva S:', b.ref.sheetName);
+  console.log('idxMap R.DATES:', b.rowDates, 'R.RE_ACU:', b.rowRealAcu);
+  console.log('COL_START:', b.colStart);
+  console.log('ULTIMA_REAL:', ultimaRealCol,
+    'val:', toPercentC(rRa[ultimaRealCol]) + '%',
+    'data:', fmtDDmmm(toDate(dateRow[ultimaRealCol]) as Date));
+  console.log('Total semanas:', semanas.length);
+  console.log('semanas[0]:', semanas[0]);
+  console.log('semanas última:', semanas[semanas.length - 1]);
 
   const hasReplanejado = semanas.some(s => s.rpa > 0);
 
