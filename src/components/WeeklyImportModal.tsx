@@ -1765,7 +1765,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                                 </div>
                               </div>
                               <div className="text-muted-foreground">
-                                Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
+                                Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.some(w => w.previsto > 0.5 || w.real > 0.5) ? `${c.weekly.length} sem` : 'dados não disponíveis neste arquivo'} · Mensal: {c.monthly.length} meses
                               </div>
                               {result.projectDates && (result.projectDates.inicio || result.projectDates.terminoLB || result.projectDates.terminoPrev) && (
                                 <div className="text-muted-foreground">
