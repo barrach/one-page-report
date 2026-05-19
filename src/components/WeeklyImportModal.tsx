@@ -1124,17 +1124,25 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   // 5. Prev x Mês: agrupar por mês usando APENAS colunas até ULTIMA_REAL
   // (meses futuros têm Replanejado>0 e Real=0 — não comparáveis)
-  // Para cada mês, pegar o ÚLTIMO valor da semana
-  const mesesMap = new Map<string, { date: Date; previsto: number; real: number }>();
+  // Para cada mês, agregar MAX de cada série, então aplicar prioridade:
+  //   previsto = max(rpa) > 0 ? max(rpa) : max(lb)
+  //   real     = max(rra) > 0 ? max(rra) : max(ra)
+  // (evita pegar 0 da última semana quando LB acabou antes do fim do mês)
+  type MesAgg = { date: Date; lb: number; rpa: number; ra: number; rra: number };
+  const mesesAgg = new Map<string, MesAgg>();
   upToReal.forEach(s => {
-    const previsto = s.rpa > 0 ? s.rpa : s.lb;
-    const real = s.rra > 0 ? s.rra : s.ra;
-    if (previsto > 0 || real > 0) {
-      const key = `${s.date.getFullYear()}-${String(s.date.getMonth()).padStart(2, '0')}`;
-      mesesMap.set(key, { date: s.date, previsto, real });
-    }
+    const key = `${s.date.getFullYear()}-${String(s.date.getMonth()).padStart(2, '0')}`;
+    const cur = mesesAgg.get(key) || { date: s.date, lb: 0, rpa: 0, ra: 0, rra: 0 };
+    if (s.date.getTime() >= cur.date.getTime()) cur.date = s.date;
+    cur.lb  = Math.max(cur.lb,  s.lb);
+    cur.rpa = Math.max(cur.rpa, s.rpa);
+    cur.ra  = Math.max(cur.ra,  s.ra);
+    cur.rra = Math.max(cur.rra, s.rra);
+    mesesAgg.set(key, cur);
   });
-  const monthly = [...mesesMap.values()]
+  const monthly = [...mesesAgg.values()]
+    .map(m => ({ date: m.date, previsto: m.rpa > 0 ? m.rpa : m.lb, real: m.rra > 0 ? m.rra : m.ra }))
+    .filter(m => m.previsto > 0 || m.real > 0)
     .sort((a, b) => a.date.getTime() - b.date.getTime())
     .slice(-4)
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.previsto, real: m.real }));
