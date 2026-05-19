@@ -138,16 +138,17 @@ const MonthChart = () => {
   const { monthData, info } = useCurrentProject();
   const { selectedMonthIndex, setSelectedMonthIndex } = useReportInteraction();
 
-  const totalPrev = monthData.reduce((s, d) => s + d.previsto, 0);
-  const totalReal = monthData.reduce((s, d) => s + d.real, 0);
+  const totalPrev = monthData.reduce((s, d) => s + Number(d.previsto || 0), 0);
+  const totalReal = monthData.reduce((s, d) => s + Number(d.real || 0), 0);
 
   // % Meta Realizado = Real / Prev do último mês com Real > 0
   let lastWithReal = -1;
-  monthData.forEach((d, i) => { if (d.real > 0) lastWithReal = i; });
+  monthData.forEach((d, i) => { if (Number(d.real || 0) > 0) lastWithReal = i; });
   const metaRealizado =
-    lastWithReal >= 0 && monthData[lastWithReal].previsto > 0
-      ? (monthData[lastWithReal].real / monthData[lastWithReal].previsto) * 100
+    lastWithReal >= 0 && Number(monthData[lastWithReal].previsto || 0) > 0
+      ? (Number(monthData[lastWithReal].real) / Number(monthData[lastWithReal].previsto)) * 100
       : 0;
+  console.log('[MonthChart] monthData=', monthData, 'lastWithReal=', lastWithReal, 'metaRealizado=', metaRealizado);
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
