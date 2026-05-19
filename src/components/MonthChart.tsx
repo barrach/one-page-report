@@ -5,9 +5,11 @@ import ChartInsight from '@/components/ChartInsight';
 const GaugeChart = ({
   metaRealizado,
   selectedIndex,
+  activeIndex,
 }: {
   metaRealizado: number;
   selectedIndex: number | null;
+  activeIndex: number;
 }) => {
   const { monthData } = useCurrentProject();
   const { setSelectedMonthIndex } = useReportInteraction();
@@ -21,14 +23,7 @@ const GaugeChart = ({
   const segments = monthData.filter(m => m.previsto > 0);
   const totalSegments = segments.reduce((s, seg) => s + seg.previsto, 0);
 
-  // Needle position based on metaRealizado relative to totalSegments (gauge scale)
-  const needlePercent = totalSegments > 0 ? Math.min(1, Math.max(0, metaRealizado / totalSegments)) : 0;
-  const needleAngle = Math.PI - needlePercent * Math.PI;
   const needleLength = outerR - 15;
-  const needleEnd = {
-    x: cx + needleLength * Math.cos(needleAngle),
-    y: cy - needleLength * Math.sin(needleAngle),
-  };
 
   const segmentColors = [
     'hsl(3, 80%, 52%)',
@@ -118,8 +113,14 @@ const GaugeChart = ({
         );
       })}
 
-      <line x1={cx} y1={cy} x2={needleEnd.x} y2={needleEnd.y}
-        stroke="hsl(var(--foreground))" strokeWidth="3" strokeLinecap="round" />
+      {(() => {
+        const activeArc = arcs.find(a => a.originalIndex === activeIndex) ?? arcs[arcs.length - 1];
+        const angle = activeArc ? activeArc.midAngle : Math.PI / 2;
+        const nx = cx + needleLength * Math.cos(angle);
+        const ny = cy - needleLength * Math.sin(angle);
+        return <line x1={cx} y1={cy} x2={nx} y2={ny}
+          stroke="hsl(var(--foreground))" strokeWidth="3" strokeLinecap="round" />;
+      })()}
       <circle cx={cx} cy={cy} r="7" fill="hsl(var(--foreground))" />
       <circle cx={cx} cy={cy} r="4" fill="hsl(var(--card))" />
 
@@ -153,7 +154,7 @@ const MonthChart = () => {
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
+      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} activeIndex={lastWithReal} />
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
