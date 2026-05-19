@@ -1153,11 +1153,12 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const { grid } = h.ref;
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
-  // Histograma começa 1 semana depois da Curva S: hist_col j ↔ curva_col (j - histColStart + curveColStart + 1)
+  // Hist e Curva compartilham as datas; offset = curva.colStart - hist.colStart
+  // ex: curva.colStart=1, hist.colStart=5 → offset=-4 → hist_col5 ↔ curva_col1
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const offset = curveBlock ? (curveBlock.colStart + 1 - h.colStart) : 0;
+  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
 
-  // COL_END dinâmico: parar antes de colunas de total acumulado (valores > 1000)
+  // COL_END: parar antes de colunas de total acumulado (valores > 1000)
   let colEnd = planRow.length - 1;
   for (let j = h.colStart; j < planRow.length; j++) {
     const pv = planRow[j], rv = realRow[j];
@@ -1166,7 +1167,6 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
     }
   }
 
-  // Coletar somente colunas h.colStart..colEnd (ignorar colunas de totais)
   type Item = { j: number; label: string; prev: number; real: number };
   const items: Item[] = [];
   for (let j = h.colStart; j <= colEnd; j++) {
@@ -1185,22 +1185,20 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   let ultimaReal = -1;
   items.forEach((it, i) => { if (it.real > 0) ultimaReal = i; });
 
-  // Janela: 6 passadas (incluindo ULTIMA_REAL) + 4 futuras
+  // Janela: 6 semanas reais (incluindo ULTIMA_REAL) + 4 futuras
   const start = Math.max(0, ultimaReal - 5);
   const passadas = items.slice(start, ultimaReal + 1);
   const futuras = items.slice(ultimaReal + 1, ultimaReal + 5);
   const windowItems = [...passadas, ...futuras];
   const localUltimaReal = passadas.length - 1;
 
-  const histogram = windowItems.map((x, i) => {
-    const isFuture = i > localUltimaReal;
-    return {
-      date: x.label,
-      semana: '',
-      previsto: isFuture ? Math.round(x.prev) : 0,
-      real: isFuture ? 0 : Math.round(x.real),
-    };
-  });
+  // Exibir Plan e Real simultaneamente em todas as semanas
+  const histogram = windowItems.map(x => ({
+    date: x.label,
+    semana: '',
+    previsto: Math.round(x.prev),
+    real: Math.round(x.real),
+  }));
 
   return {
     block: { ref: h.ref, rowDia: h.rowPlan, colDia: h.colStart - 1, rowPrev: h.rowPlan, rowReal: h.rowReal, realCount: items.reduce((s, x) => s + (x.real > 0 ? x.real : 0), 0) },
