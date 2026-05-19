@@ -1114,18 +1114,25 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   // 4. Resultado Semanal: últimas 5 semanas ATÉ ULTIMA_REAL (inclusive)
   const upToReal = ultimaRealIdx >= 0 ? semanas.slice(0, ultimaRealIdx + 1) : semanas;
-  const weekly = upToReal.slice(-5).map(s => ({
+  const weeklyRaw = upToReal.slice(-5).map(s => ({
     date: s.label,
     previsto: s.rps > 0 ? s.rps : s.ps,
     real: s.rrps > 0 ? s.rrps : s.rs,
   }));
+  // Validação: se NENHUMA das 5 últimas semanas tiver prev>1% ou real>1%,
+  // os dados semanais não são confiáveis neste formato (LB acabou, replanejado é delta)
+  const weeklyValido = weeklyRaw.some(w => w.previsto > 1 || w.real > 1);
+  const weekly = weeklyValido ? weeklyRaw : [];
+  if (!weeklyValido) {
+    console.warn('[FORMATO C] Resultado Semanal omitido: nenhuma das 5 últimas semanas tem prev>1% ou real>1%');
+  }
 
 
-  // 5. Prev x Mês: agrupar por mês, últimos 4 meses
-  // Previsto = REPLANJ_ACU > 0 ? REPLANJ_ACU : PREV_ACU
-  // Real     = REAL_REPL_ACU > 0 ? REAL_REPL_ACU : REAL_ACU
+  // 5. Prev x Mês: agrupar por mês usando APENAS colunas até ULTIMA_REAL
+  // (meses futuros têm Replanejado>0 e Real=0 — não comparáveis)
+  // Para cada mês, pegar o ÚLTIMO valor da semana
   const mesesMap = new Map<string, { date: Date; previsto: number; real: number }>();
-  semanas.forEach(s => {
+  upToReal.forEach(s => {
     const previsto = s.rpa > 0 ? s.rpa : s.lb;
     const real = s.rra > 0 ? s.rra : s.ra;
     if (previsto > 0 || real > 0) {
