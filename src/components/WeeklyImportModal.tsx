@@ -967,13 +967,17 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   const { grid } = ref;
 
-  // Busca dinâmica: linha PLAN tem "TOTAL" em alguma col + "PLAN" em outra
-  let rowPlan = -1, rowReal = -1;
+  // Linha PLAN: alguma col contém "TOTAL" + outra col == "PLAN"
+  // colStart = (col onde está "PLAN") + 1
+  let rowPlan = -1, rowReal = -1, planLabelCol = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
     const hasTotal = row.some(v => v != null && String(v).toUpperCase().includes('TOTAL'));
-    const hasPlan  = row.some(v => v != null && String(v).trim().toUpperCase() === 'PLAN');
-    if (hasTotal && hasPlan) { rowPlan = r; break; }
+    let pc = -1;
+    row.forEach((v, ci) => {
+      if (pc < 0 && v != null && String(v).trim().toUpperCase() === 'PLAN') pc = ci;
+    });
+    if (hasTotal && pc >= 0) { rowPlan = r; planLabelCol = pc; break; }
   }
   if (rowPlan >= 0) {
     for (let r2 = rowPlan + 1; r2 < Math.min(grid.length, rowPlan + 8); r2++) {
@@ -983,17 +987,8 @@ const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   }
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  // COL_START dinâmico: primeira coluna com valor numérico > 0 na linha PLAN
-  const planRow = grid[rowPlan] || [];
-  let colStart = -1;
-  for (let j = 1; j < Math.min(planRow.length, 15); j++) {
-    const v = planRow[j];
-    if (typeof v === 'number' && v > 0 && v < 1000) { colStart = j; break; }
-  }
-  if (colStart < 0) colStart = 5;
-
+  const colStart = planLabelCol + 1; // ex: PLAN no col4 → dados começam em col5
   console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal, 'colStart:', colStart);
-
   return { ref, rowPlan, rowReal, colStart };
 };
 
@@ -1089,10 +1084,16 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     });
   }
   const ultimaRealIdx = semanas.findIndex(s => s.j === ultimaRealCol);
-  console.log('[FORMATO C] Total semanas:', semanas.length, 'ultimaRealIdx:', ultimaRealIdx);
-  console.log('[FORMATO C] Primeira:', semanas[0]);
-  console.log('[FORMATO C] ULTIMA_REAL:', semanas[ultimaRealIdx]);
-  console.log('[FORMATO C] Última:', semanas[semanas.length - 1]);
+  console.log('=== FORMATO C DEBUG ===');
+  console.log('Aba Curva S:', b.ref.sheetName);
+  console.log('idxMap R.DATES:', b.rowDates, 'R.RE_ACU:', b.rowRealAcu);
+  console.log('COL_START:', b.colStart);
+  console.log('ULTIMA_REAL:', ultimaRealCol,
+    'val:', toPercentC(rRa[ultimaRealCol]) + '%',
+    'data:', fmtDDmmm(toDate(dateRow[ultimaRealCol]) as Date));
+  console.log('Total semanas:', semanas.length);
+  console.log('semanas[0]:', semanas[0]);
+  console.log('semanas última:', semanas[semanas.length - 1]);
 
   const hasReplanejado = semanas.some(s => s.rpa > 0);
 
@@ -1158,11 +1159,12 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const { grid } = h.ref;
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
-  // Histograma começa 1 semana depois da Curva S: hist_col j ↔ curva_col (j - histColStart + curveColStart + 1)
+  // Hist e Curva compartilham as datas; offset = curva.colStart - hist.colStart
+  // ex: curva.colStart=1, hist.colStart=5 → offset=-4 → hist_col5 ↔ curva_col1
   const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const offset = curveBlock ? (curveBlock.colStart + 1 - h.colStart) : 0;
+  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
 
-  // COL_END dinâmico: parar antes de colunas de total acumulado (valores > 1000)
+  // COL_END: parar antes de colunas de total acumulado (valores > 1000)
   let colEnd = planRow.length - 1;
   for (let j = h.colStart; j < planRow.length; j++) {
     const pv = planRow[j], rv = realRow[j];
@@ -1171,7 +1173,6 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
     }
   }
 
-  // Coletar somente colunas h.colStart..colEnd (ignorar colunas de totais)
   type Item = { j: number; label: string; prev: number; real: number };
   const items: Item[] = [];
   for (let j = h.colStart; j <= colEnd; j++) {
@@ -1190,22 +1191,20 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   let ultimaReal = -1;
   items.forEach((it, i) => { if (it.real > 0) ultimaReal = i; });
 
-  // Janela: 6 passadas (incluindo ULTIMA_REAL) + 4 futuras
+  // Janela: 6 semanas reais (incluindo ULTIMA_REAL) + 4 futuras
   const start = Math.max(0, ultimaReal - 5);
   const passadas = items.slice(start, ultimaReal + 1);
   const futuras = items.slice(ultimaReal + 1, ultimaReal + 5);
   const windowItems = [...passadas, ...futuras];
   const localUltimaReal = passadas.length - 1;
 
-  const histogram = windowItems.map((x, i) => {
-    const isFuture = i > localUltimaReal;
-    return {
-      date: x.label,
-      semana: '',
-      previsto: isFuture ? Math.round(x.prev) : 0,
-      real: isFuture ? 0 : Math.round(x.real),
-    };
-  });
+  // Exibir Plan e Real simultaneamente em todas as semanas
+  const histogram = windowItems.map(x => ({
+    date: x.label,
+    semana: '',
+    previsto: Math.round(x.prev),
+    real: Math.round(x.real),
+  }));
 
   return {
     block: { ref: h.ref, rowDia: h.rowPlan, colDia: h.colStart - 1, rowPrev: h.rowPlan, rowReal: h.rowReal, realCount: items.reduce((s, x) => s + (x.real > 0 ? x.real : 0), 0) },
