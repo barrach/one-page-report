@@ -121,7 +121,6 @@ const GaugeChart = ({
         return <line x1={cx} y1={cy} x2={nx} y2={ny}
           stroke="hsl(var(--foreground))" strokeWidth="3" strokeLinecap="round" />;
       })()}
-      })()}
       <circle cx={cx} cy={cy} r="7" fill="hsl(var(--foreground))" />
       <circle cx={cx} cy={cy} r="4" fill="hsl(var(--card))" />
 
