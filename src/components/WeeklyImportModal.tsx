@@ -1097,12 +1097,18 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   const hasReplanejado = semanas.some(s => s.rpa > 0);
 
+  // Tendência: se TODOS os valores > 0 forem < 10%, são deltas semanais (não acumulado).
+  // Nesse caso, ocultar a linha de tendência no gráfico.
+  const tendVals = semanas.map(s => s.ta).filter(v => v > 0);
+  const tendIsDeltas = tendVals.length > 0 && tendVals.every(v => v < 10);
+  if (tendIsDeltas) console.log('[FORMATO C] Tendência ocultada (valores são deltas semanais < 10%)');
+
   // 3. sCurve: null onde série = 0 para criar lacunas no gráfico
   const sCurve = semanas.map(s => ({
     date: s.label,
     previsto: s.lb > 0 ? s.lb : null as unknown as number,
     real: s.ra > 0 ? s.ra : null as unknown as number,
-    tendencia: s.ta > 0 ? s.ta : null as unknown as number,
+    tendencia: !tendIsDeltas && s.ta > 0 ? s.ta : null as unknown as number,
     ...(hasReplanejado ? { replanejado: s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
   }));
 
