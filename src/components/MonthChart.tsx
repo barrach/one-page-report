@@ -116,6 +116,7 @@ const GaugeChart = ({
       {(() => {
         const activeArc = arcs.find(a => a.originalIndex === activeIndex) ?? arcs[arcs.length - 1];
         const angle = activeArc ? activeArc.midAngle : Math.PI / 2;
+        console.log('[Gauge] activeIndex=', activeIndex, 'arcs.len=', arcs.length, 'activeArc.origIdx=', activeArc?.originalIndex, 'angle=', angle);
         const nx = cx + needleLength * Math.cos(angle);
         const ny = cy - needleLength * Math.sin(angle);
         return <line x1={cx} y1={cy} x2={nx} y2={ny}
