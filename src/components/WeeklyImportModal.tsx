@@ -1114,18 +1114,12 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   // 4. Resultado Semanal: últimas 5 semanas ATÉ ULTIMA_REAL (inclusive)
   const upToReal = ultimaRealIdx >= 0 ? semanas.slice(0, ultimaRealIdx + 1) : semanas;
-  const weeklyRaw = upToReal.slice(-5).map(s => ({
+  const weekly = upToReal.slice(-5).map(s => ({
     date: s.label,
     previsto: s.rps > 0 ? s.rps : s.ps,
     real: s.rrps > 0 ? s.rrps : s.rs,
   }));
-  // Validação: se NENHUMA das 5 últimas semanas tiver prev>1% ou real>1%,
-  // os dados semanais não são confiáveis neste formato (LB acabou, replanejado é delta)
-  const weeklyValido = weeklyRaw.some(w => w.previsto > 1 || w.real > 1);
-  const weekly = weeklyValido ? weeklyRaw : [];
-  if (!weeklyValido) {
-    console.warn('[FORMATO C] Resultado Semanal omitido: nenhuma das 5 últimas semanas tem prev>1% ou real>1%');
-  }
+
 
 
   // 5. Prev x Mês: agrupar por mês usando APENAS colunas até ULTIMA_REAL
@@ -1605,7 +1599,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (idx >= 0) setStatusDateIndex(idx);
         setLastImport('sCurve', now); count++;
       }
-      if (c.weekly.length) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
+      const weeklyValido = c.weekly.some(w => w.previsto > 0.5 || w.real > 0.5);
+      if (c.weekly.length && weeklyValido) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
+      else if (c.weekly.length) console.warn('[IMPORT] Resultado Semanal não atualizado: nenhuma das 5 últimas semanas tem prev>0.5% ou real>0.5%');
       if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
       // Always overwrite: status date + avanço prev/real come from the file
       // FORMAT B may override "Atualizado em" with explicit "Data da atualização:" label
@@ -1769,7 +1765,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                                 </div>
                               </div>
                               <div className="text-muted-foreground">
-                                Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.length} sem · Mensal: {c.monthly.length} meses
+                                Curva S: {c.sCurve.length} sem · Semanal: {c.weekly.some(w => w.previsto > 0.5 || w.real > 0.5) ? `${c.weekly.length} sem` : 'dados não disponíveis neste arquivo'} · Mensal: {c.monthly.length} meses
                               </div>
                               {result.projectDates && (result.projectDates.inicio || result.projectDates.terminoLB || result.projectDates.terminoPrev) && (
                                 <div className="text-muted-foreground">
