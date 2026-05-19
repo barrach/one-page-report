@@ -1214,47 +1214,56 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
   const { grid } = h.ref;
   const planRow = grid[h.rowPlan] || [];
   const realRow = grid[h.rowReal] || [];
-  // Hist e Curva compartilham as datas; offset = curva.colStart - hist.colStart
-  // ex: curva.colStart=1, hist.colStart=5 → offset=-4 → hist_col5 ↔ curva_col1
-  const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
-  const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
-
-  // COL_END: parar antes de colunas de total acumulado (valores > 1000)
-  let colEnd = planRow.length - 1;
-  for (let j = h.colStart; j < planRow.length; j++) {
-    const pv = planRow[j], rv = realRow[j];
-    if ((typeof pv === 'number' && pv > 1000) || (typeof rv === 'number' && rv > 1000)) {
-      colEnd = j - 1; break;
-    }
-  }
 
   type Item = { j: number; label: string; prev: number; real: number };
   const items: Item[] = [];
-  for (let j = h.colStart; j <= colEnd; j++) {
-    const p = parseFloat(String(planRow[j])) || 0;
-    const r = parseFloat(String(realRow[j])) || 0;
-    let label = `S${j - h.colStart + 1}`;
-    if (curveDateRow) {
-      const d = toDate(curveDateRow[j + offset]);
-      if (d) label = fmtDDmmm(d);
+
+  // ===== NOVO: leitura por linha de MESES + linha S1/S2/S3/S4 =====
+  if (h.rowMeses != null && h.rowSemanas != null && h.colEnd != null) {
+    const mesesRow = grid[h.rowMeses] || [];
+    const semRow = grid[h.rowSemanas] || [];
+    let mesAtual = '';
+    for (let j = h.colStart; j <= h.colEnd; j++) {
+      const mv = mesesRow[j];
+      if (mv != null && String(mv).trim() !== '') mesAtual = String(mv).trim();
+      const sv = String(semRow[j] ?? '').trim().toUpperCase();
+      if (!/^S[1-4]$/.test(sv)) continue;
+      const p = parseFloat(String(planRow[j])) || 0;
+      const r = parseFloat(String(realRow[j])) || 0;
+      const label = `${mesAtual} ${sv}`;
+      if (p > 0 || r > 0) items.push({ j, label, prev: p, real: r });
     }
-    if (p > 0 || r > 0) items.push({ j, label, prev: p, real: r });
+    console.log('[FORMATO C HIST] (meses/semanas) items:', items.length, items);
+  } else {
+    // ===== Fallback: lógica antiga baseada em datas da curva =====
+    const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
+    const offset = curveBlock ? (curveBlock.colStart - h.colStart) : 0;
+    let colEnd = planRow.length - 1;
+    for (let j = h.colStart; j < planRow.length; j++) {
+      const pv = planRow[j], rv = realRow[j];
+      if ((typeof pv === 'number' && pv > 1000) || (typeof rv === 'number' && rv > 1000)) {
+        colEnd = j - 1; break;
+      }
+    }
+    for (let j = h.colStart; j <= colEnd; j++) {
+      const p = parseFloat(String(planRow[j])) || 0;
+      const r = parseFloat(String(realRow[j])) || 0;
+      let label = `S${j - h.colStart + 1}`;
+      if (curveDateRow) {
+        const d = toDate(curveDateRow[j + offset]);
+        if (d) label = fmtDDmmm(d);
+      }
+      if (p > 0 || r > 0) items.push({ j, label, prev: p, real: r });
+    }
+    console.log('[FORMATO C HIST] (fallback) items:', items.length, items);
   }
-  console.log('[FORMATO C HIST] items coletados:', items.length, items);
 
   // ULTIMA_REAL = última posição com real > 0
   let ultimaReal = -1;
   items.forEach((it, i) => { if (it.real > 0) ultimaReal = i; });
 
-  // Janela: 6 semanas reais (incluindo ULTIMA_REAL) + 4 futuras
-  const start = Math.max(0, ultimaReal - 5);
-  const passadas = items.slice(start, ultimaReal + 1);
-  const futuras = items.slice(ultimaReal + 1, ultimaReal + 5);
-  const windowItems = [...passadas, ...futuras];
-  const localUltimaReal = passadas.length - 1;
-
-  // Exibir Plan e Real simultaneamente em todas as semanas
-  const histogram = windowItems.map(x => ({
+  // Incluir TODAS as semanas (não limitar a janela)
+  const histogram = items.map(x => ({
     date: x.label,
     semana: '',
     previsto: Math.round(x.prev),
@@ -1263,8 +1272,8 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
 
   return {
     block: { ref: h.ref, rowDia: h.rowPlan, colDia: h.colStart - 1, rowPrev: h.rowPlan, rowReal: h.rowReal, realCount: items.reduce((s, x) => s + (x.real > 0 ? x.real : 0), 0) },
-    total: windowItems.length,
-    ultimaReal: localUltimaReal,
+    total: items.length,
+    ultimaReal,
     histogram,
   };
 };
