@@ -970,60 +970,73 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 const findFormatCHistBlock = (ref: SheetRef): FormatCHistBlock | null => {
   const { grid } = ref;
 
-  // Linha PLAN: alguma col contém "TOTAL" + outra col == "PLAN"
-  // colStart = (col onde está "PLAN") + 1
-  let rowPlan = -1, rowReal = -1, planLabelCol = -1;
+  // ROW_PLAN: alguma col 0-4 contém "EQUIPE DO PROJETO - TOTAL"
+  // E alguma col 0-4 == "PLAN"
+  let rowPlan = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
-    const hasTotal = row.some(v => v != null && String(v).toUpperCase().includes('TOTAL'));
-    let pc = -1;
-    row.forEach((v, ci) => {
-      if (pc < 0 && v != null && String(v).trim().toUpperCase() === 'PLAN') pc = ci;
-    });
-    if (hasTotal && pc >= 0) { rowPlan = r; planLabelCol = pc; break; }
+    let hasTotal = false, hasPlan = false;
+    for (let c = 0; c <= 4; c++) {
+      const v = row[c];
+      if (v == null) continue;
+      const s = String(v).trim().toUpperCase();
+      if (s.includes('EQUIPE DO PROJETO - TOTAL')) hasTotal = true;
+      if (s === 'PLAN') hasPlan = true;
+    }
+    if (hasTotal && hasPlan) { rowPlan = r; break; }
   }
+
+  // ROW_REAL: primeira linha APÓS ROW_PLAN onde col 0-4 == "REAL"
+  let rowReal = -1;
   if (rowPlan >= 0) {
-    for (let r2 = rowPlan + 1; r2 < Math.min(grid.length, rowPlan + 8); r2++) {
-      const row = grid[r2] || [];
-      if (row.some(v => v != null && String(v).trim().toUpperCase() === 'REAL')) { rowReal = r2; break; }
+    for (let r = rowPlan + 1; r < Math.min(grid.length, rowPlan + 10); r++) {
+      const row = grid[r] || [];
+      for (let c = 0; c <= 4; c++) {
+        const v = row[c];
+        if (v != null && String(v).trim().toUpperCase() === 'REAL') { rowReal = r; break; }
+      }
+      if (rowReal >= 0) break;
     }
   }
   if (rowPlan < 0 || rowReal < 0) return null;
 
-  const colStart = planLabelCol + 1; // ex: PLAN no col4 → dados começam em col5
+  const colStart = 5; // dados começam fixo na col 5 no FORMATO C
 
-  // Detectar ROW_SEMANAS: linha onde colStart..colStart+3 == S1,S2,S3,S4
-  // Detectar ROW_MESES: linha logo acima de ROW_SEMANAS com nomes de meses
-  let rowSemanas = -1, rowMeses = -1, colEnd = -1;
+  // TIPO 2 (FORMATO C): tem linha de MESES (col5 com "letras/2-digitos")
+  // e linha de SEMANAS (col5..col8 = S1,S2,S3,S4)
+  const mesPattern = /^[A-Za-zÀ-ÿ]+\/\d{2}$/;
+  let rowMeses = -1, rowSemanas = -1, colEnd = -1;
   for (let r = 0; r < grid.length; r++) {
     const row = grid[r] || [];
-    const c0 = String(row[colStart] ?? '').trim().toUpperCase();
-    const c1 = String(row[colStart + 1] ?? '').trim().toUpperCase();
-    const c2 = String(row[colStart + 2] ?? '').trim().toUpperCase();
-    const c3 = String(row[colStart + 3] ?? '').trim().toUpperCase();
-    if (c0 === 'S1' && c1 === 'S2' && c2 === 'S3' && c3 === 'S4') {
-      rowSemanas = r;
-      break;
+    const v5 = row[5], v9 = row[9];
+    if (v5 != null && mesPattern.test(String(v5).trim()) &&
+        v9 != null && String(v9).trim() !== String(v5).trim()) {
+      rowMeses = r; break;
     }
   }
-  if (rowSemanas > 0) {
-    // ROW_MESES: linha imediatamente anterior (procurar até 3 acima)
-    for (let r = rowSemanas - 1; r >= Math.max(0, rowSemanas - 3); r--) {
-      const row = grid[r] || [];
-      const v = row[colStart];
-      if (v != null && String(v).trim() !== '') { rowMeses = r; break; }
-    }
-    // colEnd: última coluna onde ROW_SEMANAS é S1..S4
-    const semRow = grid[rowSemanas] || [];
-    colEnd = colStart - 1;
-    for (let j = colStart; j < semRow.length; j++) {
-      const v = String(semRow[j] ?? '').trim().toUpperCase();
-      if (/^S[1-4]$/.test(v)) colEnd = j; else break;
+  for (let r = 0; r < grid.length; r++) {
+    const row = grid[r] || [];
+    const c5 = String(row[5] ?? '').trim().toUpperCase();
+    const c6 = String(row[6] ?? '').trim().toUpperCase();
+    const c7 = String(row[7] ?? '').trim().toUpperCase();
+    const c8 = String(row[8] ?? '').trim().toUpperCase();
+    if (c5 === 'S1' && c6 === 'S2' && c7 === 'S3' && c8 === 'S4') {
+      rowSemanas = r; break;
     }
   }
 
-  console.log('[FORMATO C HIST] rowPlan:', rowPlan, 'rowReal:', rowReal, 'colStart:', colStart,
-    'rowMeses:', rowMeses, 'rowSemanas:', rowSemanas, 'colEnd:', colEnd);
+  // COL_END = última coluna ≤ 40 onde plan > 0 OU real > 0
+  const planRow = grid[rowPlan] || [];
+  const realRow = grid[rowReal] || [];
+  for (let j = colStart; j <= 40; j++) {
+    const p = parseFloat(String(planRow[j])) || 0;
+    const r2 = parseFloat(String(realRow[j])) || 0;
+    if (p > 0 || r2 > 0) colEnd = j;
+  }
+
+  console.log('[Hist TIPO 2] ROW_MESES:', rowMeses, 'ROW_SEMANAS:', rowSemanas,
+    'ROW_PLAN:', rowPlan, 'ROW_REAL:', rowReal, 'COL_END:', colEnd);
+
   return { ref, rowPlan, rowReal, colStart,
     rowMeses: rowMeses >= 0 ? rowMeses : undefined,
     rowSemanas: rowSemanas >= 0 ? rowSemanas : undefined,
@@ -1233,7 +1246,9 @@ const extractFormatCHist = (h: FormatCHistBlock, curveBlock: FormatCCurveBlock |
       const label = `${mesAtual} ${sv}`;
       if (p > 0 || r > 0) items.push({ j, label, prev: p, real: r });
     }
-    console.log('[FORMATO C HIST] (meses/semanas) items:', items.length, items);
+    console.log('[Hist TIPO 2] total semanas:', items.length);
+    console.log('[Hist TIPO 2] primeira:', items[0]);
+    console.log('[Hist TIPO 2] última:', items[items.length - 1]);
   } else {
     // ===== Fallback: lógica antiga baseada em datas da curva =====
     const curveDateRow = curveBlock ? (curveBlock.ref.grid[curveBlock.rowDates] || []) : null;
