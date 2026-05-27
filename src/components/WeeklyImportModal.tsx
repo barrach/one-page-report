@@ -1415,46 +1415,65 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
 
 const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtract | { error: string } => {
   const g = curveRef.grid;
-  type Row = { date: Date; prevSem: number | null; prevAcu: number | null; tendAcu: number | null; realSem: number | null; realAcu: number | null };
-  const rows: Row[] = [];
-  const numOrNullStrict = (v: unknown): number | null => {
+  const numOrNull = (v: unknown): number | null => {
     if (v == null || v === '') return null;
     if (typeof v === 'number') return isFinite(v) ? v : null;
-    if (typeof v === 'string') {
-      const s = v.trim();
-      if (!s || s.startsWith('#')) return null;
-      const n = parseFloat(s.replace(',', '.'));
-      return isFinite(n) ? n : null;
-    }
     return null;
   };
-  // Data starts at row 2 (idx 1); header in row 1.
-  for (let i = 1; i < g.length; i++) {
-    const r = g[i] || [];
-    const d = toDate(r[0]);
+  const colA = (i: number) => norm(g[i]?.[0]);
+  const findRow = (pred: (s: string) => boolean): number => {
+    for (let i = 0; i < g.length; i++) if (pred(colA(i))) return i;
+    return -1;
+  };
+  const rowDatas    = findRow(s => s.includes('evento'));
+  const rowSemanas  = findRow(s => s.includes('semanal') && !s.includes('previsto') && !s.includes('realizado'));
+  const rowPrevLB   = findRow(s => s.includes('previsto geral lb') && !s.includes('acumulado') && !s.includes('replan'));
+  const rowPrevAcum = findRow(s => s.includes('previsto geral lb') && s.includes('acumulado') && !s.includes('replan'));
+  const rowReal     = findRow(s => s.includes('realizado geral') && !s.includes('acumulado') && !s.includes('replan'));
+  const rowRealAcum = findRow(s => s.includes('realizado geral') && s.includes('acumulado') && !s.includes('replan'));
+  const rowTend     = findRow(s => s.includes('tendência geral') && s.includes('acumulado'));
+
+  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcum < 0 || rowRealAcum < 0) {
+    return { error: 'Aba "01-CURVA S- PROJETO" não contém as linhas esperadas (Evento/Semanal/Previsto/Realizado)' };
+  }
+
+  type Row = { date: Date; semana: string; prevSem: number | null; prevAcu: number | null; tendAcu: number | null; realSem: number | null; realAcu: number | null };
+  const rows: Row[] = [];
+  const rDatas = g[rowDatas] || [];
+  const rSem = g[rowSemanas] || [];
+  const rPL = rowPrevLB >= 0 ? g[rowPrevLB] : [];
+  const rPA = g[rowPrevAcum] || [];
+  const rR = rowReal >= 0 ? g[rowReal] : [];
+  const rRA = g[rowRealAcum] || [];
+  const rT = rowTend >= 0 ? g[rowTend] : [];
+  const maxC = Math.max(rDatas.length, rSem.length, rPA.length, rRA.length);
+  for (let c = 1; c < maxC; c++) {
+    const semVal = rSem[c];
+    if (semVal == null || semVal === '') break;
+    const d = toDate(rDatas[c]);
     if (!d) continue;
+    const prevAcu = numOrNull(rPA[c]);
+    const realAcu = numOrNull(rRA[c]);
+    if ((prevAcu == null || prevAcu <= 0) && (realAcu == null || realAcu <= 0)) continue;
     rows.push({
       date: d,
-      prevSem: numOrNullStrict(r[1]),
-      prevAcu: numOrNullStrict(r[2]),
-      tendAcu: numOrNullStrict(r[3]),
-      realSem: numOrNullStrict(r[4]),
-      realAcu: numOrNullStrict(r[5]),
+      semana: String(semVal),
+      prevSem: numOrNull(rPL[c]),
+      prevAcu,
+      realSem: numOrNull(rR[c]),
+      realAcu,
+      tendAcu: numOrNull(rT[c]),
     });
   }
-  if (!rows.length) return { error: 'Aba "Curva S Projeto - BI" vazia ou sem datas' };
+  if (!rows.length) return { error: 'Aba "01-CURVA S- PROJETO" sem dados válidos' };
 
-  // Decimals (≤1) → percent; otherwise assume already %.
   const toPct = (v: number | null): number => {
     if (v == null) return 0;
     return Math.abs(v) <= 1.5 ? round2(v * 100) : round2(v);
   };
 
-  // ULTIMA_REAL: last row where realAcu is a number > 0
   let ultimaReal = -1;
   rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
-
-  // Align to status date if provided
   if (statusDate) {
     let bestIdx = -1, bestDiff = Infinity;
     rows.forEach((r, i) => {
@@ -1474,7 +1493,6 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
     tendencia: hasTendencia && r.tendAcu != null && r.tendAcu > 0 ? toPct(r.tendAcu) : (null as unknown as number),
   }));
 
-  // 5-week window centered around ultimaReal
   let wStart = ultimaReal - 2, wEnd = ultimaReal + 3;
   if (wStart < 0) { wEnd -= wStart; wStart = 0; }
   if (wEnd > rows.length) { wStart -= (wEnd - rows.length); wEnd = rows.length; wStart = Math.max(0, wStart); }
@@ -1515,6 +1533,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
     sCurve, weekly, monthly,
   };
 };
+
 
 const extractFormatDHist = (histRef: SheetRef): HistExtract | { error: string } => {
   const g = histRef.grid;
@@ -1592,10 +1611,11 @@ const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
   const resumo = findFormatDResumo(allSheets);
   if (!resumo) return null;
   const curveRef =
-    allSheets.find(s => norm(s.sheetName) === 'curva s projeto - bi') ||
-    allSheets.find(s => norm(s.sheetName).includes('curva s projeto'));
+    allSheets.find(s => norm(s.sheetName) === '01-curva s- projeto') ||
+    allSheets.find(s => norm(s.sheetName).replace(/[\s-]+/g, '').includes('01curvasprojeto')) ||
+    allSheets.find(s => /01.*curva s.*projeto/i.test(s.sheetName));
   if (!curveRef) {
-    console.warn('[FORMATO D] Aba "Curva S Projeto - BI" não encontrada');
+    console.warn('[FORMATO D] Aba "01-CURVA S- PROJETO" não encontrada');
     return null;
   }
   const histRef = allSheets.find(s => norm(s.sheetName) === 'histograma') || null;
