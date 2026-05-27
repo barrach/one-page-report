@@ -155,7 +155,7 @@ const FinancialCurveChart = () => {
           <YAxis
             yAxisId="right"
             orientation="right"
-            domain={[0, 140000000]}
+            domain={[0, rightMax]}
             ticks={RIGHT_TICKS}
             tickFormatter={fmtTickRight}
             tick={{ fontSize: 11 }}
