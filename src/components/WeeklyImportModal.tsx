@@ -2218,8 +2218,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
-        if (fdInfo.prevAcumLB != null) infoPatch.avancoPrev = fdInfo.prevAcumLB;
-        if (fdInfo.realAcum != null) infoPatch.avancoReal = fdInfo.realAcum;
+        if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
+        if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
+        if (fdInfo.prevSemanal != null) infoPatch.prevSemana = fdInfo.prevSemanal;
+        if (fdInfo.realSemanal != null) infoPatch.realSemana = fdInfo.realSemanal;
+        if (fdInfo.desvioSemanal != null) infoPatch.desvioSemana = fdInfo.desvioSemanal;
+        if (fdInfo.desvioAcumulado != null) infoPatch.desvioAcumulado = fdInfo.desvioAcumulado;
+        if (fdInfo.previstoProxSemana != null) infoPatch.previstoProxSemana = fdInfo.previstoProxSemana;
         // Preserve user-defined project name; only fill if empty
         if (currentInfo && !currentInfo.projeto && fdInfo.escopo) {
           const m = fdInfo.escopo.match(/PROJETO\s+(.+)$/i);
