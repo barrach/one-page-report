@@ -1357,6 +1357,8 @@ interface FormatDInfo {
   desvioSemanal?: number;
   prevAcumLB?: number;
   realAcum?: number;
+  desvioAcumulado?: number;
+  previstoProxSemana?: number;
 }
 
 interface FormatDBundle {
