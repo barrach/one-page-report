@@ -1858,10 +1858,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             <FileSpreadsheet className="h-5 w-5 text-primary" /> Importação Semanal
           </DialogTitle>
           <DialogDescription>
-            Suba os arquivos — o sistema identifica as abas pelo conteúdo, não pelo nome
+            {step === 'select'
+              ? 'Suba os arquivos — o sistema identifica as abas pelo conteúdo, não pelo nome'
+              : 'Marque os campos que deseja sobrescrever. Campos desmarcados manterão os dados atuais.'}
           </DialogDescription>
         </DialogHeader>
 
+        {step === 'select' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A, B ou C" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
           <UploadZone
