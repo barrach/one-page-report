@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 
 interface ChartInsightProps {
-  chartType: 'fiveweek' | 'scurve' | 'histogram' | 'month';
+  chartType: 'fiveweek' | 'scurve' | 'histogram' | 'month' | 'financialcurve';
   data: unknown;
   projectInfo?: { projeto?: string; avancoPrev?: number; avancoReal?: number };
 }
