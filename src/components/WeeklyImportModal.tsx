@@ -1569,8 +1569,8 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
   grid.forEach((row, i) => {
     const a = row?.[0];
     if (a == null) return;
-    const t = String(a);
-    const has = (s: string) => t.toLowerCase().includes(s.toLowerCase());
+    const colA = String(a).replace(/\s+/g, ' ').trim();
+    const has = (s: string) => colA.toLowerCase().includes(s.toLowerCase());
     if (rDates === -1 && has('Evento de Pagamento')) rDates = i;
     if (rPrevAcum === -1 && has('Prevista Acumulada')) rPrevAcum = i;
     if (rRealAcum === -1 && has('Real Acumulada')) rRealAcum = i;
@@ -1596,14 +1596,23 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
     }
     return 0;
   };
-  const isValidDateCell = (v: unknown) =>
-    v instanceof Date || (typeof v === 'string' && v.trim() !== '') || typeof v === 'number';
+  const isValidDateCell = (v: unknown) => {
+    if (v instanceof Date) return true;
+    if (typeof v === 'number' && v > 40000 && v < 60000) return true;
+    return false;
+  };
+  const excelSerialToDate = (serial: number) => new Date(Math.round((serial - 25569) * 86400 * 1000));
 
   const out: CurvaSFinanceiraPoint[] = [];
+  let started = false;
   for (let c = 1; c < dateRow.length; c++) {
     const raw = dateRow[c];
-    if (!isValidDateCell(raw)) break;
-    const d = toDate(raw);
+    if (!isValidDateCell(raw)) {
+      if (started) break;
+      continue;
+    }
+    started = true;
+    const d = typeof raw === 'number' ? excelSerialToDate(raw) : toDate(raw);
     if (!d) continue;
     out.push({
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
