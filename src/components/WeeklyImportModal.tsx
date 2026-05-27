@@ -1851,7 +1851,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   );
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setTimeout(reset, 300); }}>
+    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setTimeout(() => { reset(); setStep('select'); }, 300); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
