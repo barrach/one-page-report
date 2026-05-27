@@ -1407,11 +1407,13 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
     prazoTotal:    num(cell(6, 9)),       // I6
     diasCorridos:  num(cell(6, 10)),      // J6
     diasRestantes: num(cell(6, 11)),      // K6
-    prevSemanal:   pct(cell(12, 3)),      // C12
-    realSemanal:   pct(cell(13, 3)),      // C13
-    desvioSemanal: pct(cell(14, 3)),      // C14
-    prevAcumLB:    pct(cell(19, 3)),      // C19
-    realAcum:      pct(cell(20, 3)),      // C20
+    prevSemanal:        pct(cell(12, 3)),      // C12
+    realSemanal:        pct(cell(13, 3)),      // C13
+    desvioSemanal:      pct(cell(14, 3)),      // C14
+    previstoProxSemana: pct(cell(17, 3)),      // C17
+    prevAcumLB:         pct(cell(19, 3)),      // C19
+    realAcum:           pct(cell(20, 3)),      // C20
+    desvioAcumulado:    pct(cell(21, 3)),      // C21
   };
 };
 
