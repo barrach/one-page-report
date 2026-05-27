@@ -1634,12 +1634,37 @@ interface ImportResult {
   projectDates: ProjectDates;
   formatB?: FormatBBlock | null;
   formatC?: FormatCBundle | null;
+  formatD?: FormatDBundle | null;
   errors: string[];
 }
 
 const runImport = async (files: File[]): Promise<ImportResult> => {
   const scans = await Promise.all(files.map(scanFile));
   const allSheets = scans.flatMap(s => s.sheets);
+
+  // Try FORMAT D first (NTS/Megasteam — "00-RESUMO PROJETO-R1")
+  const formatD = detectFormatD(allSheets);
+  if (formatD) {
+    const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus);
+    const projectDates: ProjectDates = {
+      inicio: formatD.info.inicio,
+      terminoLB: formatD.info.terminoLB,
+    };
+    const errors: string[] = [];
+    if ('error' in curve) errors.push(curve.error);
+    return {
+      curveBlock: null,
+      curve,
+      histBlock: null,
+      hist: null,
+      projectDates,
+      formatB: null,
+      formatC: null,
+      formatD,
+      errors,
+    };
+  }
+
 
   // Try FORMAT C first (Relatório Integrado: curve + hist em abas separadas + RESUMO)
   const formatC = detectFormatC(allSheets);
