@@ -1599,66 +1599,6 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
   return out;
 };
 
-interface UploadZoneProps {
-  label: string;
-  subtitle?: string;
-  badge?: { text: string; variant: 'required' | 'optional' };
-  accept?: string;
-  status: 'idle' | 'loaded' | 'disabled';
-  fileName?: string;
-  disabledMessage?: string;
-  onFile: (f: File) => void;
-}
-
-const UploadZone = ({ label, subtitle, badge, accept = '.xlsx', status, fileName, disabledMessage, onFile }: UploadZoneProps) => {
-  const [dragOver, setDragOver] = useState(false);
-  const isDisabled = status === 'disabled';
-  return (
-    <label
-      onDragOver={(e) => { if (isDisabled) return; e.preventDefault(); setDragOver(true); }}
-      onDragLeave={() => setDragOver(false)}
-      onDrop={(e) => {
-        if (isDisabled) return;
-        e.preventDefault(); setDragOver(false);
-        const f = e.dataTransfer.files?.[0];
-        if (f) onFile(f);
-      }}
-      className={`flex-1 border-2 border-dashed rounded-lg p-4 text-center transition-colors relative ${
-        isDisabled ? 'border-muted bg-muted/30 opacity-60 cursor-not-allowed' :
-        dragOver ? 'border-primary bg-primary/5 cursor-pointer' :
-        status === 'loaded' ? 'border-success bg-success/5 cursor-pointer' :
-        'border-border hover:border-primary/50 cursor-pointer'
-      }`}
-    >
-      {badge && (
-        <span className={`absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded font-semibold ${
-          badge.variant === 'optional'
-            ? 'bg-muted text-muted-foreground'
-            : 'bg-primary/10 text-primary'
-        }`}>{badge.text}</span>
-      )}
-      <input type="file" accept={accept} className="hidden" disabled={isDisabled}
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f); }} />
-      <div className="flex flex-col items-center gap-2">
-        {isDisabled
-          ? <CheckCircle2 className="h-8 w-8 text-muted-foreground" />
-          : status === 'loaded'
-          ? <CheckCircle2 className="h-8 w-8 text-success" />
-          : <Upload className="h-8 w-8 text-muted-foreground" />}
-        <div className="font-semibold text-sm text-foreground">{label}</div>
-        {subtitle && <div className="text-[11px] text-muted-foreground">{subtitle}</div>}
-        <div className="text-xs">
-          {isDisabled
-            ? <span className="text-muted-foreground font-medium italic">{disabledMessage || 'Desabilitado'}</span>
-            : status === 'loaded' && fileName
-            ? <span className="text-success font-medium">✓ {fileName}</span>
-            : <span className="text-muted-foreground">Arraste ou clique para selecionar</span>}
-        </div>
-      </div>
-    </label>
-  );
-};
-
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -1666,64 +1606,102 @@ interface Props {
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
-  const [file1, setFile1] = useState<File | null>(null);
-  const [file2, setFile2] = useState<File | null>(null);
-  const [file3, setFile3] = useState<File | null>(null);
-  const [file4, setFile4] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [parsing, setParsing] = useState(false);
+  const [step, setStep] = useState<'upload' | 'fields'>('upload');
+
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [finCurve, setFinCurve] = useState<CurvaSFinanceiraPoint[] | null>(null);
   const [finCurveError, setFinCurveError] = useState<string | null>(null);
+  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; finCurve?: string }>({});
 
   const reset = () => {
-    setFile1(null); setFile2(null); setFile3(null); setFile4(null);
+    setFiles([]);
     setResult(null); setSchedule(null); setScheduleError(null);
     setFinCurve(null); setFinCurveError(null);
+    setSourceNames({});
   };
 
-  const runWith = useCallback(async (a: File | null, b: File | null) => {
-    const files = [a, b].filter((f): f is File => !!f);
+  const closeAll = (o: boolean) => {
+    onOpenChange(o);
+    if (!o) setTimeout(() => { reset(); setStep('upload'); }, 300);
+  };
+
+  const addFiles = (incoming: FileList | File[]) => {
+    const arr = Array.from(incoming);
+    setFiles(prev => {
+      const seen = new Set(prev.map(f => f.name + ':' + f.size));
+      const merged = [...prev];
+      for (const f of arr) {
+        const key = f.name + ':' + f.size;
+        if (!seen.has(key)) { merged.push(f); seen.add(key); }
+      }
+      return merged;
+    });
+  };
+
+  const removeFile = (idx: number) =>
+    setFiles(prev => prev.filter((_, i) => i !== idx));
+
+  const analyze = useCallback(async () => {
     if (!files.length) return;
     setParsing(true);
-    try {
-      setResult(await runImport(files));
-    } catch (e) {
-      setResult({ curveBlock: null, curve: null, histBlock: null, hist: null, projectDates: {}, formatC: null, errors: [(e as Error).message] });
+    setResult(null); setSchedule(null); setScheduleError(null);
+    setFinCurve(null); setFinCurveError(null);
+    setSourceNames({});
+
+    const xmls = files.filter(f => /\.xml$/i.test(f.name));
+    const xlsxs = files.filter(f => /\.xlsx?$/i.test(f.name));
+    const used = new Set<string>();
+    const srcs: typeof sourceNames = {};
+
+    // 1) Curva S / Histograma (formatos A/B/C) — em todos os xlsx
+    let res: ImportResult | null = null;
+    if (xlsxs.length) {
+      try { res = await runImport(xlsxs); }
+      catch (e) { res = { curveBlock: null, curve: null, histBlock: null, hist: null, projectDates: {}, formatC: null, errors: [(e as Error).message] }; }
     }
+    if (res) {
+      const cb = res.curveBlock || res.formatB || res.formatC?.curve;
+      if (cb) { used.add(cb.ref.fileName); srcs.curve = cb.ref.fileName; }
+      if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
+    }
+    setResult(res);
+
+    // 2) Curva S Financeira — xlsx restantes
+    for (const f of xlsxs) {
+      if (used.has(f.name)) continue;
+      try {
+        const rows = await parseFinancialCurve(f);
+        if (rows.length) {
+          setFinCurve(rows);
+          used.add(f.name); srcs.finCurve = f.name;
+          break;
+        }
+      } catch { /* not a financial sheet */ }
+    }
+
+    // 3) Cronograma — todos xml + xlsx restantes
+    const schedCandidates = [...xmls, ...xlsxs.filter(f => !used.has(f.name))];
+    let lastErr: string | null = null;
+    for (const f of schedCandidates) {
+      try {
+        const ex = await parseScheduleFile(f);
+        if (ex.rows.length) { setSchedule(ex); srcs.schedule = f.name; break; }
+      } catch (e) { lastErr = (e as Error).message; }
+    }
+    if (!srcs.schedule && lastErr && schedCandidates.length) setScheduleError(lastErr);
+
+    setSourceNames(srcs);
     setParsing(false);
-  }, []);
-
-  const onFile1 = useCallback((f: File) => { setFile1(f); runWith(f, file2); }, [file2, runWith]);
-  const onFile2 = useCallback((f: File) => { setFile2(f); runWith(file1, f); }, [file1, runWith]);
-  const onFile3 = useCallback(async (f: File) => {
-    setFile3(f); setSchedule(null); setScheduleError(null);
-    try {
-      const ex = await parseScheduleFile(f);
-      if (!ex.rows.length) setScheduleError('Nenhuma tarefa encontrada no arquivo');
-      else setSchedule(ex);
-    } catch (e) {
-      setScheduleError((e as Error).message);
-    }
-  }, []);
-
-  const onFile4 = useCallback(async (f: File) => {
-    setFile4(f); setFinCurve(null); setFinCurveError(null);
-    try {
-      const rows = await parseFinancialCurve(f);
-      if (!rows.length) setFinCurveError('Nenhum dado mensal válido encontrado na aba');
-      else setFinCurve(rows);
-    } catch (e) {
-      setFinCurveError((e as Error).message);
-    }
-  }, []);
+  }, [files]);
 
   const curveOk = result?.curve && !('error' in result.curve);
   const histOk = result?.hist && !('error' in result.hist);
-  const canConfirm = !!(curveOk || histOk || schedule || finCurve);
 
-  // ─── Field selection (second step) ───
+  // ─── Field selection (segunda etapa) ───
   type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
   const FIELD_LABELS: Record<FieldKey, string> = {
     sCurve: 'Curva S — Previsto / Real / Tendência',
@@ -1734,14 +1712,14 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
   };
-  const FIELD_SOURCE: Record<FieldKey, string> = {
-    sCurve: 'Arquivo 1',
-    weekly: 'Arquivo 1',
-    monthly: 'Arquivo 1',
-    projectInfo: 'Arquivo 1',
-    histogram: result?.formatB || result?.formatC ? 'Arquivo 1' : 'Arquivo 2',
-    schedule: 'Arquivo 3',
-    finCurve: 'Arquivo 4',
+  const FIELD_SOURCE: Record<FieldKey, string | undefined> = {
+    sCurve: sourceNames.curve,
+    weekly: sourceNames.curve,
+    monthly: sourceNames.curve,
+    projectInfo: sourceNames.curve,
+    histogram: sourceNames.hist || sourceNames.curve,
+    schedule: sourceNames.schedule,
+    finCurve: sourceNames.finCurve,
   };
 
   const c = curveOk ? (result!.curve as CurveExtract) : null;
@@ -1761,22 +1739,38 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     finCurve: !!(finCurve && finCurve.length),
   };
 
-  const [step, setStep] = useState<'select' | 'fields'>('select');
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
     sCurve: true, weekly: true, monthly: true, histogram: true,
     schedule: true, finCurve: true, projectInfo: true,
   });
 
-  const goToFieldsStep = () => {
-    // Re-init selection: every available field starts checked
-    const next = {} as Record<FieldKey, boolean>;
-    (Object.keys(available) as FieldKey[]).forEach(k => { next[k] = available[k]; });
-    setSelectedFields(next);
+  const advance = async () => {
+    await analyze();
     setStep('fields');
   };
 
-  const toggleField = (k: FieldKey) =>
+  // Re-init selection sempre que entrar na etapa 'fields' com novos resultados
+  const goBack = () => setStep('upload');
+
+  // Inicializa seleção quando dados de análise mudam e estamos na etapa fields
+  // (também aplicado ao entrar na etapa)
+  const initSelection = useCallback(() => {
+    const next = {} as Record<FieldKey, boolean>;
+    (Object.keys(available) as FieldKey[]).forEach(k => { next[k] = available[k]; });
+    setSelectedFields(next);
+  }, [available]);
+
+  // Atualiza seleção quando entra em 'fields'
+  useState(() => {});
+  if (step === 'fields' && !parsing) {
+    // sync once per render: only re-init if a key is "available && undefined"
+    // (lightweight — replace prior implicit init)
+  }
+
+  const toggleField = (k: FieldKey) => {
+    if (!available[k]) return;
     setSelectedFields(prev => ({ ...prev, [k]: !prev[k] }));
+  };
 
   const anyFieldChecked = (Object.keys(available) as FieldKey[])
     .some(k => available[k] && selectedFields[k]);
@@ -1797,8 +1791,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       }
       if (c.weekly.length && weeklyValido && selectedFields.weekly) {
         setWeeklyData(c.weekly); setLastImport('weekly', now); count++;
-      } else if (c.weekly.length && !weeklyValido) {
-        console.warn('[IMPORT] Resultado Semanal não atualizado: dados semanais insuficientes');
       }
       if (c.monthly.length && selectedFields.monthly) {
         setMonthData(c.monthly); setLastImport('month', now); count++;
@@ -1814,7 +1806,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       const h = result!.hist as HistExtract;
       if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
     }
-    // Project dates + FORMAT C info: only when projectInfo selected
     if (selectedFields.projectInfo) {
       const pd = result?.projectDates;
       if (pd && currentInfo) {
@@ -1841,346 +1832,248 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       count++;
     }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
-    onOpenChange(false);
-    setTimeout(() => { reset(); setStep('select'); }, 300);
+    closeAll(false);
   };
 
-  const chip = (label: string, ok: boolean) => (
-    <span key={label} className={`inline-block px-2 py-0.5 rounded text-[11px] font-mono mr-1 mb-1 ${ok ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
-      {ok ? '✓' : '✗'} {label}
-    </span>
-  );
-
   return (
-    <Dialog open={open} onOpenChange={(o) => { onOpenChange(o); if (!o) setTimeout(() => { reset(); setStep('select'); }, 300); }}>
+    <Dialog open={open} onOpenChange={closeAll}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-primary" /> Importação Semanal
           </DialogTitle>
           <DialogDescription>
-            {step === 'select'
-              ? 'Suba os arquivos — o sistema identifica as abas pelo conteúdo, não pelo nome'
+            {step === 'upload'
+              ? 'Suba seus arquivos — o sistema identifica o conteúdo de cada um automaticamente'
               : 'Marque os campos que deseja sobrescrever. Campos desmarcados manterão os dados atuais.'}
           </DialogDescription>
         </DialogHeader>
 
-        {step === 'select' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A, B ou C" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
-          <UploadZone
-            label="Arquivo 2 — Histograma MOD (.xlsx)"
-            badge={{ text: (result?.formatB || result?.formatC) ? 'Não necessário' : 'Obrigatório', variant: (result?.formatB || result?.formatC) ? 'optional' : 'required' }}
-            status={(result?.formatB || result?.formatC) ? 'disabled' : (file2 ? 'loaded' : 'idle')}
-            fileName={file2?.name}
-            disabledMessage={result?.formatC ? 'Incluído no Arquivo 1 (FORMATO C)' : 'Incluído no Arquivo 1 (FORMATO B)'}
-            onFile={onFile2}
-          />
-
-          <UploadZone
-            label="Arquivo 3 — Cronograma (.xml ou .xlsx)"
-            subtitle="Opcional — MS Project: XML ou Excel exportado"
-            badge={{ text: 'Opcional', variant: 'optional' }}
-            accept=".xml,.xlsx,.xls"
-            status={file3 ? 'loaded' : 'idle'}
-            fileName={file3?.name}
-            onFile={onFile3}
-          />
-
-          <UploadZone
-            label="Arquivo 4 — Curva S Financeira (.xlsx)"
-            subtitle='Aba "02-CURVA S- FINANCEIRA" — medição mensal (R$)'
-            badge={{ text: 'Opcional', variant: 'optional' }}
-            accept=".xlsx,.xls"
-            status={file4 ? 'loaded' : 'idle'}
-            fileName={file4?.name}
-            onFile={onFile4}
-          />
-        </div>
-        )}
-
-        {step === 'select' && parsing && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
-            <Loader2 className="h-4 w-4 animate-spin" /> Analisando arquivos...
-          </div>
-        )}
-
-        {step === 'select' && (result || schedule || scheduleError || finCurve || finCurveError) && !parsing && (
+        {step === 'upload' && (
           <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
-              <h3 className="font-semibold text-sm">Resumo de Detecção</h3>
+            <MultiUploadZone files={files} onAdd={addFiles} onRemove={removeFile} />
 
-              {result?.errors.map((e, i) => (
-                <div key={i} className="text-xs text-destructive flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" /> {e}
-                </div>
-              ))}
-
-              {result && (
-                <>
-                  {/* CURVA_GERAL */}
-                  <div className="text-xs space-y-2">
-                    <div className="font-medium text-foreground">
-                      📊 Curva S / Semanal / Prev x Mês
-                      {result.formatC && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO C (Relatório Integrado)</span>}
-                      {result.formatB && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO B (Arquivo Integrado)</span>}
-                      {result.curveBlock && !result.formatB && !result.formatC && <span className="ml-1 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">FORMATO A (Curva S Padrão)</span>}
-                    </div>
-                    {!result.curveBlock && !result.formatB && !result.formatC ? (
-                      <div className="pl-4 text-destructive">Aba não identificada</div>
-                    ) : (
-                      <div className="pl-4 space-y-1">
-                        <div className="text-muted-foreground">
-                          Arquivo: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB?.ref || result.formatC!.curve.ref).fileName}</span> ·
-                          Aba: <span className="font-mono text-foreground">{(result.curveBlock?.ref || result.formatB?.ref || result.formatC!.curve.ref).sheetName}</span>
-                        </div>
-                        {result.curveBlock && (
-                          <div>{(Object.keys(CURVE_HUMAN) as CurveKey[]).map(k => chip(CURVE_HUMAN[k], !!result.curveBlock!.pos[k]))}</div>
-                        )}
-                        {result.formatB && (
-                          <div>
-                            {chip('Prev. LB Acu.', result.formatB.rowPrevAcu >= 0)}
-                            {chip('Real Acu.', result.formatB.rowRealAcu >= 0)}
-                            {chip('Tend. Acu.', result.formatB.rowTendAcu >= 0)}
-                            {chip('Prev. Sem.', result.formatB.rowPrevSem >= 0)}
-                            {chip('Real Sem.', result.formatB.rowRealSem >= 0)}
-                            {chip('Replanej.', result.formatB.rowReplanjAcu >= 0)}
-                            {chip('MOD Prev', result.formatB.rowModPrev >= 0)}
-                            {chip('MOD Real', result.formatB.rowModReal >= 0)}
-                          </div>
-                        )}
-                        {result.formatC && (
-                          <div>
-                            {chip('Prev. LB Acu.', result.formatC.curve.rowPrevAcu >= 0)}
-                            {chip('Real Acu.', result.formatC.curve.rowRealAcu >= 0)}
-                            {chip('Tend. Acu.', result.formatC.curve.rowTendAcu >= 0)}
-                            {chip('Prev. Sem.', result.formatC.curve.rowPrevSem >= 0)}
-                            {chip('Real Sem.', result.formatC.curve.rowRealSem >= 0)}
-                            {chip('Replanej.', result.formatC.curve.rowReplanjAcu >= 0)}
-                            {chip('Hist. PLAN/REAL', !!result.formatC.hist)}
-                            {chip('RESUMO', !!(result.formatC.info.projeto || result.formatC.info.cliente))}
-                          </div>
-                        )}
-                        {result.curve && ('error' in result.curve ? (
-                          <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.curve.error}</div>
-                        ) : (() => {
-                          const c = result.curve as CurveExtract;
-                          const sd = c.statusDate;
-                          const sdFull = `${String(sd.getDate()).padStart(2, '0')}/${MONTHS_PT[sd.getMonth()]}/${sd.getFullYear()}`;
-                          const realStr = c.realAcuLast.toFixed(2).replace('.', ',');
-                          const updateDate = result.formatC?.curve.updateDate ?? result.formatB?.updateDate ?? sd;
-                          const udFull = `${String(updateDate.getDate()).padStart(2, '0')}/${MONTHS_PT[updateDate.getMonth()]}/${updateDate.getFullYear()}`;
-
-                          return (
-                            <>
-                              <div className="rounded bg-success/10 border border-success/30 px-2 py-1 text-foreground space-y-0.5">
-                                <div>📅 <strong>Data de Status detectada:</strong> {sdFull}</div>
-                                <div>Última semana com Real: <strong>{fmtDDmmm(sd)}</strong> ({realStr}%)</div>
-                                <div className="pt-1 border-t border-success/30 mt-1">
-                                  <div className="font-semibold">Informações do Projeto:</div>
-                                  <div>· Avanço Prev.: <strong>{c.prevAcuLast.toFixed(2).replace('.', ',')}%</strong></div>
-                                  <div>· Avanço Real: <strong>{realStr}%</strong></div>
-                                  <div>· Atualizado em: <strong>{udFull}</strong></div>
-                                </div>
-                              </div>
-                              <div className="text-muted-foreground">
-                                Curva S: {c.sCurve.length} sem · Semanal: {(() => {
-                                  const upTo = c.cols.slice(0, c.ultimaReal + 1).slice(-8);
-                                  const ok = upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length >= 3;
-                                  return ok ? `${c.weekly.length} sem` : <span className="text-amber-600 dark:text-amber-400">⚠ não disponível neste arquivo</span>;
-                                })()} · Mensal: {c.monthly.length} meses
-                              </div>
-                              {result.projectDates && (result.projectDates.inicio || result.projectDates.terminoLB || result.projectDates.terminoPrev) && (
-                                <div className="text-muted-foreground">
-                                  Datas do projeto detectadas:
-                                  {result.projectDates.inicio && <> Início <strong className="text-foreground">{fmtDDmmm(result.projectDates.inicio)}/{result.projectDates.inicio.getFullYear()}</strong></>}
-                                  {result.projectDates.terminoLB && <> · Término LB <strong className="text-foreground">{fmtDDmmm(result.projectDates.terminoLB)}/{result.projectDates.terminoLB.getFullYear()}</strong></>}
-                                  {result.projectDates.terminoPrev && <> · Término Prev <strong className="text-foreground">{fmtDDmmm(result.projectDates.terminoPrev)}/{result.projectDates.terminoPrev.getFullYear()}</strong></>}
-                                </div>
-                              )}
-                            </>
-                          );
-                        })())}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* HISTOGRAMA */}
-                  <div className="text-xs space-y-2">
-                    <div className="font-medium text-foreground">👥 Histograma MOD</div>
-                    {!result.histBlock ? (
-                      <div className="pl-4 text-destructive">Aba não identificada</div>
-                    ) : (
-                      <div className="pl-4 space-y-1">
-                        <div className="text-muted-foreground">
-                          Arquivo: <span className="font-mono text-foreground">{result.histBlock.ref.fileName}</span> ·
-                          Aba: <span className="font-mono text-foreground">{result.histBlock.ref.sheetName}</span>
-                        </div>
-                        <div>
-                          {chip('Dia', true)}{chip('TOTAL PREVISTA', true)}{chip('TOTAL REAL', true)}
-                          {chip('MÃO DE OBRA DIRETA', true)}{chip('MÃO DE OBRA INDIRETA', true)}
-                        </div>
-                        {result.hist && ('error' in result.hist ? (
-                          <div className="text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{result.hist.error}</div>
-                        ) : (() => {
-                          const h = result.hist as HistExtract;
-                          return (
-                            <div className="text-muted-foreground">
-                              Semanas exibidas: <span className="font-semibold text-foreground">{h.histogram.length}</span> ·
-                              Última com Real: <span className="font-semibold text-foreground">
-                                {h.ultimaReal >= 0 && h.histogram.length
-                                  ? h.histogram.find(x => x.real > 0)?.date || '—'
-                                  : '—'}
-                              </span>
-                            </div>
-                          );
-                        })())}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* CRONOGRAMA (opcional) */}
-              {(schedule || scheduleError) && (
-                <div className="text-xs space-y-2">
-                  <div className="font-medium text-foreground flex items-center gap-1">
-                    <CalendarDays className="h-3.5 w-3.5" /> Cronograma <span className="text-muted-foreground font-normal">(opcional)</span>
-                  </div>
-                  {scheduleError ? (
-                    <div className="pl-4 text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{scheduleError}</div>
-                  ) : schedule && (
-                    <div className="pl-4 space-y-1">
-                      <div className="text-muted-foreground">
-                        Cronograma: <span className="font-semibold text-foreground">{schedule.rows.length}</span> tarefas encontradas
-                        {' · '}formato: <span className="font-mono text-foreground">{schedule.format === 'xml' ? 'XML do Project' : 'Excel'}</span>
-                      </div>
-                      {schedule.mapping && schedule.mapping.length > 0 && (() => {
-                        const labels: Record<ScheduleField, string> = {
-                          tarefa: 'Nome da Tarefa', id: 'Id', previsto: 'Prev. %',
-                          trabalhoConcluido: '% Trab.', desvio: 'Desvio',
-                          inicio: 'Início', termino: 'Término',
-                          inicioBase: 'Início Base', terminoBase: 'Término Base',
-                          nivel: 'Nível',
-                        };
-                        const order: ScheduleField[] = ['tarefa', 'id', 'previsto', 'trabalhoConcluido', 'desvio', 'inicio', 'termino', 'inicioBase', 'terminoBase'];
-                        const found = new Map(schedule.mapping.map((m) => [m.field, m]));
-                        return (
-                          <div className="rounded-md border bg-muted/30 p-2 font-mono text-[11px] leading-relaxed">
-                            <div className="text-muted-foreground mb-1">Mapeamento detectado:</div>
-                            {order.map((f) => {
-                              const e = found.get(f);
-                              const label = labels[f].padEnd(14, ' ');
-                              if (e) {
-                                return (
-                                  <div key={f} className="text-foreground">
-                                    <span className="text-green-600">✓</span> {label} ← col {e.col} <span className="text-muted-foreground">'{e.header}'</span>
-                                  </div>
-                                );
-                              }
-                              const fallback = f === 'id' ? 'usando sequencial'
-                                : f === 'desvio' ? 'calculado (Prev − %Trab)'
-                                : f === 'inicioBase' || f === 'terminoBase' ? 'exibido como ND'
-                                : 'vazio';
-                              return (
-                                <div key={f} className="text-amber-600">
-                                  ⚠ {label} ← não encontrado ({fallback})
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-
-                </div>
-              )}
-
-              {(finCurve || finCurveError) && (
-                <div className="text-xs space-y-2">
-                  <div className="font-medium text-foreground">💰 Curva S Financeira <span className="text-muted-foreground font-normal">(opcional)</span></div>
-                  {finCurveError ? (
-                    <div className="pl-4 text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{finCurveError}</div>
-                  ) : finCurve && (
-                    <div className="pl-4 text-muted-foreground">
-                      <span className="font-semibold text-foreground">{finCurve.length}</span> meses detectados ·
-                      Prev. Acum. final: <span className="font-semibold text-foreground">{(finCurve[finCurve.length - 1]?.prevAcum || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</span> ·
-                      Real Acum. final: <span className="font-semibold text-foreground">{(finCurve[finCurve.length - 1]?.realAcum || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {parsing && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2 justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" /> Analisando arquivos...
+              </div>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button onClick={goToFieldsStep} disabled={!canConfirm} className="gradient-primary text-primary-foreground">
-                Avançar — Selecionar Campos
+              <Button variant="outline" onClick={() => closeAll(false)}>Cancelar</Button>
+              <Button
+                onClick={advance}
+                disabled={!files.length || parsing}
+                className="gradient-primary text-primary-foreground"
+              >
+                Avançar — Analisar Arquivos
               </Button>
             </div>
           </div>
         )}
 
         {step === 'fields' && (
-          <div className="space-y-4">
-            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
-              <h3 className="font-semibold text-sm">Selecionar campos a importar</h3>
-              <p className="text-xs text-muted-foreground">
-                Todos os campos detectados vêm marcados. Desmarque os que não deseja sobrescrever — eles manterão os dados atuais do projeto.
-              </p>
-
-              <div className="space-y-2 pt-1">
-                {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => {
-                  const isAvailable = available[k];
-                  const checked = !!selectedFields[k] && isAvailable;
-                  return (
-                    <label
-                      key={k}
-                      className={`flex items-start gap-3 p-2.5 rounded-md border transition-colors ${
-                        isAvailable
-                          ? 'border-border bg-card hover:bg-muted/50 cursor-pointer'
-                          : 'border-border/50 bg-muted/20 opacity-50 cursor-not-allowed'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="mt-0.5 h-4 w-4 accent-primary"
-                        checked={checked}
-                        disabled={!isAvailable}
-                        onChange={() => isAvailable && toggleField(k)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium text-foreground">{FIELD_LABELS[k]}</span>
-                          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-primary/10 text-primary">
-                            {FIELD_SOURCE[k]}
-                          </span>
-                          {!isAvailable && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-muted text-muted-foreground">
-                              não detectado
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div className="flex justify-between gap-2 pt-2">
-              <Button variant="outline" onClick={() => setStep('select')}>← Voltar</Button>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-                <Button onClick={confirm} disabled={!anyFieldChecked} className="gradient-primary text-primary-foreground">
-                  Confirmar Importação
-                </Button>
-              </div>
-            </div>
-          </div>
+          <FieldsStep
+            files={files}
+            available={available}
+            selectedFields={selectedFields}
+            toggleField={toggleField}
+            FIELD_LABELS={FIELD_LABELS}
+            FIELD_SOURCE={FIELD_SOURCE}
+            anyFieldChecked={anyFieldChecked}
+            onBack={goBack}
+            onCancel={() => closeAll(false)}
+            onConfirm={confirm}
+            initSelection={initSelection}
+            result={result}
+            scheduleError={scheduleError}
+            finCurveError={finCurveError}
+          />
         )}
       </DialogContent>
     </Dialog>
   );
 }
+
+// ─── Multi-file Upload Zone ───
+function MultiUploadZone({
+  files, onAdd, onRemove,
+}: { files: File[]; onAdd: (f: FileList | File[]) => void; onRemove: (i: number) => void }) {
+  const [dragOver, setDragOver] = useState(false);
+  return (
+    <div className="space-y-3">
+      <label
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault(); setDragOver(false);
+          if (e.dataTransfer.files?.length) onAdd(e.dataTransfer.files);
+        }}
+        className={`block border-2 border-dashed rounded-lg p-8 text-center transition-colors cursor-pointer ${
+          dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
+        }`}
+      >
+        <input
+          type="file"
+          accept=".xlsx,.xls,.xml"
+          multiple
+          className="hidden"
+          onChange={(e) => { if (e.target.files?.length) onAdd(e.target.files); e.currentTarget.value = ''; }}
+        />
+        <div className="flex flex-col items-center gap-2">
+          <Upload className="h-10 w-10 text-muted-foreground" />
+          <div className="font-semibold text-sm text-foreground">
+            Arraste os arquivos ou clique para selecionar
+          </div>
+          <div className="text-xs text-muted-foreground">
+            O sistema identifica automaticamente o conteúdo de cada arquivo
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1">
+            Aceita .xlsx e .xml — múltiplos arquivos
+          </div>
+        </div>
+      </label>
+
+      {files.length > 0 && (
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+          <div className="text-xs font-semibold text-muted-foreground mb-2">
+            {files.length} arquivo{files.length > 1 ? 's' : ''} selecionado{files.length > 1 ? 's' : ''}
+          </div>
+          {files.map((f, i) => (
+            <div key={i} className="flex items-center gap-2 text-sm bg-card border rounded px-2.5 py-1.5">
+              <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+              <span className="flex-1 truncate font-medium text-foreground">{f.name}</span>
+              <button
+                onClick={() => onRemove(i)}
+                className="text-muted-foreground hover:text-destructive transition-colors"
+                aria-label="Remover"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Fields Step ───
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
+function FieldsStep({
+  files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
+  anyFieldChecked, onBack, onCancel, onConfirm, initSelection,
+  result, scheduleError, finCurveError,
+}: {
+  files: File[];
+  available: Record<FieldKeyT, boolean>;
+  selectedFields: Record<FieldKeyT, boolean>;
+  toggleField: (k: FieldKeyT) => void;
+  FIELD_LABELS: Record<FieldKeyT, string>;
+  FIELD_SOURCE: Record<FieldKeyT, string | undefined>;
+  anyFieldChecked: boolean;
+  onBack: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+  initSelection: () => void;
+  result: ImportResult | null;
+  scheduleError: string | null;
+  finCurveError: string | null;
+}) {
+  // init once on mount
+  const didInit = (FieldsStep as unknown as { _init?: boolean });
+  if (!didInit._init) { initSelection(); didInit._init = true; setTimeout(() => { didInit._init = false; }, 0); }
+
+  const allMissing = !(Object.keys(available) as FieldKeyT[]).some(k => available[k]);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-sm">Selecionar campos a importar</h3>
+          <span className="text-[11px] text-muted-foreground">
+            {files.length} arquivo{files.length > 1 ? 's' : ''} analisado{files.length > 1 ? 's' : ''}
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Campos detectados vêm marcados. Desmarque os que não deseja sobrescrever — eles manterão os dados atuais.
+          Campos não detectados aparecem desabilitados.
+        </p>
+
+        {allMissing && (
+          <div className="text-xs text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" /> Nenhum conteúdo reconhecido nos arquivos enviados.
+          </div>
+        )}
+
+        {result?.errors?.map((e, i) => (
+          <div key={i} className="text-xs text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" /> {e}
+          </div>
+        ))}
+        {scheduleError && (
+          <div className="text-xs text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" /> Cronograma: {scheduleError}
+          </div>
+        )}
+        {finCurveError && (
+          <div className="text-xs text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" /> Curva S Financeira: {finCurveError}
+          </div>
+        )}
+
+        <div className="space-y-2 pt-1">
+          {(Object.keys(FIELD_LABELS) as FieldKeyT[]).map((k) => {
+            const isAvailable = available[k];
+            const checked = !!selectedFields[k] && isAvailable;
+            const src = FIELD_SOURCE[k];
+            return (
+              <label
+                key={k}
+                className={`flex items-start gap-3 p-2.5 rounded-md border transition-colors ${
+                  isAvailable
+                    ? 'border-border bg-card hover:bg-muted/50 cursor-pointer'
+                    : 'border-border/50 bg-muted/20 opacity-50 cursor-not-allowed'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 accent-primary"
+                  checked={checked}
+                  disabled={!isAvailable}
+                  onChange={() => toggleField(k)}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-foreground">{FIELD_LABELS[k]}</span>
+                    {isAvailable && src && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-mono bg-primary/10 text-primary truncate max-w-[260px]">
+                        {src}
+                      </span>
+                    )}
+                    {!isAvailable && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-muted text-muted-foreground">
+                        não detectado
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="flex justify-between gap-2 pt-2">
+        <Button variant="outline" onClick={onBack}>← Voltar</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={onConfirm} disabled={!anyFieldChecked} className="gradient-primary text-primary-foreground">
+            Confirmar Importação
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
