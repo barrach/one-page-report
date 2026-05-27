@@ -1703,10 +1703,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
     }
 
-    // 2) Curva S Financeira — xlsx restantes
+    // 2) Curva S Financeira — varre TODOS os xlsx (pode estar no mesmo arquivo da Curva S)
     let fin: CurvaSFinanceiraPoint[] | null = null;
     for (const f of xlsxs) {
-      if (used.has(f.name)) continue;
       try {
         const rows = await parseFinancialCurve(f);
         if (rows.length) { fin = rows; used.add(f.name); srcs.finCurve = f.name; break; }
