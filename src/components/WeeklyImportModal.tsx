@@ -1604,9 +1604,14 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
   const excelSerialToDate = (serial: number) => new Date(Math.round((serial - 25569) * 86400 * 1000));
 
   const out: CurvaSFinanceiraPoint[] = [];
+  let started = false;
   for (let c = 1; c < dateRow.length; c++) {
     const raw = dateRow[c];
-    if (!isValidDateCell(raw)) break;
+    if (!isValidDateCell(raw)) {
+      if (started) break;
+      continue;
+    }
+    started = true;
     const d = typeof raw === 'number' ? excelSerialToDate(raw) : toDate(raw);
     if (!d) continue;
     out.push({
