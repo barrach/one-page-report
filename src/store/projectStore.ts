@@ -103,8 +103,9 @@ export interface Project {
   observations: Observation[];
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
+  curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
-  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string };
+  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
