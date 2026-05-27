@@ -1664,18 +1664,22 @@ interface Props {
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
   const [file3, setFile3] = useState<File | null>(null);
+  const [file4, setFile4] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [finCurve, setFinCurve] = useState<CurvaSFinanceiraPoint[] | null>(null);
+  const [finCurveError, setFinCurveError] = useState<string | null>(null);
 
   const reset = () => {
-    setFile1(null); setFile2(null); setFile3(null);
+    setFile1(null); setFile2(null); setFile3(null); setFile4(null);
     setResult(null); setSchedule(null); setScheduleError(null);
+    setFinCurve(null); setFinCurveError(null);
   };
 
   const runWith = useCallback(async (a: File | null, b: File | null) => {
