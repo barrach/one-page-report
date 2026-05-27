@@ -51,15 +51,12 @@ const FinancialCurveChart = () => {
     }));
   }, [curvaSFinanceira]);
 
-  const leftDomain = useMemo<[number, number]>(() => {
-    const max = Math.max(0, ...chartData.map((d) => Math.max(d.previstoMensal ?? 0, d.realMensal ?? 0)));
-    return [0, max > 0 ? Math.ceil(max * 1.2) : 1];
-  }, [chartData]);
-
-  const rightDomain = useMemo<[number, number]>(() => {
-    const max = Math.max(0, ...chartData.map((d) => Math.max(d.prevAcum ?? 0, d.realAcum ?? 0)));
-    return [0, max > 0 ? Math.ceil(max * 1.1) : 1];
-  }, [chartData]);
+  const LEFT_TICKS = [0, 100000, 200000, 300000, 400000, 500000, 600000];
+  const RIGHT_TICKS = [0, 20000000, 40000000, 60000000, 80000000, 100000000, 120000000, 140000000];
+  const fmtTickLeft = (v: number) =>
+    `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const fmtTickRight = (v: number) =>
+    v === 0 ? 'R$ -' : `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const statusMes = useMemo(() => {
     const cut = Math.min(statusDateIndex, (sCurveData?.length || 1) - 1);
@@ -131,20 +128,22 @@ const FinancialCurveChart = () => {
           <YAxis
             yAxisId="left"
             orientation="left"
-            domain={leftDomain}
-            tickFormatter={(v) => fmtBRLShort(v)}
+            domain={[0, 600000]}
+            ticks={LEFT_TICKS}
+            tickFormatter={fmtTickLeft}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
-            width={70}
+            width={100}
           />
           <YAxis
             yAxisId="right"
             orientation="right"
-            domain={rightDomain}
-            tickFormatter={(v) => fmtBRLShort(v)}
+            domain={[0, 140000000]}
+            ticks={RIGHT_TICKS}
+            tickFormatter={fmtTickRight}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
-            width={70}
+            width={130}
           />
           <Tooltip content={<CustomTooltip />} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -167,24 +166,24 @@ const FinancialCurveChart = () => {
             </ReferenceLine>
           )}
           <Bar yAxisId="left" dataKey="previstoMensal" name="Medição Prevista (R$)" fill={COLORS.prevBar} isAnimationActive={false}>
-            <LabelList dataKey="previstoMensal" position="top" fontSize={9} fill={COLORS.prevBar} formatter={(v: number) => fmtBRLShort(v)} />
+            <LabelList dataKey="previstoMensal" position="top" fontSize={9} fill={COLORS.prevBar} formatter={(v: number) => fmtBRLFull(v)} />
           </Bar>
           <Bar yAxisId="left" dataKey="realMensal" name="Medição Real (R$)" fill={COLORS.realBar} isAnimationActive={false}>
-            <LabelList dataKey="realMensal" position="top" fontSize={9} fill={COLORS.realBar} formatter={(v: number) => fmtBRLShort(v)} />
+            <LabelList dataKey="realMensal" position="top" fontSize={9} fill={COLORS.realBar} formatter={(v: number) => fmtBRLFull(v)} />
           </Bar>
           <Line
             yAxisId="right" type="monotone" dataKey="prevAcum" name="Medição Prevista Acumulada (R$)"
             stroke={COLORS.prevLine} strokeWidth={2} dot={{ r: 3, fill: COLORS.prevLine }}
             connectNulls={false} isAnimationActive={false}
           >
-            <LabelList dataKey="prevAcum" position="top" fontSize={9} fill={COLORS.prevLine} formatter={(v: number) => fmtBRLShort(v)} />
+            <LabelList dataKey="prevAcum" position="top" fontSize={9} fill={COLORS.prevLine} formatter={(v: number) => fmtBRLFull(v)} />
           </Line>
           <Line
             yAxisId="right" type="monotone" dataKey="realAcum" name="Medição Real Acumulada (R$)"
             stroke={COLORS.realLine} strokeWidth={2} dot={{ r: 3, fill: COLORS.realLine }}
             connectNulls={false} isAnimationActive={false}
           >
-            <LabelList dataKey="realAcum" position="bottom" fontSize={9} fill={COLORS.realLine} formatter={(v: number) => fmtBRLShort(v)} />
+            <LabelList dataKey="realAcum" position="bottom" fontSize={9} fill={COLORS.realLine} formatter={(v: number) => fmtBRLFull(v)} />
           </Line>
         </ComposedChart>
       </ResponsiveContainer>
