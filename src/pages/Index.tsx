@@ -13,7 +13,7 @@ import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ScheduleTable from '@/components/ScheduleTable';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
-import { useProjectStore } from '@/store/projectStore';
+import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -38,6 +38,21 @@ const Index = () => {
   const [presentationMode, setPresentationMode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  const current = useCurrentProject();
+
+  const hasRows = (arr: any[] | undefined, keys: string[]) =>
+    Array.isArray(arr) && arr.some((r) => r && keys.some((k) => {
+      const v = (r as any)[k];
+      return v !== undefined && v !== null && v !== '' && v !== 0;
+    }));
+
+  const showSCurve = hasRows(current?.sCurveData, ['date']);
+  const showHistogram = hasRows(current?.histogramData, ['date', 'semana']);
+  const showFinancial = Array.isArray(current?.curvaSFinanceira) && current.curvaSFinanceira.length > 0;
+  const showFiveWeek = hasRows(current?.weeklyData, ['date']);
+  const showMonth = hasRows(current?.monthData, ['week', 'date']);
+  const showSchedule = hasRows(current?.scheduleData, ['tarefa', 'id']);
+  const showExecutive = showSCurve || showHistogram || showFinancial || showFiveWeek || showMonth || showSchedule;
 
   const togglePresentation = () => {
     if (!presentationMode) {
@@ -271,18 +286,20 @@ const Index = () => {
 
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
-        <ExecutiveSummary />
+        {showExecutive && <ExecutiveSummary />}
 
-        <SCurveChart />
-        <HistogramChart />
-        <FinancialCurveChart />
+        {showSCurve && <SCurveChart />}
+        {showHistogram && <HistogramChart />}
+        {showFinancial && <FinancialCurveChart />}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <FiveWeekChart />
-          <MonthChart />
-        </div>
+        {(showFiveWeek || showMonth) && (
+          <div className={`grid grid-cols-1 ${showFiveWeek && showMonth ? 'lg:grid-cols-2' : ''} gap-4`}>
+            {showFiveWeek && <FiveWeekChart />}
+            {showMonth && <MonthChart />}
+          </div>
+        )}
 
-        <ScheduleTable />
+        {showSchedule && <ScheduleTable />}
         <ActionsTable />
         <RestrictionsChart />
         <ObservationsSection />
