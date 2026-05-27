@@ -4,8 +4,8 @@ import ChartExpandModal from '@/components/ChartExpandModal';
 import ChartInsight from '@/components/ChartInsight';
 import { useMemo } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  ReferenceLine, Label,
+  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+  ResponsiveContainer, ReferenceLine, Label, LabelList,
 } from 'recharts';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -29,6 +29,13 @@ const fmtBRLFull = (v: number | null | undefined): string =>
     ? '—'
     : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
+const COLORS = {
+  prevBar: '#9ca3af',
+  realBar: '#22c55e',
+  prevLine: '#1f2937',
+  realLine: '#f97316',
+};
+
 const FinancialCurveChart = () => {
   const { curvaSFinanceira, sCurveData, statusDateIndex, info } = useCurrentProject();
   const isMobile = useIsMobile();
@@ -37,22 +44,12 @@ const FinancialCurveChart = () => {
     return (curvaSFinanceira || []).map((p) => ({
       mes: fmtMonth(p.date),
       date: p.date,
-      previstoMensal: p.previsto > 0 ? p.previsto : undefined,
-      realMensal: p.real != null && p.real > 0 ? p.real : undefined,
-      prevAcum: p.prevAcum > 0 ? p.prevAcum : undefined,
-      realAcum: p.realAcum != null && p.realAcum > 0 ? p.realAcum : undefined,
+      previstoMensal: p.previsto > 0 ? p.previsto : null,
+      realMensal: p.real != null && p.real > 0 ? p.real : null,
+      prevAcum: p.prevAcum > 0 ? p.prevAcum : null,
+      realAcum: p.realAcum != null && p.realAcum > 0 ? p.realAcum : null,
     }));
   }, [curvaSFinanceira]);
-
-  const lastIdx = useMemo(() => {
-    const find = (key: 'prevAcum' | 'realAcum') => {
-      for (let i = chartData.length - 1; i >= 0; i--) {
-        if ((chartData[i] as any)[key] != null) return i;
-      }
-      return -1;
-    };
-    return { prevAcum: find('prevAcum'), realAcum: find('realAcum') };
-  }, [chartData]);
 
   const statusMes = useMemo(() => {
     const cut = Math.min(statusDateIndex, (sCurveData?.length || 1) - 1);
@@ -65,69 +62,51 @@ const FinancialCurveChart = () => {
     return hit?.mes ?? null;
   }, [sCurveData, statusDateIndex, chartData]);
 
-  const statusRealAcum = useMemo(() => {
-    if (!statusMes) return null;
-    const hit = chartData.find((p) => p.mes === statusMes);
-    return hit?.realAcum ?? null;
-  }, [statusMes, chartData]);
-
   if (!curvaSFinanceira || curvaSFinanceira.length === 0) return null;
-
-  const COLORS = {
-    prev: 'hsl(var(--chart-previsto))',
-    real: '#16a34a',
-  };
 
   const labelInterval = isMobile ? 3 : (chartData.length > 14 ? 2 : 1);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
     const row = payload[0]?.payload ?? {};
-    const prev = row.prevAcum;
-    const real = row.realAcum;
-    const desvioR = prev != null && real != null ? real - prev : null;
-    const desvioP = prev != null && real != null && prev !== 0 ? ((real - prev) / prev) * 100 : null;
+    const { previstoMensal, realMensal, prevAcum, realAcum } = row;
+    const desvioR = prevAcum != null && realAcum != null ? realAcum - prevAcum : null;
+    const desvioP = prevAcum != null && realAcum != null && prevAcum !== 0 ? ((realAcum - prevAcum) / prevAcum) * 100 : null;
     return (
       <div className="rounded-lg border bg-card px-3 py-2 text-xs shadow-xl">
         <div className="font-semibold text-foreground mb-1">{label}</div>
         <div className="flex justify-between gap-4">
-          <span style={{ color: COLORS.prev }}>Previsto Acum.</span>
-          <span className="font-mono">{fmtBRLFull(prev)}</span>
+          <span style={{ color: COLORS.prevBar }}>Previsto mensal</span>
+          <span className="font-mono">{fmtBRLFull(previstoMensal)}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span style={{ color: COLORS.real }}>Realizado Acum.</span>
-          <span className="font-mono">{fmtBRLFull(real)}</span>
+          <span style={{ color: COLORS.realBar }}>Real mensal</span>
+          <span className="font-mono">{fmtBRLFull(realMensal)}</span>
+        </div>
+        <div className="flex justify-between gap-4 mt-1 pt-1 border-t border-border">
+          <span style={{ color: COLORS.prevLine }}>Previsto Acum.</span>
+          <span className="font-mono">{fmtBRLFull(prevAcum)}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span style={{ color: COLORS.realLine }}>Realizado Acum.</span>
+          <span className="font-mono">{fmtBRLFull(realAcum)}</span>
         </div>
         <div className="mt-1 pt-1 border-t border-border flex justify-between gap-4">
-          <span className="text-muted-foreground">Desvio R$</span>
+          <span className="text-muted-foreground">Desvio acum. R$</span>
           <span className="font-mono">{desvioR != null ? fmtBRLFull(desvioR) : '—'}</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-muted-foreground">Desvio %</span>
+          <span className="text-muted-foreground">Desvio acum. %</span>
           <span className="font-mono">{desvioP != null ? `${desvioP.toFixed(2).replace('.', ',')}%` : '—'}</span>
         </div>
       </div>
     );
   };
 
-  const makeEndLabel = (key: 'prevAcum' | 'realAcum', color: string, position: 'top' | 'bottom') =>
-    (props: any) => {
-      const { x, y, value, index } = props;
-      if (value == null || x == null || y == null) return null;
-      if (index !== lastIdx[key]) return null;
-      const mes = chartData[index]?.mes ?? '';
-      const dy = position === 'top' ? -10 : 16;
-      return (
-        <text x={x} y={y + dy} fill={color} fontSize={11} fontWeight={700} textAnchor="end">
-          {`${fmtBRLShort(value)} · ${mes}`}
-        </text>
-      );
-    };
-
   const chartContent = (height: string) => (
     <div className={height} style={{ minHeight: 0 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData} margin={{ top: 30, right: 60, bottom: 10, left: 10 }}>
+        <ComposedChart data={chartData} margin={{ top: 30, right: 70, bottom: 10, left: 10 }} barGap={2} barCategoryGap="20%">
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis
             dataKey="mes"
@@ -140,22 +119,32 @@ const FinancialCurveChart = () => {
             tickFormatter={(v, i) => (i % labelInterval === 0 ? String(v) : '')}
           />
           <YAxis
+            yAxisId="left"
+            tickFormatter={(v) => fmtBRLShort(v)}
+            tick={{ fontSize: 11 }}
+            stroke="hsl(var(--muted-foreground))"
+            width={70}
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
             tickFormatter={(v) => fmtBRLShort(v)}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
             width={70}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
           {statusMes && (
             <ReferenceLine
+              yAxisId="left"
               x={statusMes}
               stroke="hsl(var(--chart-cutline))"
               strokeDasharray="8 4"
               strokeWidth={2}
             >
               <Label
-                value={`Status: ${statusMes}${statusRealAcum != null ? ` — ${fmtBRLShort(statusRealAcum)}` : ''}`}
+                value={`Status: ${statusMes}`}
                 position="insideTopRight"
                 fill="hsl(var(--chart-cutline))"
                 fontSize={11}
@@ -164,19 +153,27 @@ const FinancialCurveChart = () => {
               />
             </ReferenceLine>
           )}
+          <Bar yAxisId="left" dataKey="previstoMensal" name="Medição Prevista (R$)" fill={COLORS.prevBar} isAnimationActive={false}>
+            <LabelList dataKey="previstoMensal" position="top" fontSize={9} fill={COLORS.prevBar} formatter={(v: number) => fmtBRLShort(v)} />
+          </Bar>
+          <Bar yAxisId="left" dataKey="realMensal" name="Medição Real (R$)" fill={COLORS.realBar} isAnimationActive={false}>
+            <LabelList dataKey="realMensal" position="top" fontSize={9} fill={COLORS.realBar} formatter={(v: number) => fmtBRLShort(v)} />
+          </Bar>
           <Line
-            type="monotone" dataKey="prevAcum" name="Previsto Acumulado"
-            stroke={COLORS.prev} strokeWidth={2} dot={false} activeDot={{ r: 5 }}
+            yAxisId="right" type="monotone" dataKey="prevAcum" name="Medição Prevista Acumulada (R$)"
+            stroke={COLORS.prevLine} strokeWidth={2} dot={{ r: 3, fill: COLORS.prevLine }}
             connectNulls={false} isAnimationActive={false}
-            label={makeEndLabel('prevAcum', COLORS.prev, 'top')}
-          />
+          >
+            <LabelList dataKey="prevAcum" position="top" fontSize={9} fill={COLORS.prevLine} formatter={(v: number) => fmtBRLShort(v)} />
+          </Line>
           <Line
-            type="monotone" dataKey="realAcum" name="Realizado Acumulado"
-            stroke={COLORS.real} strokeWidth={2} dot={false} activeDot={{ r: 5 }}
+            yAxisId="right" type="monotone" dataKey="realAcum" name="Medição Real Acumulada (R$)"
+            stroke={COLORS.realLine} strokeWidth={2} dot={{ r: 3, fill: COLORS.realLine }}
             connectNulls={false} isAnimationActive={false}
-            label={makeEndLabel('realAcum', COLORS.real, 'bottom')}
-          />
-        </LineChart>
+          >
+            <LabelList dataKey="realAcum" position="bottom" fontSize={9} fill={COLORS.realLine} formatter={(v: number) => fmtBRLShort(v)} />
+          </Line>
+        </ComposedChart>
       </ResponsiveContainer>
     </div>
   );
@@ -197,7 +194,7 @@ const FinancialCurveChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Medição prevista × realizada acumulada (R$)</p>
-      {chartContent('h-[280px] sm:h-[500px]')}
+      {chartContent('h-[320px] sm:h-[520px]')}
       <ChartInsight chartType="financialcurve" data={curvaSFinanceira} projectInfo={info} />
     </div>
   );
