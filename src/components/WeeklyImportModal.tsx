@@ -1552,24 +1552,30 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
 const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]> => {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').replace(/\.+$/, '').trim();
-  const sheetName = wb.SheetNames.find(n => {
-    const nn = norm(n);
-    return nn.includes('curva s') && nn.includes('financeira');
+
+  // STEP 1 — find sheet
+  const normSheet = (s: string) => s.trim().replace(/\.$/, '').toUpperCase();
+  const candidates = wb.SheetNames.filter(n => {
+    const nn = normSheet(n);
+    return nn.includes('CURVA') && nn.includes('FINANC') && !nn.includes('BI') && !nn.includes('REPLAN');
   });
+  const sheetName = candidates.find(n => normSheet(n).includes('02')) || candidates[0];
   if (!sheetName) throw new Error('Aba "CURVA S FINANCEIRA" não encontrada');
+
   const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
 
+  // STEP 2 — find rows by column A content (case-insensitive substring)
   let rDates = -1, rPrev = -1, rReal = -1, rPrevAcum = -1, rRealAcum = -1;
   grid.forEach((row, i) => {
     const a = row?.[0];
     if (a == null) return;
-    const t = norm(String(a));
-    if (rDates === -1 && t.includes('evento de pagamento')) rDates = i;
-    else if (rPrevAcum === -1 && t.includes('medicao prevista acumulada')) rPrevAcum = i;
-    else if (rRealAcum === -1 && t.includes('medicao real acumulada')) rRealAcum = i;
-    else if (rPrev === -1 && t.includes('medicao prevista') && !t.includes('acumulada') && !t.includes('replanejada')) rPrev = i;
-    else if (rReal === -1 && t.includes('medicao real') && !t.includes('acumulada')) rReal = i;
+    const t = String(a);
+    const has = (s: string) => t.toLowerCase().includes(s.toLowerCase());
+    if (rDates === -1 && has('Evento de Pagamento')) rDates = i;
+    if (rPrevAcum === -1 && has('Prevista Acumulada')) rPrevAcum = i;
+    if (rRealAcum === -1 && has('Real Acumulada')) rRealAcum = i;
+    if (rPrev === -1 && has('Medição Prevista') && !has('Acumulada') && !has('Replanej')) rPrev = i;
+    if (rReal === -1 && has('Medição Real') && !has('Acumulada')) rReal = i;
   });
 
   if (rDates === -1) throw new Error('Linha "Evento de Pagamento" não encontrada');
@@ -1581,12 +1587,24 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
   const prevAcumRow = getRow(rPrevAcum);
   const realAcumRow = getRow(rRealAcum);
 
-  const num = (v: unknown): number => (typeof v === 'number' && isFinite(v)) ? v : 0;
+  // STEP 3 — extract values
+  const num = (v: unknown): number => {
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'string') {
+      const n = parseFloat(v.replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, ''));
+      return isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+  const isValidDateCell = (v: unknown) =>
+    v instanceof Date || (typeof v === 'string' && v.trim() !== '') || typeof v === 'number';
 
   const out: CurvaSFinanceiraPoint[] = [];
   for (let c = 1; c < dateRow.length; c++) {
-    const d = toDate(dateRow[c]);
-    if (!d) break;
+    const raw = dateRow[c];
+    if (!isValidDateCell(raw)) break;
+    const d = toDate(raw);
+    if (!d) continue;
     out.push({
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       previsto: num(prevRow[c]),
@@ -1595,7 +1613,14 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
       realAcum: num(realAcumRow[c]),
     });
   }
-  console.log('[CurvaSFinanceira] rows:', { rDates, rPrev, rReal, rPrevAcum, rRealAcum, count: out.length, first: out[0] });
+
+  // STEP 4 — debug
+  console.log('[CurvaSFinanceira]', {
+    sheet: sheetName,
+    rows: { rDates, rPrev, rReal, rPrevAcum, rRealAcum },
+    count: out.length,
+    firstThreePrevAcum: out.slice(0, 3).map(o => o.prevAcum),
+  });
   return out;
 };
 
