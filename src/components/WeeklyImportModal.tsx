@@ -1482,6 +1482,60 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
   };
 };
 
+const extractFormatDHist = (histRef: SheetRef): HistExtract | { error: string } => {
+  const g = histRef.grid;
+  const row2 = (g[1] || []) as unknown[];
+  const row24 = (g[23] || []) as unknown[];
+  const row25 = (g[24] || []) as unknown[];
+  const row5 = (g[4] || []) as unknown[];
+
+  const hasCronograma = row2.some(v => v != null && String(v).toUpperCase().includes('CRONOGRAMA MACRO'));
+  const hasEquipe = row24[1] != null && String(row24[1]).toUpperCase().includes('EQUIPE DO PROJETO');
+  if (!hasCronograma || !hasEquipe) {
+    return { error: 'Aba HISTOGRAMA: estrutura FORMATO D não reconhecida' };
+  }
+
+  const toNumOrNull = (v: unknown): number | null => {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || s.startsWith('#')) return null;
+      const n = parseFloat(s.replace(',', '.'));
+      return isFinite(n) ? n : null;
+    }
+    return null;
+  };
+
+  const histogram: { date: string; semana: string; previsto: number; real: number }[] = [];
+  const seen = new Set<string>();
+  for (let j = 5; j < row5.length; j++) {
+    const labelRaw = row5[j];
+    if (labelRaw == null || labelRaw === '') break;
+    const semana = String(labelRaw).trim();
+    if (!semana || seen.has(semana)) break;
+    seen.add(semana);
+    const previsto = toNumOrNull(row24[j]);
+    const real = toNumOrNull(row25[j]);
+    if (previsto == null || previsto <= 0) continue;
+    histogram.push({
+      date: semana,
+      semana,
+      previsto: Math.round(previsto),
+      real: real == null ? 0 : Math.round(real),
+    });
+  }
+
+  if (!histogram.length) return { error: 'Aba HISTOGRAMA: nenhum dado previsto > 0' };
+
+  return {
+    block: { ref: histRef } as unknown as HistBlock,
+    total: histogram.length,
+    ultimaReal: histogram.length - 1,
+    histogram,
+  };
+};
+
 const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
   const resumo = findFormatDResumo(allSheets);
   if (!resumo) return null;
