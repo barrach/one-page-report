@@ -1898,13 +1898,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         </div>
         )}
 
-        {parsing && (
+        {step === 'select' && parsing && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
             <Loader2 className="h-4 w-4 animate-spin" /> Analisando arquivos...
           </div>
         )}
 
-        {(result || schedule || scheduleError || finCurve || finCurveError) && !parsing && (
+        {step === 'select' && (result || schedule || scheduleError || finCurve || finCurveError) && !parsing && (
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
               <h3 className="font-semibold text-sm">Resumo de Detecção</h3>
