@@ -1964,7 +1964,7 @@ function MultiUploadZone({
 type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
-  anyFieldChecked, onBack, onCancel, onConfirm, initSelection,
+  anyFieldChecked, onBack, onCancel, onConfirm,
   result, scheduleError, finCurveError,
 }: {
   files: File[];
@@ -1977,14 +1977,10 @@ function FieldsStep({
   onBack: () => void;
   onCancel: () => void;
   onConfirm: () => void;
-  initSelection: () => void;
   result: ImportResult | null;
   scheduleError: string | null;
   finCurveError: string | null;
 }) {
-  // init once on mount
-  const didInit = (FieldsStep as unknown as { _init?: boolean });
-  if (!didInit._init) { initSelection(); didInit._init = true; setTimeout(() => { didInit._init = false; }, 0); }
 
   const allMissing = !(Object.keys(available) as FieldKeyT[]).some(k => available[k]);
 
