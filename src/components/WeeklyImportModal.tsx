@@ -1804,7 +1804,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A, B ou C" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
           <UploadZone
             label="Arquivo 2 — Histograma MOD (.xlsx)"
@@ -1823,6 +1823,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             status={file3 ? 'loaded' : 'idle'}
             fileName={file3?.name}
             onFile={onFile3}
+          />
+
+          <UploadZone
+            label="Arquivo 4 — Curva S Financeira (.xlsx)"
+            subtitle='Aba "02-CURVA S- FINANCEIRA" — medição mensal (R$)'
+            badge={{ text: 'Opcional', variant: 'optional' }}
+            accept=".xlsx,.xls"
+            status={file4 ? 'loaded' : 'idle'}
+            fileName={file4?.name}
+            onFile={onFile4}
           />
         </div>
 
