@@ -64,6 +64,14 @@ export interface HistogramPoint {
   real: number;
 }
 
+export interface CurvaSFinanceiraPoint {
+  date: string; // ISO yyyy-mm-dd
+  previsto: number;
+  real: number;
+  prevAcum: number;
+  realAcum: number;
+}
+
 export interface ScheduleRow {
   id: string;
   tarefa: string;
