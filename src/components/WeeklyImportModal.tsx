@@ -1707,9 +1707,20 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     }
   }, []);
 
+  const onFile4 = useCallback(async (f: File) => {
+    setFile4(f); setFinCurve(null); setFinCurveError(null);
+    try {
+      const rows = await parseFinancialCurve(f);
+      if (!rows.length) setFinCurveError('Nenhum dado mensal válido encontrado na aba');
+      else setFinCurve(rows);
+    } catch (e) {
+      setFinCurveError((e as Error).message);
+    }
+  }, []);
+
   const curveOk = result?.curve && !('error' in result.curve);
   const histOk = result?.hist && !('error' in result.hist);
-  const canConfirm = !!(curveOk || histOk || schedule);
+  const canConfirm = !!(curveOk || histOk || schedule || finCurve);
 
   const confirm = () => {
     const now = new Date().toISOString();
