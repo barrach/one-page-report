@@ -1776,6 +1776,11 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
       count++;
     }
+    if (finCurve && finCurve.length) {
+      setCurvaSFinanceira(finCurve);
+      setLastImport('curvaSFinanceira', now);
+      count++;
+    }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
     onOpenChange(false);
     setTimeout(reset, 300);
