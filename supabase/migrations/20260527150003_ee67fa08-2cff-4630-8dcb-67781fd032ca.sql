@@ -1,0 +1,1 @@
+UPDATE public.projects SET name = 'MONTAGEM ELETROMECANICA - PROJETO GUAXE' WHERE id = 'guaxe';
