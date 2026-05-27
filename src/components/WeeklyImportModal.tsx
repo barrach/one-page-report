@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, CalendarDays } from 'lucide-react';
-import { useProjectStore, ScheduleRow } from '@/store/projectStore';
+import { useProjectStore, ScheduleRow, CurvaSFinanceiraPoint } from '@/store/projectStore';
 import { toast } from 'sonner';
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -1548,6 +1548,56 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, formatC: null, errors };
 };
 
+// ─── Curva S Financeira (aba "02-CURVA S- FINANCEIRA") ───
+const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]> => {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const targetNorm = '02-curva s- financeira';
+  const sheetName = wb.SheetNames.find(n => {
+    const nn = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return nn === targetNorm || nn.replace(/\s+/g, '') === targetNorm.replace(/\s+/g, '');
+  });
+  if (!sheetName) throw new Error('Aba "02-CURVA S- FINANCEIRA" não encontrada');
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
+
+  const ROW_DATES = 4;     // row 5 (index 4)
+  const ROW_PREV = 5;      // row 6
+  const ROW_REAL = 8;      // row 9
+  const ROW_PREV_ACUM = 9; // row 10
+  const ROW_REAL_ACUM = 10;// row 11
+
+  const dateRow = (grid[ROW_DATES] || []) as unknown[];
+  const prevRow = (grid[ROW_PREV] || []) as unknown[];
+  const realRow = (grid[ROW_REAL] || []) as unknown[];
+  const prevAcumRow = (grid[ROW_PREV_ACUM] || []) as unknown[];
+  const realAcumRow = (grid[ROW_REAL_ACUM] || []) as unknown[];
+
+  const sanitize = (v: unknown): number => {
+    if (v == null) return 0;
+    if (typeof v === 'string' && v.includes('#REF')) return 0;
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'string') {
+      const n = parseFloat(v.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
+      return isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+
+  const out: CurvaSFinanceiraPoint[] = [];
+  for (let c = 1; c < dateRow.length; c++) {
+    const d = toDate(dateRow[c]);
+    if (!d) break;
+    out.push({
+      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      previsto: sanitize(prevRow[c]),
+      real: sanitize(realRow[c]),
+      prevAcum: sanitize(prevAcumRow[c]),
+      realAcum: sanitize(realAcumRow[c]),
+    });
+  }
+  return out;
+};
+
 interface UploadZoneProps {
   label: string;
   subtitle?: string;
@@ -1614,18 +1664,22 @@ interface Props {
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
   const [file1, setFile1] = useState<File | null>(null);
   const [file2, setFile2] = useState<File | null>(null);
   const [file3, setFile3] = useState<File | null>(null);
+  const [file4, setFile4] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [finCurve, setFinCurve] = useState<CurvaSFinanceiraPoint[] | null>(null);
+  const [finCurveError, setFinCurveError] = useState<string | null>(null);
 
   const reset = () => {
-    setFile1(null); setFile2(null); setFile3(null);
+    setFile1(null); setFile2(null); setFile3(null); setFile4(null);
     setResult(null); setSchedule(null); setScheduleError(null);
+    setFinCurve(null); setFinCurveError(null);
   };
 
   const runWith = useCallback(async (a: File | null, b: File | null) => {
@@ -1653,9 +1707,20 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     }
   }, []);
 
+  const onFile4 = useCallback(async (f: File) => {
+    setFile4(f); setFinCurve(null); setFinCurveError(null);
+    try {
+      const rows = await parseFinancialCurve(f);
+      if (!rows.length) setFinCurveError('Nenhum dado mensal válido encontrado na aba');
+      else setFinCurve(rows);
+    } catch (e) {
+      setFinCurveError((e as Error).message);
+    }
+  }, []);
+
   const curveOk = result?.curve && !('error' in result.curve);
   const histOk = result?.hist && !('error' in result.hist);
-  const canConfirm = !!(curveOk || histOk || schedule);
+  const canConfirm = !!(curveOk || histOk || schedule || finCurve);
 
   const confirm = () => {
     const now = new Date().toISOString();
@@ -1711,6 +1776,11 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
       count++;
     }
+    if (finCurve && finCurve.length) {
+      setCurvaSFinanceira(finCurve);
+      setLastImport('curvaSFinanceira', now);
+      count++;
+    }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
     onOpenChange(false);
     setTimeout(reset, 300);
@@ -1734,7 +1804,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <UploadZone label="Arquivo 1 — Curva S (.xlsx)" subtitle="Aceita FORMATO A, B ou C" badge={{ text: 'Obrigatório', variant: 'required' }} status={file1 ? 'loaded' : 'idle'} fileName={file1?.name} onFile={onFile1} />
           <UploadZone
             label="Arquivo 2 — Histograma MOD (.xlsx)"
@@ -1754,6 +1824,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             fileName={file3?.name}
             onFile={onFile3}
           />
+
+          <UploadZone
+            label="Arquivo 4 — Curva S Financeira (.xlsx)"
+            subtitle='Aba "02-CURVA S- FINANCEIRA" — medição mensal (R$)'
+            badge={{ text: 'Opcional', variant: 'optional' }}
+            accept=".xlsx,.xls"
+            status={file4 ? 'loaded' : 'idle'}
+            fileName={file4?.name}
+            onFile={onFile4}
+          />
         </div>
 
         {parsing && (
@@ -1762,7 +1842,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           </div>
         )}
 
-        {(result || schedule || scheduleError) && !parsing && (
+        {(result || schedule || scheduleError || finCurve || finCurveError) && !parsing && (
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
               <h3 className="font-semibold text-sm">Resumo de Detecção</h3>
@@ -1951,6 +2031,21 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
                     </div>
                   )}
 
+                </div>
+              )}
+
+              {(finCurve || finCurveError) && (
+                <div className="text-xs space-y-2">
+                  <div className="font-medium text-foreground">💰 Curva S Financeira <span className="text-muted-foreground font-normal">(opcional)</span></div>
+                  {finCurveError ? (
+                    <div className="pl-4 text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{finCurveError}</div>
+                  ) : finCurve && (
+                    <div className="pl-4 text-muted-foreground">
+                      <span className="font-semibold text-foreground">{finCurve.length}</span> meses detectados ·
+                      Prev. Acum. final: <span className="font-semibold text-foreground">{(finCurve[finCurve.length - 1]?.prevAcum || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</span> ·
+                      Real Acum. final: <span className="font-semibold text-foreground">{(finCurve[finCurve.length - 1]?.realAcum || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

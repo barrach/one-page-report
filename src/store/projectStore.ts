@@ -64,6 +64,14 @@ export interface HistogramPoint {
   real: number;
 }
 
+export interface CurvaSFinanceiraPoint {
+  date: string; // ISO yyyy-mm-dd
+  previsto: number;
+  real: number;
+  prevAcum: number;
+  realAcum: number;
+}
+
 export interface ScheduleRow {
   id: string;
   tarefa: string;
@@ -95,8 +103,9 @@ export interface Project {
   observations: Observation[];
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
+  curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
-  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string };
+  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -206,6 +215,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     observations: d.observations ?? defaultProjectData.observations,
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
+    curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
   };
@@ -225,6 +235,7 @@ const projectToDb = (p: Project): any => ({
     observations: p.observations,
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
+    curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     lastImports: p.lastImports || {},
   },
@@ -274,6 +285,7 @@ interface ProjectStoreState {
   setScheduleData: (data: ScheduleRow[]) => void;
   addScheduleRow: () => void;
   removeScheduleRow: (index: number) => void;
+  setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
   setAiInsight: (chartType: string, insight: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
 }
@@ -499,6 +511,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     debouncedSave(proj);
     return { projects: updated };
   }),
+
+  setCurvaSFinanceira: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ curvaSFinanceira: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+
 
   setAiInsight: (chartType, insight) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({

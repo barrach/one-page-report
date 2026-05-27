@@ -9,6 +9,7 @@ import ActionsTable from '@/components/ActionsTable';
 import RestrictionsChart from '@/components/RestrictionsChart';
 import ObservationsSection from '@/components/ObservationsSection';
 import HistogramChart from '@/components/HistogramChart';
+import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ScheduleTable from '@/components/ScheduleTable';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
@@ -273,6 +274,7 @@ const Index = () => {
         <ExecutiveSummary />
 
         <SCurveChart />
+        <FinancialCurveChart />
         <HistogramChart />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
