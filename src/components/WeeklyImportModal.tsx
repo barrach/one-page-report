@@ -1887,7 +1887,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             onBack={goBack}
             onCancel={() => closeAll(false)}
             onConfirm={confirm}
-            initSelection={initSelection}
             result={result}
             scheduleError={scheduleError}
             finCurveError={finCurveError}
