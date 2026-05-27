@@ -51,12 +51,29 @@ const FinancialCurveChart = () => {
     }));
   }, [curvaSFinanceira]);
 
-  const LEFT_TICKS = [0, 100000, 200000, 300000, 400000, 500000, 600000];
-  const RIGHT_TICKS = [0, 20000000, 40000000, 60000000, 80000000, 100000000, 120000000, 140000000];
-  const fmtTickLeft = (v: number) =>
-    `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-  const fmtTickRight = (v: number) =>
-    v === 0 ? 'R$ -' : `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const roundUpToNice = (value: number): number => {
+    if (value <= 0) return 10000;
+    const step =
+      value < 100_000 ? 10_000 :
+      value < 1_000_000 ? 100_000 :
+      value < 10_000_000 ? 500_000 :
+      value < 100_000_000 ? 5_000_000 :
+      10_000_000;
+    return Math.ceil(value / step) * step;
+  };
+
+  const { leftMax, rightMax, LEFT_TICKS, RIGHT_TICKS } = useMemo(() => {
+    const maxMensal = Math.max(0, ...chartData.map(d => d.previstoMensal ?? 0), ...chartData.map(d => d.realMensal ?? 0));
+    const maxAcum = Math.max(0, ...chartData.map(d => d.prevAcum ?? 0), ...chartData.map(d => d.realAcum ?? 0));
+    const lMax = roundUpToNice(maxMensal * 1.2) || 100_000;
+    const rMax = roundUpToNice(maxAcum * 1.1) || 1_000_000;
+    const ticks = (max: number) => Array.from({ length: 6 }, (_, i) => Math.round((max / 5) * i));
+    return { leftMax: lMax, rightMax: rMax, LEFT_TICKS: ticks(lMax), RIGHT_TICKS: ticks(rMax) };
+  }, [chartData]);
+
+  const fmtTickLeft = (v: number) => fmtBRLShort(v);
+  const fmtTickRight = (v: number) => (v === 0 ? 'R$ -' : fmtBRLShort(v));
+
 
   const statusMes = useMemo(() => {
     const cut = Math.min(statusDateIndex, (sCurveData?.length || 1) - 1);
@@ -128,7 +145,7 @@ const FinancialCurveChart = () => {
           <YAxis
             yAxisId="left"
             orientation="left"
-            domain={[0, 600000]}
+            domain={[0, leftMax]}
             ticks={LEFT_TICKS}
             tickFormatter={fmtTickLeft}
             tick={{ fontSize: 11 }}
@@ -138,7 +155,7 @@ const FinancialCurveChart = () => {
           <YAxis
             yAxisId="right"
             orientation="right"
-            domain={[0, 140000000]}
+            domain={[0, rightMax]}
             ticks={RIGHT_TICKS}
             tickFormatter={fmtTickRight}
             tick={{ fontSize: 11 }}
