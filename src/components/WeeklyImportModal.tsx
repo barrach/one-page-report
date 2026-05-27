@@ -1700,17 +1700,19 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   const formatD = detectFormatD(allSheets);
   if (formatD) {
     const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus);
+    const hist = formatD.histRef ? extractFormatDHist(formatD.histRef) : null;
     const projectDates: ProjectDates = {
       inicio: formatD.info.inicio,
       terminoLB: formatD.info.terminoLB,
     };
     const errors: string[] = [];
     if ('error' in curve) errors.push(curve.error);
+    if (hist && 'error' in hist) console.warn('[FORMATO D] Histograma:', hist.error);
     return {
       curveBlock: null,
       curve,
-      histBlock: null,
-      hist: null,
+      histBlock: hist && !('error' in hist) ? hist.block : null,
+      hist: hist && !('error' in hist) ? hist : null,
       projectDates,
       formatB: null,
       formatC: null,
