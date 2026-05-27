@@ -5,14 +5,17 @@ import ChartInsight from '@/components/ChartInsight';
 const GaugeChart = ({
   metaRealizado,
   selectedIndex,
-  activeIndex,
 }: {
   metaRealizado: number;
   selectedIndex: number | null;
-  activeIndex: number;
 }) => {
   const { monthData } = useCurrentProject();
   const { setSelectedMonthIndex } = useReportInteraction();
+
+  // Mês ativo = último mês com Real > 0 (calculado a partir do MESMO monthData
+  // que monta os arcos, evitando descasamento de prop / render stale).
+  let activeIndex = -1;
+  monthData.forEach((d, i) => { if (Number(d.real || 0) > 0) activeIndex = i; });
 
   const cx = 200;
   const cy = 180;
@@ -155,7 +158,7 @@ const MonthChart = () => {
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} activeIndex={lastWithReal} />
+      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
