@@ -355,20 +355,20 @@ const FinancialCurveSection = () => {
     return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
   };
   return (
-    <div>
-      <div className="flex items-center gap-3 mb-2">
-        <h2 className="text-base font-bold uppercase tracking-wider text-foreground">
-          Dados da Curva S Financeira
-        </h2>
-        <ClearDataButton sectionName="Dados da Curva S Financeira" onConfirm={() => setCurvaSFinanceira([])} />
+    <div className="bg-card rounded-lg p-6 shadow-sm border">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-foreground">Dados da Curva S Financeira</h2>
+          <ClearDataButton sectionName="Dados da Curva S Financeira" onConfirm={() => setCurvaSFinanceira([])} />
+        </div>
       </div>
-      <div className="overflow-x-auto border border-border rounded-lg">
-        <table className="w-full text-xs">
-          <thead className="bg-muted">
+      <div className="overflow-x-auto">
+        <table className="border-collapse text-xs min-w-max">
+          <thead>
             <tr>
-              <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left border border-border text-foreground">Campo</th>
+              <th className="sticky left-0 z-10 bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-3 py-2 text-left font-semibold border border-border min-w-[160px]">Campo</th>
               {curvaSFinanceira.map((p, i) => (
-                <th key={i} className="px-2 py-2 border border-border text-center font-semibold text-foreground whitespace-nowrap">
+                <th key={i} className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-2 text-center font-semibold border border-border min-w-[100px] whitespace-nowrap">
                   {fmtMonth(p.date)}
                 </th>
               ))}
