@@ -1722,6 +1722,64 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
   const canConfirm = !!(curveOk || histOk || schedule || finCurve);
 
+  // ─── Field selection (second step) ───
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
+  const FIELD_LABELS: Record<FieldKey, string> = {
+    sCurve: 'Curva S — Previsto / Real / Tendência',
+    weekly: 'Resultado Semanal (evolução semanal %)',
+    monthly: 'Prev × Mês (velocímetro mensal)',
+    histogram: 'Histograma (barras de avanço por semana)',
+    schedule: 'Cronograma (Gantt)',
+    finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
+    projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
+  };
+  const FIELD_SOURCE: Record<FieldKey, string> = {
+    sCurve: 'Arquivo 1',
+    weekly: 'Arquivo 1',
+    monthly: 'Arquivo 1',
+    projectInfo: 'Arquivo 1',
+    histogram: result?.formatB || result?.formatC ? 'Arquivo 1' : 'Arquivo 2',
+    schedule: 'Arquivo 3',
+    finCurve: 'Arquivo 4',
+  };
+
+  const c = curveOk ? (result!.curve as CurveExtract) : null;
+  const weeklyValido = (() => {
+    if (!c || !c.weekly.length) return false;
+    const upTo = c.cols.slice(0, c.ultimaReal + 1).slice(-8);
+    return upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length >= 3;
+  })();
+
+  const available: Record<FieldKey, boolean> = {
+    sCurve: !!(c && c.sCurve.length),
+    weekly: !!(c && c.weekly.length && weeklyValido),
+    monthly: !!(c && c.monthly.length),
+    projectInfo: !!c,
+    histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
+    schedule: !!(schedule && schedule.rows.length),
+    finCurve: !!(finCurve && finCurve.length),
+  };
+
+  const [step, setStep] = useState<'select' | 'fields'>('select');
+  const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
+    sCurve: true, weekly: true, monthly: true, histogram: true,
+    schedule: true, finCurve: true, projectInfo: true,
+  });
+
+  const goToFieldsStep = () => {
+    // Re-init selection: every available field starts checked
+    const next = {} as Record<FieldKey, boolean>;
+    (Object.keys(available) as FieldKey[]).forEach(k => { next[k] = available[k]; });
+    setSelectedFields(next);
+    setStep('fields');
+  };
+
+  const toggleField = (k: FieldKey) =>
+    setSelectedFields(prev => ({ ...prev, [k]: !prev[k] }));
+
+  const anyFieldChecked = (Object.keys(available) as FieldKey[])
+    .some(k => available[k] && selectedFields[k]);
+
   const confirm = () => {
     const now = new Date().toISOString();
     let count = 0;
@@ -1729,61 +1787,61 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     const infoPatch: Record<string, string | number> = {};
     if (curveOk) {
       const c = result!.curve as CurveExtract;
-      if (c.sCurve.length) {
+      if (c.sCurve.length && selectedFields.sCurve) {
         setSCurveData(c.sCurve);
         let idx = -1;
         c.sCurve.forEach((p, i) => { if (p.real > 0) idx = i; });
         if (idx >= 0) setStatusDateIndex(idx);
         setLastImport('sCurve', now); count++;
       }
-      // Validação universal: pelo menos 3 das últimas 8 colunas (até ULTIMA_REAL)
-      // devem ter prevSem>0.5% OU realSem>0.5%. Ignora replanejado/tendência.
-      const upTo = c.cols.slice(0, c.ultimaReal + 1).slice(-8);
-      const validos = upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length;
-      const weeklyValido = validos >= 3;
-      if (c.weekly.length && weeklyValido) { setWeeklyData(c.weekly); setLastImport('weekly', now); count++; }
-      else if (c.weekly.length) console.warn('[IMPORT] Resultado Semanal não atualizado: apenas', validos, 'das últimas 8 colunas têm prev/real semanal > 0.5%');
-      if (c.monthly.length) { setMonthData(c.monthly); setLastImport('month', now); count++; }
-      // Always overwrite: status date + avanço prev/real come from the file
-      // FORMAT B may override "Atualizado em" with explicit "Data da atualização:" label
-      const updateDate = result?.formatC?.curve.updateDate ?? result?.formatB?.updateDate ?? c.statusDate;
-      infoPatch.atualizadoEm = toIsoDate(updateDate);
-      infoPatch.avancoPrev = c.prevAcuLast;
-      infoPatch.avancoReal = c.realAcuLast;
-
+      if (c.weekly.length && weeklyValido && selectedFields.weekly) {
+        setWeeklyData(c.weekly); setLastImport('weekly', now); count++;
+      } else if (c.weekly.length && !weeklyValido) {
+        console.warn('[IMPORT] Resultado Semanal não atualizado: dados semanais insuficientes');
+      }
+      if (c.monthly.length && selectedFields.monthly) {
+        setMonthData(c.monthly); setLastImport('month', now); count++;
+      }
+      if (selectedFields.projectInfo) {
+        const updateDate = result?.formatC?.curve.updateDate ?? result?.formatB?.updateDate ?? c.statusDate;
+        infoPatch.atualizadoEm = toIsoDate(updateDate);
+        infoPatch.avancoPrev = c.prevAcuLast;
+        infoPatch.avancoReal = c.realAcuLast;
+      }
     }
-    if (histOk) {
+    if (histOk && selectedFields.histogram) {
       const h = result!.hist as HistExtract;
       if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
     }
-    // Project dates: only fill if user hasn't set manually
-    const pd = result?.projectDates;
-    if (pd && currentInfo) {
-      if (pd.inicio && !currentInfo.inicio) infoPatch.inicio = toIsoDate(pd.inicio);
-      if (pd.terminoLB && !currentInfo.terminoLB) infoPatch.terminoLB = toIsoDate(pd.terminoLB);
-      if (pd.terminoPrev && !currentInfo.terminoPrev) infoPatch.terminoPrev = toIsoDate(pd.terminoPrev);
-    }
-    // FORMAT C: projeto/cliente/gestor (don't overwrite if user filled)
-    const fcInfo = result?.formatC?.info;
-    if (fcInfo && currentInfo) {
-      if (fcInfo.projeto && !currentInfo.projeto) infoPatch.projeto = fcInfo.projeto;
-      if (fcInfo.cliente && !currentInfo.cliente) infoPatch.cliente = fcInfo.cliente;
-      if (fcInfo.gestor && !currentInfo.gestor) infoPatch.gestor = fcInfo.gestor;
+    // Project dates + FORMAT C info: only when projectInfo selected
+    if (selectedFields.projectInfo) {
+      const pd = result?.projectDates;
+      if (pd && currentInfo) {
+        if (pd.inicio && !currentInfo.inicio) infoPatch.inicio = toIsoDate(pd.inicio);
+        if (pd.terminoLB && !currentInfo.terminoLB) infoPatch.terminoLB = toIsoDate(pd.terminoLB);
+        if (pd.terminoPrev && !currentInfo.terminoPrev) infoPatch.terminoPrev = toIsoDate(pd.terminoPrev);
+      }
+      const fcInfo = result?.formatC?.info;
+      if (fcInfo && currentInfo) {
+        if (fcInfo.projeto && !currentInfo.projeto) infoPatch.projeto = fcInfo.projeto;
+        if (fcInfo.cliente && !currentInfo.cliente) infoPatch.cliente = fcInfo.cliente;
+        if (fcInfo.gestor && !currentInfo.gestor) infoPatch.gestor = fcInfo.gestor;
+      }
     }
 
-    if (Object.keys(infoPatch).length) setInfo(infoPatch);
-    if (schedule && schedule.rows.length) {
+    if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
+    if (schedule && schedule.rows.length && selectedFields.schedule) {
       setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
       count++;
     }
-    if (finCurve && finCurve.length) {
+    if (finCurve && finCurve.length && selectedFields.finCurve) {
       setCurvaSFinanceira(finCurve);
       setLastImport('curvaSFinanceira', now);
       count++;
     }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
     onOpenChange(false);
-    setTimeout(reset, 300);
+    setTimeout(() => { reset(); setStep('select'); }, 300);
   };
 
   const chip = (label: string, ok: boolean) => (
