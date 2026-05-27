@@ -1842,7 +1842,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           </div>
         )}
 
-        {(result || schedule || scheduleError) && !parsing && (
+        {(result || schedule || scheduleError || finCurve || finCurveError) && !parsing && (
           <div className="space-y-4">
             <div className="rounded-lg border bg-muted/30 p-4 space-y-4">
               <h3 className="font-semibold text-sm">Resumo de Detecção</h3>
