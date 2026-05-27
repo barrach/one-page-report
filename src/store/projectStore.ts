@@ -512,6 +512,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     return { projects: updated };
   }),
 
+  setCurvaSFinanceira: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ curvaSFinanceira: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+
+
   setAiInsight: (chartType, insight) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       aiInsights: { ...(p.aiInsights || {}), [chartType]: insight },
