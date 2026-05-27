@@ -1902,10 +1902,11 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       catch (e) { res = { curveBlock: null, curve: null, histBlock: null, hist: null, projectDates: {}, formatC: null, errors: [(e as Error).message] }; }
     }
     if (res) {
-      const cb = res.curveBlock || res.formatB || res.formatC?.curve;
+      const cb = res.curveBlock || res.formatB || res.formatC?.curve || (res.formatD ? { ref: res.formatD.curveRef } : null);
       if (cb) { used.add(cb.ref.fileName); srcs.curve = cb.ref.fileName; }
       if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
     }
+
 
     // 2) Curva S Financeira — varre TODOS os xlsx (pode estar no mesmo arquivo da Curva S)
     let fin: CurvaSFinanceiraPoint[] | null = null;
