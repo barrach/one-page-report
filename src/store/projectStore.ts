@@ -11,6 +11,8 @@ export interface ProjectInfo {
   avancoPrev: number;
   avancoReal: number;
   atualizadoEm: string;
+  contrato?: string;
+  escopo?: string;
 }
 
 export interface WeekData {
