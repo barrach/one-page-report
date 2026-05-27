@@ -1552,36 +1552,36 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
 const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]> => {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-  const targetNorm = '02-curva s- financeira';
+  const norm = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').replace(/\.+$/, '').trim();
   const sheetName = wb.SheetNames.find(n => {
-    const nn = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
-    return nn === targetNorm || nn.replace(/\s+/g, '') === targetNorm.replace(/\s+/g, '');
+    const nn = norm(n);
+    return nn.includes('curva s') && nn.includes('financeira');
   });
-  if (!sheetName) throw new Error('Aba "02-CURVA S- FINANCEIRA" não encontrada');
+  if (!sheetName) throw new Error('Aba "CURVA S FINANCEIRA" não encontrada');
   const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
 
-  const ROW_DATES = 4;     // row 5 (index 4)
-  const ROW_PREV = 5;      // row 6
-  const ROW_REAL = 8;      // row 9
-  const ROW_PREV_ACUM = 9; // row 10
-  const ROW_REAL_ACUM = 10;// row 11
+  let rDates = -1, rPrev = -1, rReal = -1, rPrevAcum = -1, rRealAcum = -1;
+  grid.forEach((row, i) => {
+    const a = row?.[0];
+    if (a == null) return;
+    const t = norm(String(a));
+    if (rDates === -1 && t.includes('evento de pagamento')) rDates = i;
+    else if (rPrevAcum === -1 && t.includes('medicao prevista acumulada')) rPrevAcum = i;
+    else if (rRealAcum === -1 && t.includes('medicao real acumulada')) rRealAcum = i;
+    else if (rPrev === -1 && t.includes('medicao prevista') && !t.includes('acumulada') && !t.includes('replanejada')) rPrev = i;
+    else if (rReal === -1 && t.includes('medicao real') && !t.includes('acumulada')) rReal = i;
+  });
 
-  const dateRow = (grid[ROW_DATES] || []) as unknown[];
-  const prevRow = (grid[ROW_PREV] || []) as unknown[];
-  const realRow = (grid[ROW_REAL] || []) as unknown[];
-  const prevAcumRow = (grid[ROW_PREV_ACUM] || []) as unknown[];
-  const realAcumRow = (grid[ROW_REAL_ACUM] || []) as unknown[];
+  if (rDates === -1) throw new Error('Linha "Evento de Pagamento" não encontrada');
 
-  const sanitize = (v: unknown): number => {
-    if (v == null) return 0;
-    if (typeof v === 'string' && v.includes('#REF')) return 0;
-    if (typeof v === 'number' && isFinite(v)) return v;
-    if (typeof v === 'string') {
-      const n = parseFloat(v.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
-      return isFinite(n) ? n : 0;
-    }
-    return 0;
-  };
+  const dateRow = (grid[rDates] || []) as unknown[];
+  const getRow = (r: number) => (r >= 0 ? (grid[r] || []) : []) as unknown[];
+  const prevRow = getRow(rPrev);
+  const realRow = getRow(rReal);
+  const prevAcumRow = getRow(rPrevAcum);
+  const realAcumRow = getRow(rRealAcum);
+
+  const num = (v: unknown): number => (typeof v === 'number' && isFinite(v)) ? v : 0;
 
   const out: CurvaSFinanceiraPoint[] = [];
   for (let c = 1; c < dateRow.length; c++) {
@@ -1589,12 +1589,13 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
     if (!d) break;
     out.push({
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-      previsto: sanitize(prevRow[c]),
-      real: sanitize(realRow[c]),
-      prevAcum: sanitize(prevAcumRow[c]),
-      realAcum: sanitize(realAcumRow[c]),
+      previsto: num(prevRow[c]),
+      real: num(realRow[c]),
+      prevAcum: num(prevAcumRow[c]),
+      realAcum: num(realAcumRow[c]),
     });
   }
+  console.log('[CurvaSFinanceira] rows:', { rDates, rPrev, rReal, rPrevAcum, rRealAcum, count: out.length, first: out[0] });
   return out;
 };
 
