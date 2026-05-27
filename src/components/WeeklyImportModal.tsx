@@ -1633,11 +1633,18 @@ interface FileScan {
 const scanFile = async (file: File): Promise<FileScan> => {
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', cellDates: true, raw: true });
-  const sheets: SheetRef[] = wb.SheetNames.map(name => ({
-    fileName: file.name,
-    sheetName: name,
-    grid: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true }),
-  }));
+  const ABAS_PROIBIDAS = ['curva s projeto - bi', 'curva s financeira - bi', 'curva s - bi', 'bi'];
+  const isProibida = (n: string) => ABAS_PROIBIDAS.includes(n.trim().toLowerCase().replace(/\s+/g, ' '));
+  const sheets: SheetRef[] = wb.SheetNames
+    .filter(name => {
+      if (isProibida(name)) { console.warn('[ABA PROIBIDA] ignorada:', name); return false; }
+      return true;
+    })
+    .map(name => ({
+      fileName: file.name,
+      sheetName: name,
+      grid: XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, defval: null, raw: true }),
+    }));
 
   // ===== DEBUG: varre TODAS as abas em busca dos blocos do Formato C =====
   console.log('[FormatoC] arquivo:', file.name, 'abas:', wb.SheetNames);
