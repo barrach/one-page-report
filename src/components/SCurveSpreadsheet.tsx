@@ -5,6 +5,7 @@ import { useState, useCallback, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
+import ClearDataButton from '@/components/ClearDataButton';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -135,7 +136,12 @@ const SCurveSpreadsheet = () => {
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-bold text-foreground">Dados da Curva S</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-foreground">Dados da Curva S</h2>
+          {sCurveData.length > 0 && (
+            <ClearDataButton sectionName="Dados da Curva S" onConfirm={() => setSCurveData([])} />
+          )}
+        </div>
       </div>
 
       {showPaste && (

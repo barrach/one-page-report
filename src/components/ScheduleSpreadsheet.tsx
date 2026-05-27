@@ -5,6 +5,7 @@ import { Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useState, useMemo } from 'react';
 import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
 import { cn } from '@/lib/utils';
+import ClearDataButton from '@/components/ClearDataButton';
 
 const ScheduleSpreadsheet = () => {
   const { scheduleData } = useCurrentProject();
@@ -46,7 +47,12 @@ const ScheduleSpreadsheet = () => {
   return (
     <div className="bg-card rounded-lg p-6 shadow-sm border">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <h2 className="text-xl font-bold text-foreground">Cronograma</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-foreground">Cronograma</h2>
+          {data.length > 0 && (
+            <ClearDataButton sectionName="Cronograma" onConfirm={() => setScheduleData([])} />
+          )}
+        </div>
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">Exibir até nível:</span>
           {levelButtons.map((b) => (
