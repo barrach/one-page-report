@@ -2208,13 +2208,19 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       // FORMAT D: authoritative — always overwrite when provided
       const fdInfo = result?.formatD?.info;
       if (fdInfo) {
-        if (fdInfo.codigo) infoPatch.projeto = fdInfo.codigo;
+        if (fdInfo.contrato) infoPatch.contrato = fdInfo.contrato;
+        if (fdInfo.escopo) infoPatch.escopo = fdInfo.escopo;
         if (fdInfo.cliente) infoPatch.cliente = fdInfo.cliente;
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
         if (fdInfo.prevAcumLB != null) infoPatch.avancoPrev = fdInfo.prevAcumLB;
         if (fdInfo.realAcum != null) infoPatch.avancoReal = fdInfo.realAcum;
+        // Preserve user-defined project name; only fill if empty
+        if (currentInfo && !currentInfo.projeto && fdInfo.escopo) {
+          const m = fdInfo.escopo.match(/PROJETO\s+(.+)$/i);
+          infoPatch.projeto = (m ? m[1] : fdInfo.escopo).trim();
+        }
       }
     }
 
