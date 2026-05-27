@@ -1336,6 +1336,168 @@ const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
 };
 
 
+// ===================== FORMAT D (NTS/Megasteam — aba "00-RESUMO PROJETO-R1") =====================
+
+interface FormatDInfo {
+  cliente?: string;
+  escopo?: string;
+  gestorCliente?: string;
+  gestor?: string;
+  inicio?: Date;
+  terminoLB?: Date;
+  periodoInicio?: Date;
+  periodoFim?: Date;
+  dataStatus?: Date;
+}
+
+interface FormatDBundle {
+  resumoRef: SheetRef;
+  curveRef: SheetRef;
+  histRef: SheetRef | null;
+  info: FormatDInfo;
+}
+
+const findFormatDResumo = (allSheets: SheetRef[]): SheetRef | null =>
+  allSheets.find(s => norm(s.sheetName) === '00-resumo projeto-r1') ||
+  allSheets.find(s => norm(s.sheetName).replace(/[^a-z0-9]/g, '').includes('resumoprojetor1')) ||
+  null;
+
+const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
+  const g = resumo.grid;
+  const cell = (r1: number, c1: number) => (g[r1 - 1] || [])[c1 - 1];
+  const str = (v: unknown) => (v == null ? undefined : String(v).trim() || undefined);
+  return {
+    dataStatus:    toDate(cell(7, 18)),   // R7
+    cliente:       str(cell(4, 15)),      // O4
+    escopo:        str(cell(4, 7)),       // G4
+    gestorCliente: str(cell(4, 20)),      // T4
+    gestor:        str(cell(7, 20)),      // T7
+    inicio:        toDate(cell(7, 2)),    // B7
+    terminoLB:     toDate(cell(7, 8)),    // H7
+    periodoInicio: toDate(cell(7, 15)),   // O7
+    periodoFim:    toDate(cell(7, 17)),   // Q7
+  };
+};
+
+const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtract | { error: string } => {
+  const g = curveRef.grid;
+  type Row = { date: Date; prevSem: number | null; prevAcu: number | null; tendAcu: number | null; realSem: number | null; realAcu: number | null };
+  const rows: Row[] = [];
+  const numOrNullStrict = (v: unknown): number | null => {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || s.startsWith('#')) return null;
+      const n = parseFloat(s.replace(',', '.'));
+      return isFinite(n) ? n : null;
+    }
+    return null;
+  };
+  // Data starts at row 2 (idx 1); header in row 1.
+  for (let i = 1; i < g.length; i++) {
+    const r = g[i] || [];
+    const d = toDate(r[0]);
+    if (!d) continue;
+    rows.push({
+      date: d,
+      prevSem: numOrNullStrict(r[1]),
+      prevAcu: numOrNullStrict(r[2]),
+      tendAcu: numOrNullStrict(r[3]),
+      realSem: numOrNullStrict(r[4]),
+      realAcu: numOrNullStrict(r[5]),
+    });
+  }
+  if (!rows.length) return { error: 'Aba "Curva S Projeto - BI" vazia ou sem datas' };
+
+  // Decimals (≤1) → percent; otherwise assume already %.
+  const toPct = (v: number | null): number => {
+    if (v == null) return 0;
+    return Math.abs(v) <= 1.5 ? round2(v * 100) : round2(v);
+  };
+
+  // ULTIMA_REAL: last row where realAcu is a number > 0
+  let ultimaReal = -1;
+  rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
+
+  // Align to status date if provided
+  if (statusDate) {
+    let bestIdx = -1, bestDiff = Infinity;
+    rows.forEach((r, i) => {
+      const diff = Math.abs(r.date.getTime() - statusDate.getTime());
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    });
+    if (bestIdx >= 0) ultimaReal = bestIdx;
+  }
+  if (ultimaReal < 0) ultimaReal = rows.length - 1;
+
+  const hasTendencia = rows.some(r => r.tendAcu != null && r.tendAcu > 0);
+
+  const sCurve = rows.map((r, i) => ({
+    date: fmtDDmmm(r.date),
+    previsto: r.prevAcu != null ? toPct(r.prevAcu) : (null as unknown as number),
+    real: i <= ultimaReal && r.realAcu != null ? toPct(r.realAcu) : (null as unknown as number),
+    tendencia: hasTendencia && r.tendAcu != null && r.tendAcu > 0 ? toPct(r.tendAcu) : (null as unknown as number),
+  }));
+
+  // 5-week window centered around ultimaReal
+  let wStart = ultimaReal - 2, wEnd = ultimaReal + 3;
+  if (wStart < 0) { wEnd -= wStart; wStart = 0; }
+  if (wEnd > rows.length) { wStart -= (wEnd - rows.length); wEnd = rows.length; wStart = Math.max(0, wStart); }
+  const weekly = rows.slice(wStart, wEnd).map(r => ({
+    date: fmtDDmmm(r.date),
+    previsto: toPct(r.prevSem),
+    real: toPct(r.realSem),
+  }));
+
+  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
+  rows.slice(0, ultimaReal + 1).forEach(r => {
+    const key = `${r.date.getFullYear()}-${String(r.date.getMonth()).padStart(2, '0')}`;
+    monthMap.set(key, { date: r.date, prevAcu: toPct(r.prevAcu), realAcu: toPct(r.realAcu) });
+  });
+  const monthly = [...monthMap.values()]
+    .filter(m => m.prevAcu > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-4)
+    .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.prevAcu, real: m.realAcu }));
+
+  const dec = (v: number | null) => v == null ? 0 : (Math.abs(v) <= 1.5 ? v : v / 100);
+  const cols: CurveExtract['cols'] = rows.map(r => ({
+    date: r.date,
+    prevSem: dec(r.prevSem), prevAcu: dec(r.prevAcu),
+    realSem: dec(r.realSem), realAcu: dec(r.realAcu),
+    tendSem: 0, tendAcu: dec(r.tendAcu),
+    replanjSem: 0, replanjAcu: 0,
+  }));
+
+  const last = rows[ultimaReal];
+  return {
+    block: null as never,
+    cols, ultimaReal,
+    statusDate: statusDate || last.date,
+    realAcuLast: last.realAcu != null ? toPct(last.realAcu) : 0,
+    prevAcuLast: last.prevAcu != null ? toPct(last.prevAcu) : 0,
+    hasReplanejado: false,
+    sCurve, weekly, monthly,
+  };
+};
+
+const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
+  const resumo = findFormatDResumo(allSheets);
+  if (!resumo) return null;
+  const curveRef =
+    allSheets.find(s => norm(s.sheetName) === 'curva s projeto - bi') ||
+    allSheets.find(s => norm(s.sheetName).includes('curva s projeto'));
+  if (!curveRef) {
+    console.warn('[FORMATO D] Aba "Curva S Projeto - BI" não encontrada');
+    return null;
+  }
+  const histRef = allSheets.find(s => norm(s.sheetName) === 'histograma') || null;
+  const info = extractFormatDInfo(resumo);
+  console.log('[FORMATO D] detectado', { resumo: resumo.sheetName, curve: curveRef.sheetName, hist: histRef?.sheetName, info });
+  return { resumoRef: resumo, curveRef, histRef, info };
+};
+
 
 interface FileScan {
   fileName: string;
@@ -1472,12 +1634,37 @@ interface ImportResult {
   projectDates: ProjectDates;
   formatB?: FormatBBlock | null;
   formatC?: FormatCBundle | null;
+  formatD?: FormatDBundle | null;
   errors: string[];
 }
 
 const runImport = async (files: File[]): Promise<ImportResult> => {
   const scans = await Promise.all(files.map(scanFile));
   const allSheets = scans.flatMap(s => s.sheets);
+
+  // Try FORMAT D first (NTS/Megasteam — "00-RESUMO PROJETO-R1")
+  const formatD = detectFormatD(allSheets);
+  if (formatD) {
+    const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus);
+    const projectDates: ProjectDates = {
+      inicio: formatD.info.inicio,
+      terminoLB: formatD.info.terminoLB,
+    };
+    const errors: string[] = [];
+    if ('error' in curve) errors.push(curve.error);
+    return {
+      curveBlock: null,
+      curve,
+      histBlock: null,
+      hist: null,
+      projectDates,
+      formatB: null,
+      formatC: null,
+      formatD,
+      errors,
+    };
+  }
+
 
   // Try FORMAT C first (Relatório Integrado: curve + hist em abas separadas + RESUMO)
   const formatC = detectFormatC(allSheets);
@@ -1715,10 +1902,11 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       catch (e) { res = { curveBlock: null, curve: null, histBlock: null, hist: null, projectDates: {}, formatC: null, errors: [(e as Error).message] }; }
     }
     if (res) {
-      const cb = res.curveBlock || res.formatB || res.formatC?.curve;
+      const cb = res.curveBlock || res.formatB || res.formatC?.curve || (res.formatD ? { ref: res.formatD.curveRef } : null);
       if (cb) { used.add(cb.ref.fileName); srcs.curve = cb.ref.fileName; }
       if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
     }
+
 
     // 2) Curva S Financeira — varre TODOS os xlsx (pode estar no mesmo arquivo da Curva S)
     let fin: CurvaSFinanceiraPoint[] | null = null;
@@ -1849,7 +2037,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         setMonthData(c.monthly); setLastImport('month', now); count++;
       }
       if (selectedFields.projectInfo) {
-        const updateDate = result?.formatC?.curve.updateDate ?? result?.formatB?.updateDate ?? c.statusDate;
+        const updateDate = result?.formatD?.info.dataStatus ?? result?.formatC?.curve.updateDate ?? result?.formatB?.updateDate ?? c.statusDate;
         infoPatch.atualizadoEm = toIsoDate(updateDate);
         infoPatch.avancoPrev = c.prevAcuLast;
         infoPatch.avancoReal = c.realAcuLast;
@@ -1872,7 +2060,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fcInfo.cliente && !currentInfo.cliente) infoPatch.cliente = fcInfo.cliente;
         if (fcInfo.gestor && !currentInfo.gestor) infoPatch.gestor = fcInfo.gestor;
       }
+      // FORMAT D: authoritative — always overwrite when provided
+      const fdInfo = result?.formatD?.info;
+      if (fdInfo) {
+        if (fdInfo.cliente) infoPatch.cliente = fdInfo.cliente;
+        if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
+        if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
+        if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
+      }
     }
+
 
     if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
     if (schedule && schedule.rows.length && selectedFields.schedule) {
