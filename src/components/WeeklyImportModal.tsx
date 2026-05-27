@@ -1484,14 +1484,15 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
 
 const extractFormatDHist = (histRef: SheetRef): HistExtract | { error: string } => {
   const g = histRef.grid;
-  const row2 = (g[1] || []) as unknown[];
+  const row19 = (g[18] || []) as unknown[];
+  const row21 = (g[20] || []) as unknown[];
+  const row22 = (g[21] || []) as unknown[];
   const row24 = (g[23] || []) as unknown[];
   const row25 = (g[24] || []) as unknown[];
-  const row5 = (g[4] || []) as unknown[];
 
-  const hasCronograma = row2.some(v => v != null && String(v).toUpperCase().includes('CRONOGRAMA MACRO'));
+  const hasDistribuicao = row19.some(v => v != null && String(v).toUpperCase().includes('DISTRIBUI'));
   const hasEquipe = row24[1] != null && String(row24[1]).toUpperCase().includes('EQUIPE DO PROJETO');
-  if (!hasCronograma || !hasEquipe) {
+  if (!hasDistribuicao && !hasEquipe) {
     return { error: 'Aba HISTOGRAMA: estrutura FORMATO D não reconhecida' };
   }
 
@@ -1507,22 +1508,38 @@ const extractFormatDHist = (histRef: SheetRef): HistExtract | { error: string } 
     return null;
   };
 
+  // Build month-per-column by carrying forward last month label seen in row 21
+  const maxLen = Math.max(row21.length, row22.length, row24.length, row25.length);
+  const monthByCol: (string | null)[] = [];
+  let currentMonth: string | null = null;
+  for (let j = 0; j < maxLen; j++) {
+    const v = row21[j];
+    if (v != null && typeof v === 'string' && v.includes('/')) {
+      currentMonth = v.trim();
+    } else if (v instanceof Date) {
+      const m = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][v.getMonth()];
+      currentMonth = `${m}/${String(v.getFullYear()).slice(-2)}`;
+    }
+    monthByCol[j] = currentMonth;
+  }
+
   const histogram: { date: string; semana: string; previsto: number; real: number }[] = [];
-  const seen = new Set<string>();
-  for (let j = 5; j < row5.length; j++) {
-    const labelRaw = row5[j];
-    if (labelRaw == null || labelRaw === '') break;
-    const semana = String(labelRaw).trim();
-    if (!semana || seen.has(semana)) break;
-    seen.add(semana);
+  for (let j = 5; j < maxLen; j++) {
+    const wkRaw = row22[j];
+    if (wkRaw == null || wkRaw === '') continue;
+    const wk = String(wkRaw).trim();
+    if (!wk) continue;
+    const month = monthByCol[j];
+    if (!month) continue;
     const previsto = toNumOrNull(row24[j]);
-    const real = toNumOrNull(row25[j]);
     if (previsto == null || previsto <= 0) continue;
+    const real = toNumOrNull(row25[j]);
+    const label = `${month} ${wk}`;
     histogram.push({
-      date: semana,
-      semana,
-      previsto: Math.round(previsto),
-      real: real == null ? 0 : Math.round(real),
+      date: label,
+      semana: label,
+      previsto: Math.round(previsto * 10) / 10,
+      real: real == null ? 0 : Math.round(real * 10) / 10,
     });
   }
 
@@ -1535,6 +1552,7 @@ const extractFormatDHist = (histRef: SheetRef): HistExtract | { error: string } 
     histogram,
   };
 };
+
 
 const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
   const resumo = findFormatDResumo(allSheets);
