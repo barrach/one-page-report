@@ -10,6 +10,7 @@ import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import WeeklyImportModal from '@/components/WeeklyImportModal';
+import ClearDataButton from '@/components/ClearDataButton';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -73,7 +74,7 @@ const parseNumber = (val: string): number => {
 
 const DataInputPage = () => {
   const { info, weeklyData, monthData, lastImports } = useCurrentProject();
-  const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData } = useProjectStore();
+  const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira } = useProjectStore();
   const [showWeeklyPaste, setShowWeeklyPaste] = useState(false);
   const [weeklyPasteText, setWeeklyPasteText] = useState('');
   const [showMonthPaste, setShowMonthPaste] = useState(false);
@@ -247,7 +248,12 @@ const DataInputPage = () => {
       {/* Weekly Data */}
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Resultado Semanal / Visão 5 Semanas</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-foreground">Resultado Semanal / Visão 5 Semanas</h2>
+            {weeklyData.length > 0 && (
+              <ClearDataButton sectionName="Resultado Semanal" onConfirm={() => setWeeklyData([])} />
+            )}
+          </div>
         </div>
         <PasteSection show={showWeeklyPaste} text={weeklyPasteText} setText={setWeeklyPasteText} onImport={handleWeeklyPaste} label="Datas" />
         <div className="overflow-x-auto">
@@ -286,7 +292,12 @@ const DataInputPage = () => {
       {/* Month Data */}
       <div className="bg-card rounded-lg p-6 shadow-sm border">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-foreground">Prev. x Realizado Mês</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-foreground">Prev. x Realizado Mês</h2>
+            {monthData.length > 0 && (
+              <ClearDataButton sectionName="Prev. x Realizado Mês" onConfirm={() => setMonthData([])} />
+            )}
+          </div>
         </div>
         <PasteSection show={showMonthPaste} text={monthPasteText} setText={setMonthPasteText} onImport={handleMonthPaste} label="Semanas" />
         <div className="overflow-x-auto">
@@ -333,6 +344,7 @@ const DataInputPage = () => {
 
 const FinancialCurveSection = () => {
   const { curvaSFinanceira, lastImports } = useCurrentProject();
+  const { setCurvaSFinanceira } = useProjectStore();
   if (!curvaSFinanceira || curvaSFinanceira.length === 0) return null;
   const fmt = (v: number | null | undefined) =>
     v == null || !isFinite(v) || v === 0 ? '—'
@@ -344,9 +356,12 @@ const FinancialCurveSection = () => {
   };
   return (
     <div>
-      <h2 className="text-base font-bold uppercase tracking-wider text-foreground mb-2">
-        Dados da Curva S Financeira
-      </h2>
+      <div className="flex items-center gap-3 mb-2">
+        <h2 className="text-base font-bold uppercase tracking-wider text-foreground">
+          Dados da Curva S Financeira
+        </h2>
+        <ClearDataButton sectionName="Dados da Curva S Financeira" onConfirm={() => setCurvaSFinanceira([])} />
+      </div>
       <div className="overflow-x-auto border border-border rounded-lg">
         <table className="w-full text-xs">
           <thead className="bg-muted">
