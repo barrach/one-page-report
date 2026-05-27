@@ -1655,7 +1655,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     const xmls = files.filter(f => /\.xml$/i.test(f.name));
     const xlsxs = files.filter(f => /\.xlsx?$/i.test(f.name));
     const used = new Set<string>();
-    const srcs: typeof sourceNames = {};
+    const srcs: { curve?: string; hist?: string; schedule?: string; finCurve?: string } = {};
 
     // 1) Curva S / Histograma (formatos A/B/C) — em todos os xlsx
     let res: ImportResult | null = null;
@@ -1668,33 +1668,51 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (cb) { used.add(cb.ref.fileName); srcs.curve = cb.ref.fileName; }
       if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
     }
-    setResult(res);
 
     // 2) Curva S Financeira — xlsx restantes
+    let fin: CurvaSFinanceiraPoint[] | null = null;
     for (const f of xlsxs) {
       if (used.has(f.name)) continue;
       try {
         const rows = await parseFinancialCurve(f);
-        if (rows.length) {
-          setFinCurve(rows);
-          used.add(f.name); srcs.finCurve = f.name;
-          break;
-        }
+        if (rows.length) { fin = rows; used.add(f.name); srcs.finCurve = f.name; break; }
       } catch { /* not a financial sheet */ }
     }
 
     // 3) Cronograma — todos xml + xlsx restantes
     const schedCandidates = [...xmls, ...xlsxs.filter(f => !used.has(f.name))];
+    let sched: ScheduleExtract | null = null;
     let lastErr: string | null = null;
     for (const f of schedCandidates) {
       try {
         const ex = await parseScheduleFile(f);
-        if (ex.rows.length) { setSchedule(ex); srcs.schedule = f.name; break; }
+        if (ex.rows.length) { sched = ex; srcs.schedule = f.name; break; }
       } catch (e) { lastErr = (e as Error).message; }
     }
-    if (!srcs.schedule && lastErr && schedCandidates.length) setScheduleError(lastErr);
+    if (!sched && lastErr && schedCandidates.length) setScheduleError(lastErr);
 
+    setResult(res);
+    setFinCurve(fin);
+    setSchedule(sched);
     setSourceNames(srcs);
+
+    // Pré-marcar campos disponíveis
+    const localC = res?.curve && !('error' in res.curve) ? (res.curve as CurveExtract) : null;
+    const localH = res?.hist && !('error' in res.hist) ? (res.hist as HistExtract) : null;
+    const weeklyOk = !!localC && localC.weekly.length > 0 && (() => {
+      const upTo = localC.cols.slice(0, localC.ultimaReal + 1).slice(-8);
+      return upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length >= 3;
+    })();
+    setSelectedFields({
+      sCurve: !!(localC && localC.sCurve.length),
+      weekly: weeklyOk,
+      monthly: !!(localC && localC.monthly.length),
+      projectInfo: !!localC,
+      histogram: !!(localH && localH.histogram.length),
+      schedule: !!(sched && sched.rows.length),
+      finCurve: !!(fin && fin.length),
+    });
+
     setParsing(false);
   }, [files]);
 
@@ -1740,8 +1758,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
-    sCurve: true, weekly: true, monthly: true, histogram: true,
-    schedule: true, finCurve: true, projectInfo: true,
+    sCurve: false, weekly: false, monthly: false, histogram: false,
+    schedule: false, finCurve: false, projectInfo: false,
   });
 
   const advance = async () => {
@@ -1749,23 +1767,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     setStep('fields');
   };
 
-  // Re-init selection sempre que entrar na etapa 'fields' com novos resultados
   const goBack = () => setStep('upload');
-
-  // Inicializa seleção quando dados de análise mudam e estamos na etapa fields
-  // (também aplicado ao entrar na etapa)
-  const initSelection = useCallback(() => {
-    const next = {} as Record<FieldKey, boolean>;
-    (Object.keys(available) as FieldKey[]).forEach(k => { next[k] = available[k]; });
-    setSelectedFields(next);
-  }, [available]);
-
-  // Atualiza seleção quando entra em 'fields'
-  useState(() => {});
-  if (step === 'fields' && !parsing) {
-    // sync once per render: only re-init if a key is "available && undefined"
-    // (lightweight — replace prior implicit init)
-  }
 
   const toggleField = (k: FieldKey) => {
     if (!available[k]) return;
@@ -1774,6 +1776,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
   const anyFieldChecked = (Object.keys(available) as FieldKey[])
     .some(k => available[k] && selectedFields[k]);
+
 
   const confirm = () => {
     const now = new Date().toISOString();
