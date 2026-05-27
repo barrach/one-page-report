@@ -1417,7 +1417,7 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
   };
 };
 
-const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtract | { error: string } => {
+const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResumoPct?: number): CurveExtract | { error: string } => {
   const g = curveRef.grid;
   const numOrNull = (v: unknown): number | null => {
     if (v == null || v === '') return null;
@@ -1488,6 +1488,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
 
   let ultimaReal = -1;
   rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
+  const lastRealFromCurve = ultimaReal;
   if (statusDate) {
     let bestIdx = -1, bestDiff = Infinity;
     rows.forEach((r, i) => {
@@ -1500,10 +1501,29 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
 
   const hasTendencia = rows.some(r => r.tendAcu != null && r.tendAcu > 0);
 
+  // Reconcile real curve with RESUMO value: if the status week is beyond
+  // the last realAcum point in L12, interpolate linearly so the chart ends
+  // at the same % shown on the KPI cards.
+  const realAcumOverride: (number | null)[] = rows.map(r => r.realAcu);
+  if (realFromResumoPct != null && lastRealFromCurve >= 0 && ultimaReal > lastRealFromCurve) {
+    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
+    const startVal = rows[lastRealFromCurve].realAcu ?? 0;
+    const gap = targetDec - startVal;
+    const steps = ultimaReal - lastRealFromCurve;
+    if (Math.abs(gap) > 0.0001 && steps > 0) {
+      for (let k = 1; k <= steps; k++) {
+        realAcumOverride[lastRealFromCurve + k] = startVal + (gap * k) / steps;
+      }
+    }
+  } else if (realFromResumoPct != null && ultimaReal >= 0) {
+    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
+    realAcumOverride[ultimaReal] = targetDec;
+  }
+
   const sCurve = rows.map((r, i) => ({
     date: r.semana,
     previsto: r.prevAcu != null ? toPct(r.prevAcu) : (null as unknown as number),
-    real: i <= ultimaReal && r.realAcu != null ? toPct(r.realAcu) : (null as unknown as number),
+    real: i <= ultimaReal && realAcumOverride[i] != null ? toPct(realAcumOverride[i] as number) : (null as unknown as number),
     tendencia: hasTendencia && r.tendAcu != null && r.tendAcu > 0 ? toPct(r.tendAcu) : (null as unknown as number),
   }));
 
@@ -1517,9 +1537,10 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
   }));
 
   const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
-  rows.slice(0, ultimaReal + 1).forEach(r => {
+  rows.slice(0, ultimaReal + 1).forEach((r, i) => {
     const key = `${r.date.getFullYear()}-${String(r.date.getMonth()).padStart(2, '0')}`;
-    monthMap.set(key, { date: r.date, prevAcu: toPct(r.prevAcu), realAcu: toPct(r.realAcu) });
+    const realVal = realAcumOverride[i];
+    monthMap.set(key, { date: r.date, prevAcu: toPct(r.prevAcu), realAcu: realVal != null ? toPct(realVal) : 0 });
   });
   const monthly = [...monthMap.values()]
     .filter(m => m.prevAcu > 0)
@@ -1528,20 +1549,21 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.prevAcu, real: m.realAcu }));
 
   const dec = (v: number | null) => v == null ? 0 : (Math.abs(v) <= 1.5 ? v : v / 100);
-  const cols: CurveExtract['cols'] = rows.map(r => ({
+  const cols: CurveExtract['cols'] = rows.map((r, i) => ({
     date: r.date,
     prevSem: dec(r.prevSem), prevAcu: dec(r.prevAcu),
-    realSem: dec(r.realSem), realAcu: dec(r.realAcu),
+    realSem: dec(r.realSem), realAcu: dec(realAcumOverride[i] ?? null),
     tendSem: 0, tendAcu: dec(r.tendAcu),
     replanjSem: 0, replanjAcu: 0,
   }));
 
   const last = rows[ultimaReal];
+  const lastRealOverride = realAcumOverride[ultimaReal];
   return {
     block: null as never,
     cols, ultimaReal,
     statusDate: statusDate || last.date,
-    realAcuLast: last.realAcu != null ? toPct(last.realAcu) : 0,
+    realAcuLast: lastRealOverride != null ? toPct(lastRealOverride as number) : 0,
     prevAcuLast: last.prevAcu != null ? toPct(last.prevAcu) : 0,
     hasReplanejado: false,
     sCurve, weekly, monthly,
@@ -1792,7 +1814,7 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   // Try FORMAT D first (NTS/Megasteam — "00-RESUMO PROJETO-R1")
   const formatD = detectFormatD(allSheets);
   if (formatD) {
-    const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus);
+    const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus, formatD.info.realAcum);
     const hist = formatD.histRef ? extractFormatDHist(formatD.histRef) : null;
     const projectDates: ProjectDates = {
       inicio: formatD.info.inicio,
