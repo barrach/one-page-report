@@ -1417,7 +1417,7 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
   };
 };
 
-const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtract | { error: string } => {
+const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResumoPct?: number): CurveExtract | { error: string } => {
   const g = curveRef.grid;
   const numOrNull = (v: unknown): number | null => {
     if (v == null || v === '') return null;
