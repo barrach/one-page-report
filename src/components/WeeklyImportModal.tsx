@@ -2114,9 +2114,68 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button onClick={confirm} disabled={!canConfirm} className="gradient-primary text-primary-foreground">
-                Confirmar Importação
+              <Button onClick={goToFieldsStep} disabled={!canConfirm} className="gradient-primary text-primary-foreground">
+                Avançar — Selecionar Campos
               </Button>
+            </div>
+          </div>
+        )}
+
+        {step === 'fields' && (
+          <div className="space-y-4">
+            <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+              <h3 className="font-semibold text-sm">Selecionar campos a importar</h3>
+              <p className="text-xs text-muted-foreground">
+                Todos os campos detectados vêm marcados. Desmarque os que não deseja sobrescrever — eles manterão os dados atuais do projeto.
+              </p>
+
+              <div className="space-y-2 pt-1">
+                {(Object.keys(FIELD_LABELS) as FieldKey[]).map((k) => {
+                  const isAvailable = available[k];
+                  const checked = !!selectedFields[k] && isAvailable;
+                  return (
+                    <label
+                      key={k}
+                      className={`flex items-start gap-3 p-2.5 rounded-md border transition-colors ${
+                        isAvailable
+                          ? 'border-border bg-card hover:bg-muted/50 cursor-pointer'
+                          : 'border-border/50 bg-muted/20 opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 accent-primary"
+                        checked={checked}
+                        disabled={!isAvailable}
+                        onChange={() => isAvailable && toggleField(k)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium text-foreground">{FIELD_LABELS[k]}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-primary/10 text-primary">
+                            {FIELD_SOURCE[k]}
+                          </span>
+                          {!isAvailable && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded font-semibold bg-muted text-muted-foreground">
+                              não detectado
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex justify-between gap-2 pt-2">
+              <Button variant="outline" onClick={() => setStep('select')}>← Voltar</Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button onClick={confirm} disabled={!anyFieldChecked} className="gradient-primary text-primary-foreground">
+                  Confirmar Importação
+                </Button>
+              </div>
             </div>
           </div>
         )}
