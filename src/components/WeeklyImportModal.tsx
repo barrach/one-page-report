@@ -1548,6 +1548,56 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, formatC: null, errors };
 };
 
+// ─── Curva S Financeira (aba "02-CURVA S- FINANCEIRA") ───
+const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]> => {
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const targetNorm = '02-curva s- financeira';
+  const sheetName = wb.SheetNames.find(n => {
+    const nn = n.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    return nn === targetNorm || nn.replace(/\s+/g, '') === targetNorm.replace(/\s+/g, '');
+  });
+  if (!sheetName) throw new Error('Aba "02-CURVA S- FINANCEIRA" não encontrada');
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
+
+  const ROW_DATES = 4;     // row 5 (index 4)
+  const ROW_PREV = 5;      // row 6
+  const ROW_REAL = 8;      // row 9
+  const ROW_PREV_ACUM = 9; // row 10
+  const ROW_REAL_ACUM = 10;// row 11
+
+  const dateRow = (grid[ROW_DATES] || []) as unknown[];
+  const prevRow = (grid[ROW_PREV] || []) as unknown[];
+  const realRow = (grid[ROW_REAL] || []) as unknown[];
+  const prevAcumRow = (grid[ROW_PREV_ACUM] || []) as unknown[];
+  const realAcumRow = (grid[ROW_REAL_ACUM] || []) as unknown[];
+
+  const sanitize = (v: unknown): number => {
+    if (v == null) return 0;
+    if (typeof v === 'string' && v.includes('#REF')) return 0;
+    if (typeof v === 'number' && isFinite(v)) return v;
+    if (typeof v === 'string') {
+      const n = parseFloat(v.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.'));
+      return isFinite(n) ? n : 0;
+    }
+    return 0;
+  };
+
+  const out: CurvaSFinanceiraPoint[] = [];
+  for (let c = 1; c < dateRow.length; c++) {
+    const d = toDate(dateRow[c]);
+    if (!d) break;
+    out.push({
+      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+      previsto: sanitize(prevRow[c]),
+      real: sanitize(realRow[c]),
+      prevAcum: sanitize(prevAcumRow[c]),
+      realAcum: sanitize(realAcumRow[c]),
+    });
+  }
+  return out;
+};
+
 interface UploadZoneProps {
   label: string;
   subtitle?: string;
