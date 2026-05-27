@@ -1553,14 +1553,27 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
   const buf = await file.arrayBuffer();
   const wb = XLSX.read(buf, { type: 'array', cellDates: true });
 
-  // STEP 1 — find sheet
-  const normSheet = (s: string) => s.trim().replace(/\.$/, '').toUpperCase();
-  const candidates = wb.SheetNames.filter(n => {
-    const nn = normSheet(n);
-    return nn.includes('CURVA') && nn.includes('FINANC') && !nn.includes('BI') && !nn.includes('REPLAN');
-  });
-  const sheetName = candidates.find(n => normSheet(n).includes('02')) || candidates[0];
-  if (!sheetName) throw new Error('Aba "CURVA S FINANCEIRA" não encontrada');
+  // STEP 1 — find sheet by strict name priority, validating A1 contains "Contratante"
+  const a1Of = (sn: string): string => {
+    const cell = (wb.Sheets[sn] as any)?.['A1'];
+    return String(cell?.v ?? '').trim();
+  };
+  const hasContratante = (sn: string) => /contratante/i.test(a1Of(sn));
+
+  const preferredNames = ['02-CURVA S- FINANCEIRA', '02-CURVA S- FINANCEIRA.', '02-CURVA S-FINANCEIRA'];
+  let sheetName: string | undefined;
+  for (const want of preferredNames) {
+    const found = wb.SheetNames.find(n => n.trim() === want);
+    if (found && hasContratante(found)) { sheetName = found; break; }
+  }
+  // STEP 3 — fallback: any sheet containing CURVA + FINANC where A1 has "Contratante"
+  if (!sheetName) {
+    sheetName = wb.SheetNames.find(n => {
+      const nn = n.toUpperCase();
+      return nn.includes('CURVA') && nn.includes('FINANC') && hasContratante(n);
+    });
+  }
+  if (!sheetName) throw new Error('Aba "02-CURVA S- FINANCEIRA" não encontrada (ou A1 não contém "Contratante")');
 
   const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
 
@@ -1587,15 +1600,19 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
   const prevAcumRow = getRow(rPrevAcum);
   const realAcumRow = getRow(rRealAcum);
 
-  // STEP 3 — extract values
-  const num = (v: unknown): number => {
-    if (typeof v === 'number' && isFinite(v)) return v;
+  // STEP 3 — extract values. Return null for empty real cells (no measurement yet).
+  const numOrNull = (v: unknown): number | null => {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return isFinite(v) ? v : null;
     if (typeof v === 'string') {
-      const n = parseFloat(v.replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, ''));
-      return isFinite(n) ? n : 0;
+      const s = v.trim();
+      if (!s || s.startsWith('#')) return null;
+      const n = parseFloat(s.replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, ''));
+      return isFinite(n) ? n : null;
     }
-    return 0;
+    return null;
   };
+  const num = (v: unknown): number => numOrNull(v) ?? 0;
   const isValidDateCell = (v: unknown) => {
     if (v instanceof Date) return true;
     if (typeof v === 'number' && v > 40000 && v < 60000) return true;
@@ -1617,9 +1634,9 @@ const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]>
     out.push({
       date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
       previsto: num(prevRow[c]),
-      real: num(realRow[c]),
+      real: numOrNull(realRow[c]),
       prevAcum: num(prevAcumRow[c]),
-      realAcum: num(realAcumRow[c]),
+      realAcum: numOrNull(realAcumRow[c]),
     });
   }
 
