@@ -2036,7 +2036,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         setMonthData(c.monthly); setLastImport('month', now); count++;
       }
       if (selectedFields.projectInfo) {
-        const updateDate = result?.formatC?.curve.updateDate ?? result?.formatB?.updateDate ?? c.statusDate;
+        const updateDate = result?.formatD?.info.dataStatus ?? result?.formatC?.curve.updateDate ?? result?.formatB?.updateDate ?? c.statusDate;
         infoPatch.atualizadoEm = toIsoDate(updateDate);
         infoPatch.avancoPrev = c.prevAcuLast;
         infoPatch.avancoReal = c.realAcuLast;
@@ -2059,7 +2059,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fcInfo.cliente && !currentInfo.cliente) infoPatch.cliente = fcInfo.cliente;
         if (fcInfo.gestor && !currentInfo.gestor) infoPatch.gestor = fcInfo.gestor;
       }
+      // FORMAT D: authoritative — always overwrite when provided
+      const fdInfo = result?.formatD?.info;
+      if (fdInfo) {
+        if (fdInfo.cliente) infoPatch.cliente = fdInfo.cliente;
+        if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
+        if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
+        if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
+      }
     }
+
 
     if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
     if (schedule && schedule.rows.length && selectedFields.schedule) {
