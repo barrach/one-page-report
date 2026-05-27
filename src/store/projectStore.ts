@@ -343,7 +343,7 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   setInfo: (info) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       info: { ...p.info, ...info },
-      name: info.projeto || p.name,
+      // name is user-defined and immutable via import
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
