@@ -190,7 +190,12 @@ const ReportHeader = () => {
             One Page Report — MEGASTEAM
           </h1>
           <p className="text-[11px] text-primary-foreground/60 mt-0.5">
-            {info.projeto} · {info.cliente}
+            {info.projeto}
+            {(info.contrato || info.cliente) && (
+              <span className="block">
+                {[info.contrato, info.cliente].filter(Boolean).join(' · ')}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
