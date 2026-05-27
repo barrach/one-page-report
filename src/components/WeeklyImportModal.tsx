@@ -1896,6 +1896,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             onFile={onFile4}
           />
         </div>
+        )}
 
         {parsing && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground py-4 justify-center">
