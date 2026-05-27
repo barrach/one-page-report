@@ -13,7 +13,7 @@ import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ScheduleTable from '@/components/ScheduleTable';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
-import { useProjectStore } from '@/store/projectStore';
+import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
