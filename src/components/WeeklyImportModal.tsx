@@ -1592,10 +1592,11 @@ const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
   const resumo = findFormatDResumo(allSheets);
   if (!resumo) return null;
   const curveRef =
-    allSheets.find(s => norm(s.sheetName) === 'curva s projeto - bi') ||
-    allSheets.find(s => norm(s.sheetName).includes('curva s projeto'));
+    allSheets.find(s => norm(s.sheetName) === '01-curva s- projeto') ||
+    allSheets.find(s => norm(s.sheetName).replace(/[\s-]+/g, '').includes('01curvasprojeto')) ||
+    allSheets.find(s => /01.*curva s.*projeto/i.test(s.sheetName));
   if (!curveRef) {
-    console.warn('[FORMATO D] Aba "Curva S Projeto - BI" não encontrada');
+    console.warn('[FORMATO D] Aba "01-CURVA S- PROJETO" não encontrada');
     return null;
   }
   const histRef = allSheets.find(s => norm(s.sheetName) === 'histograma') || null;
