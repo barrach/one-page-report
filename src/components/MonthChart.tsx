@@ -158,7 +158,7 @@ const MonthChart = () => {
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} activeIndex={lastWithReal} />
+      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">
