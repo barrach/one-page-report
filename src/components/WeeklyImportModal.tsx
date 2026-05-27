@@ -2033,6 +2033,21 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
                 </div>
               )}
+
+              {(finCurve || finCurveError) && (
+                <div className="text-xs space-y-2">
+                  <div className="font-medium text-foreground">💰 Curva S Financeira <span className="text-muted-foreground font-normal">(opcional)</span></div>
+                  {finCurveError ? (
+                    <div className="pl-4 text-destructive flex items-center gap-1"><AlertCircle className="h-3 w-3" />{finCurveError}</div>
+                  ) : finCurve && (
+                    <div className="pl-4 text-muted-foreground">
+                      <span className="font-semibold text-foreground">{finCurve.length}</span> meses detectados ·
+                      Prev. Acum. final: <span className="font-semibold text-foreground">{(finCurve[finCurve.length - 1]?.prevAcum || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</span> ·
+                      Real Acum. final: <span className="font-semibold text-foreground">{(finCurve[finCurve.length - 1]?.realAcum || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-2 pt-2">
