@@ -38,6 +38,21 @@ const Index = () => {
   const [presentationMode, setPresentationMode] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
+  const current = useCurrentProject();
+
+  const hasRows = (arr: any[] | undefined, keys: string[]) =>
+    Array.isArray(arr) && arr.some((r) => r && keys.some((k) => {
+      const v = (r as any)[k];
+      return v !== undefined && v !== null && v !== '' && v !== 0;
+    }));
+
+  const showSCurve = hasRows(current?.sCurveData, ['date']);
+  const showHistogram = hasRows(current?.histogramData, ['date', 'semana']);
+  const showFinancial = Array.isArray(current?.curvaSFinanceira) && current.curvaSFinanceira.length > 0;
+  const showFiveWeek = hasRows(current?.weeklyData, ['date']);
+  const showMonth = hasRows(current?.monthData, ['week', 'date']);
+  const showSchedule = hasRows(current?.scheduleData, ['tarefa', 'id']);
+  const showExecutive = showSCurve || showHistogram || showFinancial || showFiveWeek || showMonth || showSchedule;
 
   const togglePresentation = () => {
     if (!presentationMode) {
