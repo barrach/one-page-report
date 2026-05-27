@@ -2171,10 +2171,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       // FORMAT D: authoritative — always overwrite when provided
       const fdInfo = result?.formatD?.info;
       if (fdInfo) {
+        if (fdInfo.codigo) infoPatch.projeto = fdInfo.codigo;
         if (fdInfo.cliente) infoPatch.cliente = fdInfo.cliente;
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
+        if (fdInfo.prevAcumLB != null) infoPatch.avancoPrev = fdInfo.prevAcumLB;
+        if (fdInfo.realAcum != null) infoPatch.avancoReal = fdInfo.realAcum;
       }
     }
 
