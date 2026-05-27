@@ -90,7 +90,10 @@ const FinancialCurveChart = () => {
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <div className="flex items-start justify-between mb-1">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva S Financeira</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva S Financeira</h3>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-600 text-white">R$</span>
+        </div>
         <ChartExpandModal
           title="Curva S Financeira"
           subtitle="Medição prevista × realizada acumulada"
