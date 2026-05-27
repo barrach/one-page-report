@@ -1814,7 +1814,7 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   // Try FORMAT D first (NTS/Megasteam — "00-RESUMO PROJETO-R1")
   const formatD = detectFormatD(allSheets);
   if (formatD) {
-    const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus);
+    const curve = extractFormatDCurve(formatD.curveRef, formatD.info.dataStatus, formatD.info.realAcum);
     const hist = formatD.histRef ? extractFormatDHist(formatD.histRef) : null;
     const projectDates: ProjectDates = {
       inicio: formatD.info.inicio,
