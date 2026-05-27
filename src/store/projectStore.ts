@@ -13,6 +13,14 @@ export interface ProjectInfo {
   atualizadoEm: string;
   contrato?: string;
   escopo?: string;
+  // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
+  prevSemana?: number;
+  realSemana?: number;
+  desvioSemana?: number;
+  prevAcumulado?: number;
+  realAcumulado?: number;
+  desvioAcumulado?: number;
+  previstoProxSemana?: number;
 }
 
 export interface WeekData {

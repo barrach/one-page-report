@@ -1357,6 +1357,8 @@ interface FormatDInfo {
   desvioSemanal?: number;
   prevAcumLB?: number;
   realAcum?: number;
+  desvioAcumulado?: number;
+  previstoProxSemana?: number;
 }
 
 interface FormatDBundle {
@@ -1405,11 +1407,13 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
     prazoTotal:    num(cell(6, 9)),       // I6
     diasCorridos:  num(cell(6, 10)),      // J6
     diasRestantes: num(cell(6, 11)),      // K6
-    prevSemanal:   pct(cell(12, 3)),      // C12
-    realSemanal:   pct(cell(13, 3)),      // C13
-    desvioSemanal: pct(cell(14, 3)),      // C14
-    prevAcumLB:    pct(cell(19, 3)),      // C19
-    realAcum:      pct(cell(20, 3)),      // C20
+    prevSemanal:        pct(cell(12, 3)),      // C12
+    realSemanal:        pct(cell(13, 3)),      // C13
+    desvioSemanal:      pct(cell(14, 3)),      // C14
+    previstoProxSemana: pct(cell(17, 3)),      // C17
+    prevAcumLB:         pct(cell(19, 3)),      // C19
+    realAcum:           pct(cell(20, 3)),      // C20
+    desvioAcumulado:    pct(cell(21, 3)),      // C21
   };
 };
 
@@ -2214,8 +2218,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
-        if (fdInfo.prevAcumLB != null) infoPatch.avancoPrev = fdInfo.prevAcumLB;
-        if (fdInfo.realAcum != null) infoPatch.avancoReal = fdInfo.realAcum;
+        if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
+        if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
+        if (fdInfo.prevSemanal != null) infoPatch.prevSemana = fdInfo.prevSemanal;
+        if (fdInfo.realSemanal != null) infoPatch.realSemana = fdInfo.realSemanal;
+        if (fdInfo.desvioSemanal != null) infoPatch.desvioSemana = fdInfo.desvioSemanal;
+        if (fdInfo.desvioAcumulado != null) infoPatch.desvioAcumulado = fdInfo.desvioAcumulado;
+        if (fdInfo.previstoProxSemana != null) infoPatch.previstoProxSemana = fdInfo.previstoProxSemana;
         // Preserve user-defined project name; only fill if empty
         if (currentInfo && !currentInfo.projeto && fdInfo.escopo) {
           const m = fdInfo.escopo.match(/PROJETO\s+(.+)$/i);

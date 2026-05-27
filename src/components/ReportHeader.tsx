@@ -110,12 +110,13 @@ const ReportHeader = () => {
   const hasReplanejado = sCurveData.some(p => (p as any).replanejado != null && (p as any).replanejado !== 0);
   const refLabel = hasReplanejado ? 'replanj.' : 'LB';
 
-  const avancoReal = ultPoint?.real ?? 0;
-  const refPrev = ultPoint
+  // Prefer authoritative values from import (FORMATO D), fallback to S-Curve derivation
+  const avancoReal = info.realAcumulado ?? (ultPoint?.real ?? 0);
+  const refPrev = info.prevAcumulado ?? (ultPoint
     ? (hasReplanejado && (ultPoint as any).replanejado != null
         ? (ultPoint as any).replanejado
         : (ultPoint.previsto ?? 0))
-    : 0;
+    : 0);
   const prevAvancoReal = penPoint?.real ?? 0;
   const prevRefPrev = penPoint
     ? (hasReplanejado && (penPoint as any).replanejado != null
@@ -124,14 +125,14 @@ const ReportHeader = () => {
     : 0;
 
   // Weekly Real % derived from accumulated delta
-  const realSemUlt = ultIdx > 0
+  const realSemUlt = info.desvioSemana ?? (ultIdx > 0
     ? avancoReal - (sCurveData[ultIdx - 1]?.real ?? 0)
-    : avancoReal;
+    : avancoReal);
   const realSemPen = penIdx > 0
     ? prevAvancoReal - (sCurveData[penIdx - 1]?.real ?? 0)
     : prevAvancoReal;
 
-  const desvio = avancoReal - refPrev;
+  const desvio = info.desvioAcumulado ?? (avancoReal - refPrev);
   const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
   const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
 
