@@ -1420,21 +1420,23 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
     if (typeof v === 'number') return isFinite(v) ? v : null;
     return null;
   };
-  const colA = (i: number) => norm(g[i]?.[0]);
-  const findRow = (pred: (s: string) => boolean): number => {
-    for (let i = 0; i < g.length; i++) if (pred(colA(i))) return i;
-    return -1;
-  };
-  const rowDatas    = findRow(s => s.includes('evento'));
-  const rowSemanas  = findRow(s => s.includes('semanal') && !s.includes('previsto') && !s.includes('realizado'));
-  // FORMATO D: usar SEMPRE as linhas REPLANEJADAS (não a Linha de Base LB original)
-  const rowPrevLB   = findRow(s => s.includes('replanejado') && s.includes('semanal') && !s.includes('realizado'));
-  const rowPrevAcum = findRow(s => s.includes('replanejado') && s.includes('acumulado') && !s.includes('realizado'));
-  const rowReal     = findRow(s => s.includes('realizado') && s.includes('replanejado') && s.includes('semanal'));
-  const rowRealAcum = findRow(s => s.includes('realizado') && s.includes('replanejado') && s.includes('acumulado'));
-  const rowTend     = findRow(s => (s.includes('tendência') || s.includes('tendencia')) && s.includes('acumulado'));
+  const labelMap: Record<string, number> = {};
+  g.forEach((row, i) => {
+    const label = String(row?.[0] ?? '').trim();
+    if (label && !(label in labelMap)) labelMap[label] = i;
+  });
 
-  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcum < 0 || rowRealAcum < 0) {
+  const rowDatas         = findRowByLabel(labelMap, 'Evento ( Cronograma)', 'Evento (Cronograma)', 'EVENTO');
+  const rowSemanas       = findRowByLabel(labelMap, 'Semanal', 'SEMANAL');
+  const rowPrevSemLB     = findRowByLabel(labelMap, 'PREVISTO GERAL LB', 'PREVISTO GERAL LB ');
+  const rowPrevAcumLB    = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)');
+  const rowPrevSemReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (SEMANAL)');
+  const rowPrevAcumReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)');
+  const rowRealSem       = findRowByLabel(labelMap, 'REALIZADO GERAL', 'REALIZADO GERAL ');
+  const rowRealAcum      = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');
+  const rowTend          = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)');
+
+  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcumLB < 0 || rowPrevAcumReplan < 0 || rowRealAcum < 0) {
     return { error: 'Aba "01-CURVA S- PROJETO" não contém as linhas esperadas (Evento/Semanal/Previsto/Realizado)' };
   }
 
@@ -1442,26 +1444,33 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
   const rows: Row[] = [];
   const rDatas = g[rowDatas] || [];
   const rSem = g[rowSemanas] || [];
-  const rPL = rowPrevLB >= 0 ? g[rowPrevLB] : [];
-  const rPA = g[rowPrevAcum] || [];
-  const rR = rowReal >= 0 ? g[rowReal] : [];
-  const rRA = g[rowRealAcum] || [];
+  const rPrevSemLB = rowPrevSemLB >= 0 ? g[rowPrevSemLB] : [];
+  const rPrevAcumLB = g[rowPrevAcumLB] || [];
+  const rPrevSemReplan = rowPrevSemReplan >= 0 ? g[rowPrevSemReplan] : [];
+  const rPrevAcumReplan = rowPrevAcumReplan >= 0 ? g[rowPrevAcumReplan] : [];
+  const rRealSem = rowRealSem >= 0 ? g[rowRealSem] : [];
+  const rRealAcum = g[rowRealAcum] || [];
   const rT = rowTend >= 0 ? g[rowTend] : [];
-  const maxC = Math.max(rDatas.length, rSem.length, rPA.length, rRA.length);
+  const maxC = Math.max(rDatas.length, rSem.length, rPrevAcumLB.length, rPrevAcumReplan.length, rRealAcum.length, rT.length);
   for (let c = 1; c < maxC; c++) {
     const semVal = rSem[c];
     if (semVal == null || semVal === '') break;
     const d = toDate(rDatas[c]);
     if (!d) continue;
-    const prevAcu = numOrNull(rPA[c]);
-    const realAcu = numOrNull(rRA[c]);
+    const prevLbAcu = numOrNull(rPrevAcumLB[c]);
+    const prevReplanAcu = numOrNull(rPrevAcumReplan[c]);
+    const prevLbSem = numOrNull(rPrevSemLB[c]);
+    const prevReplanSem = numOrNull(rPrevSemReplan[c]);
+    const prevAcu = prevLbAcu != null && prevLbAcu > 0 ? prevLbAcu : (prevReplanAcu != null && prevReplanAcu > 0 ? prevReplanAcu : null);
+    const prevSem = prevLbSem != null && prevLbSem > 0 ? prevLbSem : (prevReplanSem != null && prevReplanSem > 0 ? prevReplanSem : null);
+    const realAcu = numOrNull(rRealAcum[c]);
     if ((prevAcu == null || prevAcu <= 0) && (realAcu == null || realAcu <= 0)) continue;
     rows.push({
       date: d,
       semana: String(semVal),
-      prevSem: numOrNull(rPL[c]),
+      prevSem,
       prevAcu,
-      realSem: numOrNull(rR[c]),
+      realSem: numOrNull(rRealSem[c]),
       realAcu,
       tendAcu: numOrNull(rT[c]),
     });
@@ -1488,7 +1497,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
   const hasTendencia = rows.some(r => r.tendAcu != null && r.tendAcu > 0);
 
   const sCurve = rows.map((r, i) => ({
-    date: fmtDDmmm(r.date),
+    date: r.semana,
     previsto: r.prevAcu != null ? toPct(r.prevAcu) : (null as unknown as number),
     real: i <= ultimaReal && r.realAcu != null ? toPct(r.realAcu) : (null as unknown as number),
     tendencia: hasTendencia && r.tendAcu != null && r.tendAcu > 0 ? toPct(r.tendAcu) : (null as unknown as number),
