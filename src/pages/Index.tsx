@@ -286,18 +286,20 @@ const Index = () => {
 
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
-        <ExecutiveSummary />
+        {showExecutive && <ExecutiveSummary />}
 
-        <SCurveChart />
-        <HistogramChart />
-        <FinancialCurveChart />
+        {showSCurve && <SCurveChart />}
+        {showHistogram && <HistogramChart />}
+        {showFinancial && <FinancialCurveChart />}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <FiveWeekChart />
-          <MonthChart />
-        </div>
+        {(showFiveWeek || showMonth) && (
+          <div className={`grid grid-cols-1 ${showFiveWeek && showMonth ? 'lg:grid-cols-2' : ''} gap-4`}>
+            {showFiveWeek && <FiveWeekChart />}
+            {showMonth && <MonthChart />}
+          </div>
+        )}
 
-        <ScheduleTable />
+        {showSchedule && <ScheduleTable />}
         <ActionsTable />
         <RestrictionsChart />
         <ObservationsSection />
