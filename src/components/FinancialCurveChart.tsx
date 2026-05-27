@@ -51,6 +51,16 @@ const FinancialCurveChart = () => {
     }));
   }, [curvaSFinanceira]);
 
+  const leftDomain = useMemo<[number, number]>(() => {
+    const max = Math.max(0, ...chartData.map((d) => Math.max(d.previstoMensal ?? 0, d.realMensal ?? 0)));
+    return [0, max > 0 ? Math.ceil(max * 1.2) : 1];
+  }, [chartData]);
+
+  const rightDomain = useMemo<[number, number]>(() => {
+    const max = Math.max(0, ...chartData.map((d) => Math.max(d.prevAcum ?? 0, d.realAcum ?? 0)));
+    return [0, max > 0 ? Math.ceil(max * 1.1) : 1];
+  }, [chartData]);
+
   const statusMes = useMemo(() => {
     const cut = Math.min(statusDateIndex, (sCurveData?.length || 1) - 1);
     const sd = sCurveData?.[cut]?.date;
@@ -120,6 +130,8 @@ const FinancialCurveChart = () => {
           />
           <YAxis
             yAxisId="left"
+            orientation="left"
+            domain={leftDomain}
             tickFormatter={(v) => fmtBRLShort(v)}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
@@ -128,6 +140,7 @@ const FinancialCurveChart = () => {
           <YAxis
             yAxisId="right"
             orientation="right"
+            domain={rightDomain}
             tickFormatter={(v) => fmtBRLShort(v)}
             tick={{ fontSize: 11 }}
             stroke="hsl(var(--muted-foreground))"
