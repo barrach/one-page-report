@@ -325,7 +325,60 @@ const DataInputPage = () => {
         <HistogramSpreadsheet />
         <ImportStamp iso={lastImports?.histogram} />
       </div>
+      <FinancialCurveSection />
       <ScheduleSpreadsheet />
+    </div>
+  );
+};
+
+const FinancialCurveSection = () => {
+  const { curvaSFinanceira, lastImports } = useCurrentProject();
+  if (!curvaSFinanceira || curvaSFinanceira.length === 0) return null;
+  const fmt = (v: number | null | undefined) =>
+    v == null || !isFinite(v) || v === 0 ? '—'
+      : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+  const fmtMonth = (iso: string) => {
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
+  };
+  return (
+    <div>
+      <h2 className="text-base font-bold uppercase tracking-wider text-foreground mb-2">
+        Dados da Curva S Financeira
+      </h2>
+      <div className="overflow-x-auto border border-border rounded-lg">
+        <table className="w-full text-xs">
+          <thead className="bg-muted">
+            <tr>
+              <th className="sticky left-0 z-10 bg-muted px-3 py-2 text-left border border-border text-foreground">Campo</th>
+              {curvaSFinanceira.map((p, i) => (
+                <th key={i} className="px-2 py-2 border border-border text-center font-semibold text-foreground whitespace-nowrap">
+                  {fmtMonth(p.date)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              { label: 'Previsto Mensal', key: 'previsto' as const },
+              { label: 'Real Mensal', key: 'real' as const },
+              { label: 'Previsto Acumulado', key: 'prevAcum' as const },
+              { label: 'Real Acumulado', key: 'realAcum' as const },
+            ].map(({ label, key }) => (
+              <tr key={key}>
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground whitespace-nowrap">{label}</td>
+                {curvaSFinanceira.map((p, i) => (
+                  <td key={i} className="border border-border px-2 py-1 text-right text-foreground whitespace-nowrap">
+                    {fmt(p[key] as number)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ImportStamp iso={lastImports?.curvaSFinanceira} />
     </div>
   );
 };
