@@ -1393,7 +1393,7 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
   };
   return {
     dataStatus:    toDate(cell(7, 18)),   // R7
-    codigo:        str(cell(4, 1)),       // A4
+    contrato:      str(cell(4, 1)),       // A4 (número do contrato)
     cliente:       str(cell(4, 15)),      // O4
     escopo:        str(cell(4, 7)),       // G4
     gestorCliente: str(cell(4, 20)),      // T4
