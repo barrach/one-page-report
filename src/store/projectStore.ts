@@ -285,6 +285,7 @@ interface ProjectStoreState {
   setScheduleData: (data: ScheduleRow[]) => void;
   addScheduleRow: () => void;
   removeScheduleRow: (index: number) => void;
+  setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
   setAiInsight: (chartType: string, insight: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
 }
