@@ -1427,11 +1427,12 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
   };
   const rowDatas    = findRow(s => s.includes('evento'));
   const rowSemanas  = findRow(s => s.includes('semanal') && !s.includes('previsto') && !s.includes('realizado'));
-  const rowPrevLB   = findRow(s => s.includes('previsto geral lb') && !s.includes('acumulado') && !s.includes('replan'));
-  const rowPrevAcum = findRow(s => s.includes('previsto geral lb') && s.includes('acumulado') && !s.includes('replan'));
-  const rowReal     = findRow(s => s.includes('realizado geral') && !s.includes('acumulado') && !s.includes('replan'));
-  const rowRealAcum = findRow(s => s.includes('realizado geral') && s.includes('acumulado') && !s.includes('replan'));
-  const rowTend     = findRow(s => s.includes('tendência geral') && s.includes('acumulado'));
+  // FORMATO D: usar SEMPRE as linhas REPLANEJADAS (não a Linha de Base LB original)
+  const rowPrevLB   = findRow(s => s.includes('replanejado') && s.includes('semanal') && !s.includes('realizado'));
+  const rowPrevAcum = findRow(s => s.includes('replanejado') && s.includes('acumulado') && !s.includes('realizado'));
+  const rowReal     = findRow(s => s.includes('realizado') && s.includes('replanejado') && s.includes('semanal'));
+  const rowRealAcum = findRow(s => s.includes('realizado') && s.includes('replanejado') && s.includes('acumulado'));
+  const rowTend     = findRow(s => (s.includes('tendência') || s.includes('tendencia')) && s.includes('acumulado'));
 
   if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcum < 0 || rowRealAcum < 0) {
     return { error: 'Aba "01-CURVA S- PROJETO" não contém as linhas esperadas (Evento/Semanal/Previsto/Realizado)' };
