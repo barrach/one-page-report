@@ -1339,6 +1339,7 @@ const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
 // ===================== FORMAT D (NTS/Megasteam — aba "00-RESUMO PROJETO-R1") =====================
 
 interface FormatDInfo {
+  codigo?: string;
   cliente?: string;
   escopo?: string;
   gestorCliente?: string;
@@ -1348,6 +1349,14 @@ interface FormatDInfo {
   periodoInicio?: Date;
   periodoFim?: Date;
   dataStatus?: Date;
+  prazoTotal?: number;
+  diasCorridos?: number;
+  diasRestantes?: number;
+  prevSemanal?: number;
+  realSemanal?: number;
+  desvioSemanal?: number;
+  prevAcumLB?: number;
+  realAcum?: number;
 }
 
 interface FormatDBundle {
@@ -1366,8 +1375,25 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
   const g = resumo.grid;
   const cell = (r1: number, c1: number) => (g[r1 - 1] || [])[c1 - 1];
   const str = (v: unknown) => (v == null ? undefined : String(v).trim() || undefined);
+  const num = (v: unknown): number | undefined => {
+    if (v == null || v === '') return undefined;
+    if (typeof v === 'number') return isFinite(v) ? v : undefined;
+    if (typeof v === 'string') {
+      const s = v.trim();
+      if (!s || s.startsWith('#')) return undefined;
+      const n = parseFloat(s.replace(/\./g, '').replace(',', '.'));
+      return isFinite(n) ? n : undefined;
+    }
+    return undefined;
+  };
+  const pct = (v: unknown): number | undefined => {
+    const n = num(v);
+    if (n == null) return undefined;
+    return Math.abs(n) <= 1.5 ? n * 100 : n;
+  };
   return {
     dataStatus:    toDate(cell(7, 18)),   // R7
+    codigo:        str(cell(4, 1)),       // A4
     cliente:       str(cell(4, 15)),      // O4
     escopo:        str(cell(4, 7)),       // G4
     gestorCliente: str(cell(4, 20)),      // T4
@@ -1376,6 +1402,14 @@ const extractFormatDInfo = (resumo: SheetRef): FormatDInfo => {
     terminoLB:     toDate(cell(7, 8)),    // H7
     periodoInicio: toDate(cell(7, 15)),   // O7
     periodoFim:    toDate(cell(7, 17)),   // Q7
+    prazoTotal:    num(cell(6, 9)),       // I6
+    diasCorridos:  num(cell(6, 10)),      // J6
+    diasRestantes: num(cell(6, 11)),      // K6
+    prevSemanal:   pct(cell(12, 3)),      // C12
+    realSemanal:   pct(cell(13, 3)),      // C13
+    desvioSemanal: pct(cell(14, 3)),      // C14
+    prevAcumLB:    pct(cell(19, 3)),      // C19
+    realAcum:      pct(cell(20, 3)),      // C20
   };
 };
 
