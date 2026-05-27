@@ -1339,7 +1339,7 @@ const detectFormatC = (allSheets: SheetRef[]): FormatCBundle | null => {
 // ===================== FORMAT D (NTS/Megasteam — aba "00-RESUMO PROJETO-R1") =====================
 
 interface FormatDInfo {
-  codigo?: string;
+  contrato?: string;
   cliente?: string;
   escopo?: string;
   gestorCliente?: string;
