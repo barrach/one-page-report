@@ -188,7 +188,7 @@ const ReportHeader = () => {
       <div className="gradient-primary rounded-t-xl px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
-            One Page Report — MEGASTEAM
+            One Page Report — MegaHub
           </h1>
           <p className="text-[11px] text-primary-foreground/60 mt-0.5">
             {info.projeto}

@@ -155,18 +155,18 @@ const Index = () => {
           <div className="flex items-center gap-3 sm:gap-5 min-w-0">
             <div className="flex items-center gap-2 shrink-0">
               <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-              <h1 className="text-[13px] sm:text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
+              <h1 className="text-[13px] sm:text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MegaHub</h1>
             </div>
             <nav className="hidden sm:flex gap-1">
-              <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
+              <Link to="/opr" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
                 <FileText className="h-3.5 w-3.5" />
                 Relatório
               </Link>
-              <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+              <Link to="/opr/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
                 <Database className="h-3.5 w-3.5" />
                 Dados
               </Link>
-              <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+              <Link to="/opr/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
                 <Shield className="h-3.5 w-3.5" />
                 Admin
               </Link>
@@ -184,7 +184,7 @@ const Index = () => {
 
             {!isStandalone && (
               <button
-                onClick={() => navigate('/install')}
+                onClick={() => navigate('/opr/install')}
                 className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
                 title="Instalar no celular"
               >
@@ -261,7 +261,7 @@ const Index = () => {
                     {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
                   </Button>
                   {!isStandalone && (
-                    <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); navigate('/install'); }}>
+                    <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); navigate('/opr/install'); }}>
                       <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
                     </Button>
                   )}
@@ -310,22 +310,22 @@ const Index = () => {
           transition={{ delay: 0.5 }}
           className="text-center py-3 text-xs text-muted-foreground border-t border-border"
         >
-          MEGASTEAM · One Page Report · Gerado automaticamente
+          MegaHub · One Page Report · Gerado automaticamente
         </motion.div>
       </div>
 
       {/* Mobile bottom nav */}
       {!presentationMode && (
         <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-card border-t border-border flex justify-around items-stretch h-14 print:hidden">
-          <Link to="/" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-primary">
+          <Link to="/opr" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-primary">
             <FileText className="h-5 w-5" />
             <span className="text-[10px] font-semibold">Relatório</span>
           </Link>
-          <Link to="/dados" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+          <Link to="/opr/dados" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
             <Database className="h-5 w-5" />
             <span className="text-[10px] font-medium">Dados</span>
           </Link>
-          <Link to="/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+          <Link to="/opr/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
             <Shield className="h-5 w-5" />
             <span className="text-[10px] font-medium">Admin</span>
           </Link>

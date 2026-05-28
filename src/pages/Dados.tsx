@@ -10,14 +10,14 @@ const DadosPage = () => {
         <div className="flex items-center gap-3 sm:gap-5">
           <div className="flex items-center gap-2">
             <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
+            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MegaHub</h1>
           </div>
           <nav className="flex gap-1">
-            <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+            <Link to="/opr" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
               <FileText className="h-3.5 w-3.5" />
               Relatório
             </Link>
-            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
+            <Link to="/opr/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
               <Database className="h-3.5 w-3.5" />
               Dados
             </Link>
