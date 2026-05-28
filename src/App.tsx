@@ -10,6 +10,7 @@ const Admin = lazy(() => import("./pages/Admin"));
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import HubPage from "./pages/HubPage";
+import ControladoriaPage from "./pages/ControladoriaPage";
 import { useProjectStore } from "./store/projectStore";
 import ModuleTopNav from "./components/ModuleTopNav";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
@@ -44,6 +45,9 @@ const AppContent = () => {
 
           {/* ProdControl */}
           <Route path="/prodcontrol/*" element={<ProdControlApp />} />
+
+          {/* Controladoria */}
+          <Route path="/controladoria" element={<ControladoriaPage />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

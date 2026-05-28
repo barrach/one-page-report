@@ -1,11 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { BarChart2, Activity, LayoutGrid } from "lucide-react";
+import { BarChart2, Activity, LayoutGrid, TrendingUp } from "lucide-react";
 
 export default function ModuleTopNav() {
   const location = useLocation();
   const isHub = location.pathname === "/";
   const isOPR = location.pathname.startsWith("/opr");
   const isProdControl = location.pathname.startsWith("/prodcontrol");
+  const isControladoria = location.pathname.startsWith("/controladoria");
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[100] flex h-10 items-center gap-2 border-b border-border bg-background/95 px-3 backdrop-blur-sm">
@@ -49,6 +50,18 @@ export default function ModuleTopNav() {
         >
           <Activity className="h-3 w-3" />
           ProdControl
+        </Link>
+
+        <Link
+          to="/controladoria"
+          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+            isControladoria
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
+          <TrendingUp className="h-3 w-3" />
+          Controladoria
         </Link>
       </div>
 
