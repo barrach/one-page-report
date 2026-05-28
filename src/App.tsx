@@ -3,14 +3,15 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useEffect } from "react";
-import { lazy, Suspense } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
 const Admin = lazy(() => import("./pages/Admin"));
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import { useProjectStore } from "./store/projectStore";
+import ModuleTopNav from "./components/ModuleTopNav";
+import ProdControlApp from "./prodcontrol/ProdControlApp";
 
 const queryClient = new QueryClient();
 
@@ -22,19 +23,24 @@ const AppContent = () => {
   }, [loadProjects]);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/install" element={<Install />} />
-        <Route path="/" element={<Index />} />
-        <Route path="/dados" element={<DadosPage />} />
-        <Route path="/admin" element={
-          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
-            <Admin />
-          </Suspense>
-        } />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+    <>
+      <ModuleTopNav />
+      {/* pt-10 para compensar a barra de módulo fixa (h-10) */}
+      <div className="pt-10">
+        <Routes>
+          <Route path="/install" element={<Install />} />
+          <Route path="/" element={<Index />} />
+          <Route path="/dados" element={<DadosPage />} />
+          <Route path="/admin" element={
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
+              <Admin />
+            </Suspense>
+          } />
+          <Route path="/prodcontrol/*" element={<ProdControlApp />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </div>
+    </>
   );
 };
 
@@ -43,7 +49,9 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <AppContent />
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

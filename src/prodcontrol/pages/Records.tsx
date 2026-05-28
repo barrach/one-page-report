@@ -1,0 +1,951 @@
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import AppLayout from "@prodcontrol/components/AppLayout";
+import { Input } from "@prodcontrol/components/ui/input";
+import { Button } from "@prodcontrol/components/ui/button";
+import { Textarea } from "@prodcontrol/components/ui/textarea";
+import { Checkbox } from "@prodcontrol/components/ui/checkbox";
+import { Label } from "@prodcontrol/components/ui/label";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@prodcontrol/components/ui/select";
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@prodcontrol/components/ui/table";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@prodcontrol/components/ui/alert-dialog";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@prodcontrol/components/ui/dialog";
+import { supabase } from "@prodcontrol/integrations/supabase/client";
+import { fetchAllObservacoes } from "@prodcontrol/lib/supabaseAllRows";
+import { Search, Trash2, Download, Upload, Loader2, AlertTriangle, X, ChevronLeft, ChevronRight, Pencil } from "lucide-react";
+import { Scale, RotateCcw } from "lucide-react";
+import { useToast } from "@prodcontrol/hooks/use-toast";
+import { TIME_SLOTS } from "@prodcontrol/data/mockData";
+import { normalizeDescriptionName, normalizeDescriptionOptions } from "@prodcontrol/lib/categoryNormalization";
+import { useIsAdmin } from "@prodcontrol/hooks/useIsAdmin";
+import { useUserObra } from "@prodcontrol/hooks/useUserObra";
+
+import { exportToExcel, parseExcelFile, type ExportRow } from "@prodcontrol/lib/excelUtils";
+import { reprocessarObservacoesDoDia } from "@prodcontrol/lib/dynamicObservationSync";
+import { getDisplayQuantity, getRecordValue, usesDerivedHHValue } from "@prodcontrol/lib/hourlyAverageCalc";
+import PonderacaoModal from "@prodcontrol/components/PonderacaoModal";
+
+const PAGE_SIZE = 50;
+
+const categoryBadgeVariant: Record<string, string> = {
+  Produtivo: "bg-[hsl(220,70%,55%)]/15 text-[hsl(220,70%,45%)] border-[hsl(220,70%,55%)]/30",
+  Suplementar: "bg-[hsl(142,70%,45%)]/15 text-[hsl(142,70%,30%)] border-[hsl(142,70%,45%)]/30",
+  "Não Produtivo": "bg-destructive/15 text-destructive border-destructive/30",
+  "Não Produtivo Externo": "bg-[hsl(30,40%,80%)]/30 text-[hsl(30,40%,25%)] border-[hsl(30,40%,60%)]/40",
+};
+
+export default function Records() {
+  const { isAdmin } = useIsAdmin();
+  const { obraFilter: userObraRestriction } = useUserObra();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState("");
+  const [filterEspecialidade, setFilterEspecialidade] = useState("all");
+  const [filterCategoria, setFilterCategoria] = useState("all");
+  const [filterDescricao, setFilterDescricao] = useState("all");
+  const [filterObra, setFilterObra] = useState("all");
+  const [filterDateStart, setFilterDateStart] = useState("");
+  const [filterDateEnd, setFilterDateEnd] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [page, setPage] = useState(1);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
+  const [editForm, setEditForm] = useState<any>({});
+  const [editSaving, setEditSaving] = useState(false);
+  const [ponderacaoOpen, setPonderacaoOpen] = useState(false);
+
+  // Ponderação validation
+  const getSelectedForPonderacao = () => {
+    const selected = records.filter((r: any) => selectedIds.has(r.id));
+    if (selected.length === 0) return { valid: false, error: "Nenhum registro selecionado", records: [], horario: "" };
+    const horarios = new Set(selected.map((r: any) => (r.horario || "").slice(0, 5)));
+    if (horarios.size > 1) return { valid: false, error: "Selecione registros com o mesmo horário para aplicar a ponderação", records: selected, horario: "" };
+    const horario = [...horarios][0];
+    if (horario !== "08:00" && horario !== "13:00") return { valid: false, error: "Ponderação disponível apenas para os horários 08:00 e 13:00", records: selected, horario };
+    return { valid: true, error: "", records: selected, horario };
+  };
+
+  const handleOpenPonderacao = () => {
+    const result = getSelectedForPonderacao();
+    if (!result.valid) {
+      toast({ title: "Validação", description: result.error, variant: "destructive" });
+      return;
+    }
+    setPonderacaoOpen(true);
+  };
+
+  const handleRevertPonderacao = async () => {
+    const selected = records.filter((r: any) => selectedIds.has(r.id) && r.ponderado);
+    if (selected.length === 0) {
+      toast({ title: "Nenhum registro ponderado selecionado", variant: "destructive" });
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("observacoes")
+        .update({ ponderado: false, hora_real: null, peso_real: null })
+        .in("id", selected.map((r: any) => r.id));
+      if (error) throw error;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["observacoes"] }),
+        queryClient.refetchQueries({ queryKey: ["observacoes"] }),
+      ]);
+      setSelectedIds(new Set());
+      toast({ title: "Ponderação revertida", description: `${selected.length} registro(s) revertidos.` });
+    } catch (err: any) {
+      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const { data: rotas = [] } = useQuery({
+    queryKey: ["rotas", "ativas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("rotas").select("id, nome").eq("status", "Ativo").order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: allCategorias = [] } = useQuery({
+    queryKey: ["categorias_observacao", "all_for_edit"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categorias_observacao").select("id, nome, categoria_pai_id, status");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const parentCategorias = useMemo(() => allCategorias.filter(c => !c.categoria_pai_id && c.status === "Ativo"), [allCategorias]);
+  const editSubcategorias = useMemo(() => {
+    if (!editForm.categoria_id) return [];
+    return normalizeDescriptionOptions(allCategorias.filter(c => c.categoria_pai_id === editForm.categoria_id && c.status === "Ativo"));
+  }, [allCategorias, editForm.categoria_id]);
+
+  // Descriptions available for the filter (based on selected parent category)
+  const filterDescricaoOptions = useMemo(() => {
+    const parentId = filterCategoria !== "all" ? filterCategoria : null;
+    const subs = allCategorias.filter(c => {
+      if (!c.categoria_pai_id) return false;
+      if (c.status !== "Ativo") return false;
+      if (parentId && c.categoria_pai_id !== parentId) return false;
+      return true;
+    });
+    return normalizeDescriptionOptions(subs);
+  }, [allCategorias, filterCategoria]);
+
+  const { data: obras = [] } = useQuery({
+    queryKey: ["obras", "ativas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("obras").select("id, nome").eq("status", "Ativo").order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: especialidades = [] } = useQuery({
+    queryKey: ["especialidades", "ativas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("especialidades").select("id, nome").eq("status", "Ativo").order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: categorias = [] } = useQuery({
+    queryKey: ["categorias_observacao", "ativas"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categorias_observacao").select("id, nome").eq("status", "Ativo").order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: profiles = [] } = useQuery({
+    queryKey: ["profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("profiles").select("user_id, nome, email");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const profileMap = new Map(profiles.map((p) => [p.user_id, p.nome || p.email || p.user_id.substring(0, 8)]));
+
+  const { data: parentCats = [] } = useQuery({
+    queryKey: ["categorias_observacao", "parents"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("categorias_observacao").select("id, nome, impacta_produtividade").is("categoria_pai_id", null);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: rawRecords = [] } = useQuery({
+    queryKey: ["observacoes"],
+    queryFn: () => fetchAllObservacoes(
+      "*, rotas(nome), especialidades(nome), categorias_observacao(nome, categoria_pai_id, impacta_produtividade), obras(nome)",
+      { deletedNull: true },
+      [{ column: "data", ascending: false }, { column: "horario", ascending: false }]
+    ),
+  });
+
+  // Apply contract-based restriction for non-admin users
+  const records = useMemo(() => {
+    if (!userObraRestriction) return rawRecords;
+    return rawRecords.filter((r: any) => r.obra_id === userObraRestriction);
+  }, [rawRecords, userObraRestriction]);
+
+  const { mutate: deleteRecord } = useMutation({
+    mutationFn: async (id: string) => {
+      const target = records.find((record: any) => record.id === id);
+      const { error } = await supabase
+        .from("observacoes")
+        .update({ deleted_at: new Date().toISOString(), deleted_by: null })
+        .eq("id", id);
+      if (error) throw error;
+      if (target) {
+        await reprocessarObservacoesDoDia(target.data, target.obra_id);
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["observacoes"] }),
+        queryClient.refetchQueries({ queryKey: ["observacoes"] }),
+      ]);
+      toast({ title: "Registro excluído", description: "Registro removido com sucesso." });
+    },
+  });
+
+  const openEdit = (r: any) => {
+    setEditRecord(r);
+      const isDynamicRecord = r.is_dinamico === true && [
+        "Aguardando Liberação de PT",
+        "Fatores Climáticos e Consequências",
+        "Interferências Operacionais",
+      ].includes(normalizeDescriptionName(r.descricao));
+
+      const duracaoHoras = Number(r.duracao_horas ?? 1);
+      const duracaoH = Math.floor(duracaoHoras);
+      const duracaoM = Math.round((duracaoHoras - duracaoH) * 60);
+
+      setEditForm({
+      data: r.data, horario: r.horario, obra_id: r.obra_id, rota_id: r.rota_id,
+      especialidade_id: r.especialidade_id, categoria_id: r.categoria_id, descricao: normalizeDescriptionName(r.descricao),
+      quantidade: r.quantidade, notas: r.notas || "", is_dinamico: isDynamicRecord,
+      duracao_horas: duracaoH, duracao_minutos: duracaoM,
+    });
+  };
+
+  const handleEditSave = async () => {
+    setEditSaving(true);
+    try {
+        const payload: any = {
+        data: editForm.data, horario: editForm.horario, obra_id: editForm.obra_id,
+        rota_id: editForm.rota_id, especialidade_id: editForm.especialidade_id,
+        funcao_id: null, categoria_id: editForm.categoria_id,
+          descricao: editForm.descricao,
+        notas: editForm.notas || null,
+        };
+
+        if (!editForm.is_dinamico) {
+          payload.quantidade = parseFloat(editForm.quantidade);
+        } else {
+          // For dynamic records, update duration
+          const h = parseInt(editForm.duracao_horas || "0", 10);
+          const m = parseInt(editForm.duracao_minutos || "0", 10);
+          payload.duracao_horas = h + m / 60;
+        }
+
+        const previousData = editRecord.data;
+        const previousObraId = editRecord.obra_id;
+        const { error } = await supabase.from("observacoes").update(payload).eq("id", editRecord.id);
+      if (error) throw error;
+      await reprocessarObservacoesDoDia(previousData, previousObraId);
+      if (previousData !== editForm.data || previousObraId !== editForm.obra_id) {
+        await reprocessarObservacoesDoDia(editForm.data, editForm.obra_id);
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["observacoes"] }),
+        queryClient.refetchQueries({ queryKey: ["observacoes"] }),
+      ]);
+      toast({ title: "Registro atualizado", description: "Dados atualizados — cálculos recalculados automaticamente." });
+      setEditRecord(null);
+    } catch (e: any) {
+      toast({ title: "Erro ao atualizar", description: e.message, variant: "destructive" });
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const filtered = records.filter((r: any) => {
+    if (filterEspecialidade !== "all" && r.especialidade_id !== filterEspecialidade) return false;
+    if (filterCategoria !== "all") {
+      const recParentId = (r.categorias_observacao as any)?.categoria_pai_id;
+      if (recParentId !== filterCategoria && r.categoria_id !== filterCategoria) return false;
+    }
+    if (filterDescricao !== "all") {
+      const descNorm = normalizeDescriptionName(r.descricao || "");
+      const filterDescNorm = filterDescricaoOptions.find(d => d.id === filterDescricao)?.nome || "";
+      if (descNorm !== filterDescNorm) return false;
+    }
+    if (filterObra !== "all" && r.obra_id !== filterObra) return false;
+    if (filterDateStart && r.data < filterDateStart) return false;
+    if (filterDateEnd && r.data > filterDateEnd) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      const desc = r.descricao?.toLowerCase() || "";
+      const esp = (r.especialidades as any)?.nome?.toLowerCase() || "";
+      return desc.includes(q) || esp.includes(q);
+    }
+    return true;
+  }).sort((a: any, b: any) => {
+    // Sort by date descending, then by time descending (parsing minutes for correct order)
+    const dateCmp = b.data.localeCompare(a.data);
+    if (dateCmp !== 0) return dateCmp;
+    const parseMin = (t: string) => { const p = t.split(":"); return parseInt(p[0], 10) * 60 + parseInt(p[1] || "0", 10); };
+    return parseMin(b.horario) - parseMin(a.horario);
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const filteredIds = new Set(filtered.map((r: any) => r.id));
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+  }, [search, filterEspecialidade, filterCategoria, filterDescricao, filterObra, filterDateStart, filterDateEnd]);
+
+  // Reset description filter when category changes
+  useEffect(() => {
+    setFilterDescricao("all");
+  }, [filterCategoria]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((r: any) => selectedIds.has(r.id));
+  const someSelected = selectedIds.size > 0;
+  const selectedInCurrentFilter = [...selectedIds].filter(id => filteredIds.has(id)).length;
+
+  const toggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filtered.forEach((r: any) => next.delete(r.id));
+        return next;
+      });
+    } else {
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        filtered.forEach((r: any) => next.add(r.id));
+        return next;
+      });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    setBulkDeleting(true);
+    const idsToDelete = [...selectedIds].filter(id => filteredIds.has(id));
+    let succeeded = 0;
+    let failed = 0;
+
+    try {
+      const { error } = await supabase
+        .from("observacoes")
+        .update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: null,
+        })
+        .in("id", idsToDelete);
+
+      if (error) {
+        failed = idsToDelete.length;
+      } else {
+        const affectedGroups = new Map<string, { data: string; obra_id: string }>();
+        records
+          .filter((record: any) => idsToDelete.includes(record.id))
+          .forEach((record: any) => {
+            affectedGroups.set(`${record.data}|${record.obra_id}`, { data: record.data, obra_id: record.obra_id });
+          });
+
+        for (const group of affectedGroups.values()) {
+          await reprocessarObservacoesDoDia(group.data, group.obra_id);
+        }
+
+        succeeded = idsToDelete.length;
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["observacoes"] }),
+          queryClient.refetchQueries({ queryKey: ["observacoes"] }),
+        ]);
+      }
+    } catch {
+      failed = idsToDelete.length;
+    }
+
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+
+    if (failed > 0) {
+      toast({
+        title: `Exclusão parcial`,
+        description: `${succeeded} excluído(s) com sucesso. ${failed} falharam.`,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Registros excluídos",
+        description: `${succeeded} registro(s) removidos com sucesso.`,
+      });
+    }
+  };
+
+  const handleExport = () => {
+    const rows: ExportRow[] = filtered.map((r: any) => ({
+      Data: r.data,
+      "Horário": r.horario,
+      Obra: (r.obras as any)?.nome || "",
+      Rota: (r.rotas as any)?.nome || "",
+      Especialidade: (r.especialidades as any)?.nome || "",
+      Categoria: (r.categorias_observacao as any)?.nome || "",
+      "Descrição": r.descricao || "",
+      Quantidade: getDisplayQuantity(r, records),
+      Empresa: r.empresa || "",
+      Notas: r.notas || "",
+    }));
+    if (rows.length === 0) {
+      toast({ title: "Sem dados", description: "Nenhum registro para exportar.", variant: "destructive" });
+      return;
+    }
+    exportToExcel(rows);
+    toast({ title: "Exportado!", description: `${rows.length} registro(s) exportados para Excel.` });
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const rows = await parseExcelFile(file);
+
+      const obraMap = new Map(obras.map((o) => [o.nome.toLowerCase(), o.id]));
+      const espMap = new Map(especialidades.map((s) => [s.nome.toLowerCase(), s.id]));
+      const catMap = new Map(categorias.map((c) => [c.nome.toLowerCase(), c.id]));
+
+      const { data: rotasData } = await supabase.from("rotas").select("id, nome").eq("status", "Ativo");
+      const rotaMap = new Map((rotasData || []).map((r) => [r.nome.toLowerCase(), r.id]));
+
+      const errors: string[] = [];
+      const insertRows: any[] = [];
+
+      rows.forEach((row, i) => {
+        const lineNum = i + 2;
+        const obraId = obraMap.get(String(row.Obra || "").toLowerCase());
+        const rotaId = rotaMap.get(String(row.Rota || "").toLowerCase());
+        const espId = espMap.get(String(row.Especialidade || "").toLowerCase());
+        const catId = catMap.get(String(row.Categoria || "").toLowerCase());
+
+        if (!obraId) { errors.push(`Linha ${lineNum}: Obra "${row.Obra}" não encontrada`); return; }
+        if (!rotaId) { errors.push(`Linha ${lineNum}: Rota "${row.Rota}" não encontrada`); return; }
+        if (!espId) { errors.push(`Linha ${lineNum}: Especialidade "${row.Especialidade}" não encontrada`); return; }
+        if (!catId) { errors.push(`Linha ${lineNum}: Categoria "${row.Categoria}" não encontrada`); return; }
+
+        insertRows.push({
+          data: String(row.Data),
+          horario: String(row["Horário"] || row.Horário || ""),
+          obra_id: obraId,
+          rota_id: rotaId,
+          especialidade_id: espId,
+          categoria_id: catId,
+          descricao: String(row["Descrição"] || row.Descrição || ""),
+          quantidade: Number(row.Quantidade) || 1,
+          empresa: String(row.Empresa || "MEGASTEM"),
+          notas: row.Notas ? String(row.Notas) : null,
+          contrato_id: null,
+          criado_por: null,
+        });
+      });
+
+      if (errors.length > 0 && insertRows.length === 0) {
+        toast({ title: "Erro na importação", description: errors.slice(0, 5).join("\n"), variant: "destructive" });
+        return;
+      }
+
+      if (insertRows.length > 0) {
+        const { error } = await supabase.from("observacoes").insert(insertRows);
+        if (error) throw error;
+        const affectedGroups = new Map<string, { data: string; obra_id: string }>();
+        insertRows.forEach((row) => {
+          affectedGroups.set(`${row.data}|${row.obra_id}`, { data: row.data, obra_id: row.obra_id });
+        });
+        for (const group of affectedGroups.values()) {
+          await reprocessarObservacoesDoDia(group.data, group.obra_id);
+        }
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: ["observacoes"] }),
+          queryClient.refetchQueries({ queryKey: ["observacoes"] }),
+        ]);
+      }
+
+      const msg = `${insertRows.length} registro(s) importados.` + (errors.length > 0 ? ` ${errors.length} linha(s) com erro ignoradas.` : "");
+      toast({ title: "Importação concluída!", description: msg });
+    } catch (err: any) {
+      toast({ title: "Erro na importação", description: err.message, variant: "destructive" });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <AppLayout>
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Registros</h1>
+            <p className="text-sm text-muted-foreground mt-1">Todas as observações de produtividade registradas</p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" className="gap-2" onClick={handleExport}>
+              <Download className="w-4 h-4" /> Exportar
+            </Button>
+            {isAdmin && (
+              <>
+                <Button variant="outline" className="gap-2" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+                  {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                  Importar
+                </Button>
+                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="stat-card mb-4 animate-fade-in">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input placeholder="Buscar registros..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+              </div>
+            </div>
+            <div className="w-48">
+              <Select value={filterObra} onValueChange={setFilterObra}>
+                <SelectTrigger><SelectValue placeholder="Obra" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as Obras</SelectItem>
+                  {obras.map((o) => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-48">
+              <Select value={filterEspecialidade} onValueChange={setFilterEspecialidade}>
+                <SelectTrigger><SelectValue placeholder="Especialidade" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Especialidades</SelectItem>
+                  {especialidades.map((s) => <SelectItem key={s.id} value={s.id}>{s.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-44">
+              <Select value={filterCategoria} onValueChange={setFilterCategoria}>
+                <SelectTrigger><SelectValue placeholder="Categoria" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Categorias</SelectItem>
+                  {parentCategorias.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="w-52">
+              <Select value={filterDescricao} onValueChange={setFilterDescricao}>
+                <SelectTrigger><SelectValue placeholder="Todas Descrições" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas Descrições</SelectItem>
+                  {filterDescricaoOptions.map((d) => <SelectItem key={d.id} value={d.id}>{d.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Date range */}
+            <div>
+              <Label className="text-xs text-muted-foreground">De</Label>
+              <Input
+                type="date"
+                value={filterDateStart}
+                onChange={(e) => setFilterDateStart(e.target.value)}
+                className="w-38 mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Até</Label>
+              <Input
+                type="date"
+                value={filterDateEnd}
+                onChange={(e) => setFilterDateEnd(e.target.value)}
+                className="w-38 mt-1"
+              />
+            </div>
+            {(filterDateStart || filterDateEnd) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-10 px-2 text-muted-foreground"
+                onClick={() => { setFilterDateStart(""); setFilterDateEnd(""); }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Bulk action bar */}
+        {isAdmin && someSelected && (
+          <div className="mb-4 flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20 animate-fade-in">
+            <span className="text-sm font-medium text-foreground">
+              {selectedInCurrentFilter} registro(s) selecionado(s)
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1 text-muted-foreground"
+              onClick={() => setSelectedIds(new Set())}
+            >
+              <X className="w-3 h-3" /> Limpar seleção
+            </Button>
+            <div className="flex-1" />
+            {(() => {
+              const hasPonderados = records.some((r: any) => selectedIds.has(r.id) && r.ponderado);
+              return (
+                <>
+                  {hasPonderados && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleRevertPonderacao}
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reverter Ponderação
+                    </Button>
+                  )}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={handleOpenPonderacao}
+                  >
+                    <Scale className="w-3.5 h-3.5" />
+                    Ponderar Registros
+                  </Button>
+                </>
+              );
+            })()}
+            <AlertDialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={selectedInCurrentFilter === 0}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Apagar {selectedInCurrentFilter} selecionado(s)
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-destructive" />
+                    Confirmar exclusão em massa
+                  </AlertDialogTitle>
+                  <AlertDialogDescription asChild>
+                    <div className="space-y-3">
+                      <p>
+                        Você está prestes a excluir <strong>{selectedInCurrentFilter} registro(s)</strong>.
+                      </p>
+                      <div className="rounded-md bg-destructive/10 border border-destructive/20 p-3 text-sm text-destructive">
+                        ⚠️ Esta ação é auditável — os registros ficarão marcados como excluídos com data e usuário responsável, mas não aparecerão mais na listagem.
+                      </div>
+                    </div>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkDelete}
+                    className="bg-destructive hover:bg-destructive/90"
+                    disabled={bulkDeleting}
+                  >
+                    {bulkDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    Confirmar exclusão
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        )}
+
+        {/* Table */}
+        <div className="stat-card animate-fade-in overflow-hidden p-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                {isAdmin && (
+                  <TableHead className="w-10 pl-4">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Selecionar todos"
+                      className="translate-y-[2px]"
+                    />
+                  </TableHead>
+                )}
+                <TableHead className="text-xs font-semibold">Data</TableHead>
+                <TableHead className="text-xs font-semibold">Hora</TableHead>
+                <TableHead className="text-xs font-semibold">Obra</TableHead>
+                <TableHead className="text-xs font-semibold">Rota</TableHead>
+                <TableHead className="text-xs font-semibold">Especialidade</TableHead>
+                <TableHead className="text-xs font-semibold">Categoria</TableHead>
+                <TableHead className="text-xs font-semibold">Descrição</TableHead>
+                <TableHead className="text-xs font-semibold text-right">Qtd</TableHead>
+                <TableHead className="text-xs font-semibold">Registrado por</TableHead>
+                {isAdmin && <TableHead className="text-xs font-semibold">Ações</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginated.map((r: any) => {
+                const catNome = (r.categorias_observacao as any)?.nome || "";
+                const isSelected = selectedIds.has(r.id);
+                const userName = r.criado_por ? (profileMap.get(r.criado_por) || r.criado_por.substring(0, 8) + "…") : "—";
+                const displayedQuantity = getDisplayQuantity(r, records);
+                return (
+                  <TableRow
+                    key={r.id}
+                    className={`cursor-pointer ${isSelected ? "bg-primary/5" : ""}`}
+                  >
+                    {isAdmin && (
+                      <TableCell className="pl-4">
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleSelect(r.id)}
+                          aria-label="Selecionar registro"
+                          className="translate-y-[2px]"
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="text-xs">{r.data}</TableCell>
+                    <TableCell className="text-xs">{r.horario}</TableCell>
+                    <TableCell className="text-xs">{(r.obras as any)?.nome}</TableCell>
+                    <TableCell className="text-xs">{(r.rotas as any)?.nome}</TableCell>
+                    <TableCell className="text-xs font-medium">{(r.especialidades as any)?.nome}</TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border ${categoryBadgeVariant[catNome] || ""}`}>
+                        {catNome}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs max-w-[200px] truncate">{r.descricao}</TableCell>
+                    <TableCell className="text-xs text-right font-bold">{displayedQuantity}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate" title={userName}>
+                      {userName}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-primary" onClick={() => openEdit(r)}>
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Excluir registro?</AlertDialogTitle>
+                                <AlertDialogDescription>Esta ação é auditável — o registro ficará marcado como excluído com data e responsável.</AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => deleteRecord(r.id)}>Excluir</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+              {paginated.length === 0 && (
+                <TableRow>
+                 <TableCell colSpan={11} className="text-center py-8 text-sm text-muted-foreground">
+                    Nenhum registro encontrado
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* Pagination + count */}
+        <div className="flex items-center justify-between mt-3">
+          <p className="text-xs text-muted-foreground">{filtered.length} registro(s) encontrado(s)</p>
+          {totalPages > 1 && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={page === 1}
+                onClick={() => setPage(p => p - 1)}
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Página {page} de {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={page === totalPages}
+                onClick={() => setPage(p => p + 1)}
+              >
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Ponderação Modal */}
+      {ponderacaoOpen && (() => {
+        const result = getSelectedForPonderacao();
+        return (
+          <PonderacaoModal
+            open={ponderacaoOpen}
+            onOpenChange={(open) => { setPonderacaoOpen(open); if (!open) setSelectedIds(new Set()); }}
+            selectedRecords={result.records}
+            horario={result.horario}
+          />
+        );
+      })()}
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editRecord} onOpenChange={(open) => { if (!open) setEditRecord(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Observação</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Data</Label>
+                <Input type="date" value={editForm.data || ""} onChange={e => setEditForm((f: any) => ({ ...f, data: e.target.value }))} className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Horário</Label>
+                <Select value={editForm.horario || ""} onValueChange={v => setEditForm((f: any) => ({ ...f, horario: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>{TIME_SLOTS.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs text-muted-foreground">Contrato</Label>
+                <Select value={editForm.obra_id || ""} onValueChange={v => setEditForm((f: any) => ({ ...f, obra_id: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>{obras.map(o => <SelectItem key={o.id} value={o.id}>{o.nome}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground">Rota</Label>
+                <Select value={editForm.rota_id || ""} onValueChange={v => setEditForm((f: any) => ({ ...f, rota_id: v }))}>
+                  <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>{rotas.map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Especialidade</Label>
+              <Select value={editForm.especialidade_id || ""} onValueChange={v => setEditForm((f: any) => ({ ...f, especialidade_id: v }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>{especialidades.map(e => <SelectItem key={e.id} value={e.id}>{e.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Categoria</Label>
+              <Select value={editForm.categoria_id || ""} onValueChange={v => setEditForm((f: any) => ({ ...f, categoria_id: v, descricao: "" }))}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>{parentCategorias.map(c => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs text-muted-foreground">Descrição</Label>
+              <Select value={editForm.descricao || ""} onValueChange={v => setEditForm((f: any) => ({ ...f, descricao: v }))} disabled={!editForm.categoria_id}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                <SelectContent>{editSubcategorias.map(s => <SelectItem key={s.id} value={s.nome}>{s.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            {editForm.is_dinamico ? (
+              <div>
+                <Label className="text-xs text-muted-foreground">Duração do Evento</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <div>
+                    <Input type="number" min="0" max="23" value={editForm.duracao_horas ?? 0} onChange={e => setEditForm((f: any) => ({ ...f, duracao_horas: e.target.value }))} placeholder="Horas" />
+                    <span className="text-[10px] text-muted-foreground">Horas</span>
+                  </div>
+                  <div>
+                    <Input type="number" min="0" max="59" step="15" value={editForm.duracao_minutos ?? 0} onChange={e => setEditForm((f: any) => ({ ...f, duracao_minutos: e.target.value }))} placeholder="Minutos" />
+                    <span className="text-[10px] text-muted-foreground">Minutos</span>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">✨ Observação dinâmica — Qtd é calculada automaticamente pela base da especialidade no dia.</p>
+              </div>
+            ) : (
+              <div>
+                <Label className="text-xs text-muted-foreground">Quantidade</Label>
+                <Input type="number" min="1" value={editForm.quantidade || ""} onChange={e => setEditForm((f: any) => ({ ...f, quantidade: e.target.value }))} className="mt-1" />
+              </div>
+            )}
+            <div>
+              <Label className="text-xs text-muted-foreground">Observações</Label>
+              <Textarea value={editForm.notas || ""} onChange={e => setEditForm((f: any) => ({ ...f, notas: e.target.value }))} className="mt-1" rows={2} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditRecord(null)}>Cancelar</Button>
+            <Button onClick={handleEditSave} disabled={editSaving} className="gap-2">
+              {editSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  );
+}
