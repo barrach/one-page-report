@@ -8,7 +8,6 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ReferenceLine,
   ResponsiveContainer,
   Cell,
 } from "recharts";
@@ -23,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { ProgramacaoSemanal, Causa6M } from "@/lib/parseProgramacaoSemanal";
+import PpcSemanalTable from "@/components/PpcSemanalTable";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -141,18 +141,8 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const [filterStatus, setFilterStatus] = useState<string>("todos");
 
   // -------------------------------------------------------------------------
-  // TAB A — PPC data
+  // TAB A — PPC Médio Acumulado (summary badge, table rendered by PpcSemanalTable)
   // -------------------------------------------------------------------------
-
-  const ppcChartData = data.map((s) => ({
-    label: `Sem. ${s.semana}`,
-    periodo: s.periodo,
-    // totalPrevisto / totalRealizado: sum of daily % values (e.g. 50 / 43)
-    previsto: s.ppc.totalPrevisto > 0 ? s.ppc.totalPrevisto : s.ppc.prev.reduce((a, b) => a + b, 0),
-    realizado: s.ppc.totalRealizado > 0 ? s.ppc.totalRealizado : s.ppc.real.reduce((a, b) => a + b, 0),
-    // ppcSemana: ratio realizado/previsto as %, used to colour the realizado bar
-    ppcSemana: s.ppc.ppcSemana > 0 ? s.ppc.ppcSemana : Math.round(s.ppc.totalAdherencia * 100),
-  }));
 
   const ppcMedioAcumulado =
     data.length > 0
@@ -294,97 +284,25 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
         ))}
       </div>
 
-      {/* TAB A — PPC Semanal */}
+      {/* TAB A — PPC Semanal (tabela) */}
       {activeTab === "ppc" && (
         <div className="space-y-3">
-          {data.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Nenhuma semana importada ainda.
-            </p>
-          ) : (
-            <>
-              <div style={{ width: "100%", height: 280 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
-                    data={ppcChartData}
-                    margin={{ top: 16, right: 16, left: 0, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      stroke="hsl(var(--border))"
-                      vertical={false}
-                    />
-                    <XAxis
-                      dataKey="label"
-                      tick={{
-                        fontSize: 11,
-                        fill: "hsl(var(--muted-foreground))",
-                      }}
-                    />
-                    <YAxis
-                      domain={[0, 100]}
-                      ticks={[0, 20, 40, 60, 80, 100]}
-                      tickFormatter={(v) => `${v}%`}
-                      tick={{
-                        fontSize: 11,
-                        fill: "hsl(var(--muted-foreground))",
-                      }}
-                    />
-                    <Tooltip content={<PpcTooltip />} />
-                    <Legend
-                      wrapperStyle={{ fontSize: 12 }}
-                    />
-                    <ReferenceLine
-                      y={80}
-                      stroke="#f59e0b"
-                      strokeDasharray="4 4"
-                      label={{
-                        value: "Meta 80%",
-                        position: "insideTopRight",
-                        fontSize: 10,
-                        fill: "#f59e0b",
-                      }}
-                    />
-                    <Bar
-                      dataKey="previsto"
-                      name="Previsto"
-                      fill="#3b82f6"
-                      radius={[4, 4, 0, 0]}
-                      barSize={24}
-                    />
-                    <Bar
-                      dataKey="realizado"
-                      name="Realizado"
-                      radius={[4, 4, 0, 0]}
-                      barSize={24}
-                    >
-                      {ppcChartData.map((entry, i) => (
-                        <Cell
-                          key={i}
-                          fill={entry.ppcSemana >= 80 ? "#22c55e" : "#ef4444"}
-                        />
-                      ))}
-                    </Bar>
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
+          <PpcSemanalTable data={data} showPeriodo />
 
-              <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-muted/50 w-fit mx-auto">
-                <span className="text-xs text-muted-foreground font-medium">
-                  PPC Médio Acumulado:
-                </span>
-                <span
-                  className={cn(
-                    "text-sm font-bold",
-                    ppcMedioAcumulado >= 80
-                      ? "text-green-500"
-                      : "text-destructive"
-                  )}
-                >
-                  {ppcMedioAcumulado}%
-                </span>
-              </div>
-            </>
+          {data.length > 0 && (
+            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-muted/50 w-fit mx-auto">
+              <span className="text-xs text-muted-foreground font-medium">
+                PPC Médio Acumulado:
+              </span>
+              <span
+                className={cn(
+                  "text-sm font-bold",
+                  ppcMedioAcumulado >= 80 ? "text-green-500" : "text-destructive",
+                )}
+              >
+                {ppcMedioAcumulado}%
+              </span>
+            </div>
           )}
         </div>
       )}

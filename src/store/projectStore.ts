@@ -304,6 +304,7 @@ interface ProjectStoreState {
   setAiInsight: (chartType: string, insight: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
   addProgramacaoSemanal: (projectId: string, data: ProgramacaoSemanal) => void;
+  clearProgramacaoSemanal: (projectId: string) => void;
 }
 
 export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
@@ -551,6 +552,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
       lastImports: { ...(p.lastImports || {}), [section]: iso },
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  clearProgramacaoSemanal: (projectId) => set((s) => {
+    const updated = s.projects.map((p) =>
+      p.id !== projectId ? p : { ...p, programacaoSemanal: [] }
+    );
+    const proj = updated.find(p => p.id === projectId)!;
     debouncedSave(proj);
     return { projects: updated };
   }),
