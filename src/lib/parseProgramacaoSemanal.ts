@@ -32,9 +32,13 @@ export interface ProgramacaoSemanal {
   engenheiro: string;
   atividades: AtividadeProgSemanal[];
   ppc: {
-    prev: number[];
-    real: number[];
-    aderencia: number[];
+    prev: number[];          // % previsto por dia [seg..sab]
+    real: number[];          // % realizado por dia
+    aderencia: number[];     // % aderência por dia (real/prev)
+    totalPrevisto: number;   // soma do previsto da semana (%)
+    totalRealizado: number;  // soma do realizado da semana (%)
+    ppcSemana: number;       // PPC final = totalRealizado/totalPrevisto * 100
+    /** @deprecated use ppcSemana */
     totalAdherencia: number;
   };
   importadoEm: string; // ISO date
@@ -133,6 +137,9 @@ export function parseProgramacaoSemanal(
     prev: [0, 0, 0, 0, 0, 0],
     real: [0, 0, 0, 0, 0, 0],
     aderencia: [0, 0, 0, 0, 0, 0],
+    totalPrevisto: 0,
+    totalRealizado: 0,
+    ppcSemana: 0,
     totalAdherencia: 0,
   };
 
@@ -140,28 +147,40 @@ export function parseProgramacaoSemanal(
   while (i < rows.length) {
     const row = rows[i] as unknown[];
 
-    // PPC block detection
+    // PPC block detection — triggered by col[0] containing "PPC"
+    // Structure: all markers (PREV / REAL / ADER %) live at col 12 (same column)
     const col0str = toStr(row[0]);
     if (col0str.toUpperCase().includes("PPC")) {
-      // Row i: col12="PREV" → prev totals at cols 13-18, col19="TOTAL"
+      // Row i: col[12] === "PREV" → daily prev values at cols 13-18
       if (toStr(row[12]).toUpperCase() === "PREV") {
         ppc.prev = sixDays(row, 13);
       }
-      // Row i+1: col7="REAL"
+      // Row i+1: col[12] === "REAL" → daily real values; col[19] = total adherence (0-1)
       if (i + 1 < rows.length) {
         const rowReal = rows[i + 1] as unknown[];
-        if (toStr(rowReal[7]).toUpperCase() === "REAL") {
+        if (toStr(rowReal[12]).toUpperCase() === "REAL") {
           ppc.real = sixDays(rowReal, 13);
-          ppc.totalAdherencia = toNum(rowReal[19]);
+          ppc.totalAdherencia = toNum(rowReal[19]); // e.g. 0.86
         }
       }
-      // Row i+2: col7="ADER %"
+      // Row i+2: col[12] contains "ADER" → daily adherence values
       if (i + 2 < rows.length) {
         const rowAder = rows[i + 2] as unknown[];
-        if (toStr(rowAder[7]).toUpperCase().includes("ADER")) {
+        if (toStr(rowAder[12]).toUpperCase().includes("ADER")) {
           ppc.aderencia = sixDays(rowAder, 13);
         }
       }
+
+      // Compute totals
+      // prev/real arrays are in % units (e.g. [10,10,10,10,10,0])
+      ppc.totalPrevisto = ppc.prev.reduce((s, v) => s + v, 0);
+      ppc.totalRealizado = ppc.real.reduce((s, v) => s + v, 0);
+      // ppcSemana = ratio realizado/previsto * 100; fallback to totalAdherencia*100
+      ppc.ppcSemana =
+        ppc.totalPrevisto > 0
+          ? Math.round((ppc.totalRealizado / ppc.totalPrevisto) * 1000) / 10
+          : Math.round(ppc.totalAdherencia * 1000) / 10;
+
       i += 3;
       continue;
     }

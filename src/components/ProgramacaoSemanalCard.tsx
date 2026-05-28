@@ -80,14 +80,23 @@ interface PpcTooltipProps {
 
 function PpcTooltip({ active, payload, label }: PpcTooltipProps) {
   if (!active || !payload?.length) return null;
+  // Find ppcSemana from the data point
+  const entry = payload[0] as PpcTooltipPayload & { payload?: { ppcSemana?: number; periodo?: string } };
+  const ppcSemana = entry.payload?.ppcSemana;
+  const periodo = entry.payload?.periodo;
   return (
     <div className="rounded-lg border bg-card p-2 text-xs shadow-md space-y-1">
-      <p className="font-semibold text-foreground">{label}</p>
+      <p className="font-semibold text-foreground">{label}{periodo ? ` · ${periodo}` : ""}</p>
       {payload.map((p) => (
         <p key={p.name} style={{ color: p.color }}>
           {p.name}: <strong>{p.value}%</strong>
         </p>
       ))}
+      {ppcSemana !== undefined && (
+        <p className={ppcSemana >= 80 ? "text-green-500" : "text-red-500"}>
+          PPC: <strong>{ppcSemana}%</strong>
+        </p>
+      )}
     </div>
   );
 }
@@ -138,17 +147,23 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const ppcChartData = data.map((s) => ({
     label: `Sem. ${s.semana}`,
     periodo: s.periodo,
-    previsto: 100,
-    realizado: Math.round(s.ppc.totalAdherencia * 100),
+    // totalPrevisto / totalRealizado: sum of daily % values (e.g. 50 / 43)
+    previsto: s.ppc.totalPrevisto > 0 ? s.ppc.totalPrevisto : s.ppc.prev.reduce((a, b) => a + b, 0),
+    realizado: s.ppc.totalRealizado > 0 ? s.ppc.totalRealizado : s.ppc.real.reduce((a, b) => a + b, 0),
+    // ppcSemana: ratio realizado/previsto as %, used to colour the realizado bar
+    ppcSemana: s.ppc.ppcSemana > 0 ? s.ppc.ppcSemana : Math.round(s.ppc.totalAdherencia * 100),
   }));
 
   const ppcMedioAcumulado =
     data.length > 0
       ? Math.round(
-          (data.reduce((sum, s) => sum + s.ppc.totalAdherencia, 0) /
-            data.length) *
-            100
-        )
+          data.reduce((sum, s) => {
+            const ppc = s.ppc.ppcSemana > 0
+              ? s.ppc.ppcSemana
+              : Math.round(s.ppc.totalAdherencia * 100);
+            return sum + ppc;
+          }, 0) / data.length * 10
+        ) / 10
       : 0;
 
   // -------------------------------------------------------------------------
@@ -346,7 +361,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
                       {ppcChartData.map((entry, i) => (
                         <Cell
                           key={i}
-                          fill={entry.realizado >= 80 ? "#22c55e" : "#ef4444"}
+                          fill={entry.ppcSemana >= 80 ? "#22c55e" : "#ef4444"}
                         />
                       ))}
                     </Bar>
