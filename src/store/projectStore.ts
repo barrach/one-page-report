@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
+import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
+export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
 export interface ProjectInfo {
   projeto: string;
@@ -116,6 +118,7 @@ export interface Project {
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
+  programacaoSemanal?: ProgramacaoSemanal[];
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -228,6 +231,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
+    programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
   };
 };
 
@@ -248,6 +252,7 @@ const projectToDb = (p: Project): any => ({
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     lastImports: p.lastImports || {},
+    programacaoSemanal: p.programacaoSemanal || [],
   },
 });
 
@@ -298,6 +303,7 @@ interface ProjectStoreState {
   setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
   setAiInsight: (chartType: string, insight: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
+  addProgramacaoSemanal: (projectId: string, data: ProgramacaoSemanal) => void;
 }
 
 export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
@@ -545,6 +551,21 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
       lastImports: { ...(p.lastImports || {}), [section]: iso },
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  addProgramacaoSemanal: (projectId, data) => set((s) => {
+    const updated = s.projects.map((p) => {
+      if (p.id !== projectId) return p;
+      const existing = p.programacaoSemanal ?? [];
+      const idx = existing.findIndex((ps) => ps.semana === data.semana);
+      const next = idx >= 0
+        ? existing.map((ps, i) => (i === idx ? data : ps))
+        : [...existing, data];
+      return { ...p, programacaoSemanal: next };
+    });
+    const proj = updated.find(p => p.id === projectId)!;
     debouncedSave(proj);
     return { projects: updated };
   }),

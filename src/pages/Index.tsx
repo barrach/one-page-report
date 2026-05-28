@@ -11,6 +11,7 @@ import ObservationsSection from '@/components/ObservationsSection';
 import HistogramChart from '@/components/HistogramChart';
 import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ScheduleTable from '@/components/ScheduleTable';
+import ProgramacaoSemanalCard from '@/components/ProgramacaoSemanalCard';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
@@ -52,6 +53,7 @@ const Index = () => {
   const showFiveWeek = hasRows(current?.weeklyData, ['date']);
   const showMonth = hasRows(current?.monthData, ['week', 'date']);
   const showSchedule = hasRows(current?.scheduleData, ['tarefa', 'id']);
+  const showProgSemanal = Array.isArray(current?.programacaoSemanal) && (current?.programacaoSemanal?.length ?? 0) > 0;
   const showExecutive = showSCurve || showHistogram || showFinancial || showFiveWeek || showMonth || showSchedule;
 
   const togglePresentation = () => {
@@ -300,6 +302,12 @@ const Index = () => {
         )}
 
         {showSchedule && <ScheduleTable />}
+        {showProgSemanal && (
+          <ProgramacaoSemanalCard
+            data={current!.programacaoSemanal!}
+            histogramData={current?.histogramData}
+          />
+        )}
         <ActionsTable />
         <RestrictionsChart />
         <ObservationsSection />

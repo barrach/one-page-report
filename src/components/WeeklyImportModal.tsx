@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
 import { useProjectStore, ScheduleRow, CurvaSFinanceiraPoint } from '@/store/projectStore';
 import { toast } from 'sonner';
+import { isProgramacaoSemanal, parseProgramacaoSemanal, type ProgramacaoSemanal, type AtividadeProgSemanal, type Causa6M } from '@/lib/parseProgramacaoSemanal';
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const fmtScheduleDate = (d: Date): string => {
@@ -2014,23 +2015,29 @@ interface Props {
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId, addProgramacaoSemanal } = useProjectStore();
   const [files, setFiles] = useState<File[]>([]);
   const [parsing, setParsing] = useState(false);
-  const [step, setStep] = useState<'upload' | 'fields'>('upload');
+  const [step, setStep] = useState<'upload' | 'fields' | 'justificativas'>('upload');
 
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [finCurve, setFinCurve] = useState<CurvaSFinanceiraPoint[] | null>(null);
   const [finCurveError, setFinCurveError] = useState<string | null>(null);
-  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; finCurve?: string }>({});
+  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; finCurve?: string; progSemanal?: string }>({});
+  const [progSemanal, setProgSemanal] = useState<ProgramacaoSemanal | null>(null);
+  const [ativJustificativas, setAtivJustificativas] = useState<AtividadeProgSemanal[]>([]);
+  const [skipJustificativas, setSkipJustificativas] = useState(false);
 
   const reset = () => {
     setFiles([]);
     setResult(null); setSchedule(null); setScheduleError(null);
     setFinCurve(null); setFinCurveError(null);
     setSourceNames({});
+    setProgSemanal(null);
+    setAtivJustificativas([]);
+    setSkipJustificativas(false);
   };
 
   const closeAll = (o: boolean) => {
@@ -2064,7 +2071,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     const xmls = files.filter(f => /\.xml$/i.test(f.name));
     const xlsxs = files.filter(f => /\.xlsx?$/i.test(f.name));
     const used = new Set<string>();
-    const srcs: { curve?: string; hist?: string; schedule?: string; finCurve?: string } = {};
+    const srcs: { curve?: string; hist?: string; schedule?: string; finCurve?: string; progSemanal?: string } = {};
 
     // 1) Curva S / Histograma (formatos A/B/C) — em todos os xlsx
     let res: ImportResult | null = null;
@@ -2087,6 +2094,22 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (rows.length) { fin = rows; used.add(f.name); srcs.finCurve = f.name; break; }
       } catch { /* not a financial sheet */ }
     }
+
+    // 2b) Programação Semanal — varre todos xlsx
+    let parsedProgSemanal: ProgramacaoSemanal | null = null;
+    let progSemanalFile: string | undefined;
+    for (const f of xlsxs) {
+      try {
+        const buf = await f.arrayBuffer();
+        const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+        if (isProgramacaoSemanal(wb)) {
+          parsedProgSemanal = parseProgramacaoSemanal(wb);
+          if (parsedProgSemanal) { used.add(f.name); progSemanalFile = f.name; break; }
+        }
+      } catch { /* not a programacao semanal */ }
+    }
+    if (progSemanalFile) srcs.progSemanal = progSemanalFile;
+    setProgSemanal(parsedProgSemanal);
 
     // 3) Cronograma — todos xml + xlsx restantes
     const schedCandidates = [...xmls, ...xlsxs.filter(f => !used.has(f.name))];
@@ -2120,6 +2143,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       histogram: !!(localH && localH.histogram.length),
       schedule: !!(sched && sched.rows.length),
       finCurve: !!(fin && fin.length),
+      progSemanal: !!parsedProgSemanal,
     });
 
     setParsing(false);
@@ -2129,7 +2153,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
 
   // ─── Field selection (segunda etapa) ───
-  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo' | 'progSemanal';
   const FIELD_LABELS: Record<FieldKey, string> = {
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
@@ -2138,6 +2162,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     schedule: 'Cronograma (Gantt)',
     finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
+    progSemanal: 'Programação Semanal (PPC + 6M + Pareto)',
   };
   const FIELD_SOURCE: Record<FieldKey, string | undefined> = {
     sCurve: sourceNames.curve,
@@ -2147,6 +2172,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     histogram: sourceNames.hist || sourceNames.curve,
     schedule: sourceNames.schedule,
     finCurve: sourceNames.finCurve,
+    progSemanal: sourceNames.progSemanal,
   };
 
   const c = curveOk ? (result!.curve as CurveExtract) : null;
@@ -2164,12 +2190,19 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
     schedule: !!(schedule && schedule.rows.length),
     finCurve: !!(finCurve && finCurve.length),
+    progSemanal: !!progSemanal,
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
     sCurve: false, weekly: false, monthly: false, histogram: false,
-    schedule: false, finCurve: false, projectInfo: false,
+    schedule: false, finCurve: false, projectInfo: false, progSemanal: false,
   });
+
+  const initJustificativas = () => {
+    if (!progSemanal) return;
+    const naoExecutadas = progSemanal.atividades.filter(a => !a.executada);
+    setAtivJustificativas(naoExecutadas.map(a => ({ ...a })));
+  };
 
   const advance = async () => {
     await analyze();
@@ -2266,6 +2299,15 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       setLastImport('curvaSFinanceira', now);
       count++;
     }
+    if (progSemanal && selectedFields.progSemanal && selectedProjectId) {
+      const ativWithJust = progSemanal.atividades.map(a => {
+        const just = ativJustificativas.find(j => j.id === a.id && j.descricao === a.descricao);
+        return just ? { ...a, causas6M: just.causas6M, planoAcao: just.planoAcao } : a;
+      });
+      const finalProg: ProgramacaoSemanal = { ...progSemanal, atividades: ativWithJust };
+      addProgramacaoSemanal(selectedProjectId, finalProg);
+      count++;
+    }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
     closeAll(false);
   };
@@ -2280,7 +2322,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           <DialogDescription>
             {step === 'upload'
               ? 'Suba seus arquivos — o sistema identifica o conteúdo de cada um automaticamente'
-              : 'Marque os campos que deseja sobrescrever. Campos desmarcados manterão os dados atuais.'}
+              : step === 'fields'
+              ? 'Marque os campos que deseja sobrescrever. Campos desmarcados manterão os dados atuais.'
+              : 'Informe as causas raiz (6M) para cada atividade não executada conforme previsto.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -2318,10 +2362,34 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             anyFieldChecked={anyFieldChecked}
             onBack={goBack}
             onCancel={() => closeAll(false)}
-            onConfirm={confirm}
+            onConfirm={() => {
+              if (selectedFields.progSemanal && progSemanal) {
+                initJustificativas();
+                setStep('justificativas');
+              } else {
+                confirm();
+              }
+            }}
+            confirmLabel={selectedFields.progSemanal && progSemanal ? 'Próximo →' : 'Confirmar Importação'}
             result={result}
             scheduleError={scheduleError}
             finCurveError={finCurveError}
+          />
+        )}
+
+        {step === 'justificativas' && (
+          <JustificativasStep
+            atividades={ativJustificativas}
+            onUpdate={(id, descricao, patch) => {
+              setAtivJustificativas(prev =>
+                prev.map(a => a.id === id && a.descricao === descricao ? { ...a, ...patch } : a)
+              );
+            }}
+            skipJustificativas={skipJustificativas}
+            onToggleSkip={() => setSkipJustificativas(v => !v)}
+            onBack={() => setStep('fields')}
+            onCancel={() => closeAll(false)}
+            onConfirm={confirm}
           />
         )}
       </DialogContent>
@@ -2392,11 +2460,170 @@ function MultiUploadZone({
   );
 }
 
+// ─── Justificativas Step ───
+const CAUSAS_6M: Causa6M[] = ['Método', 'Máquina', 'Medida', 'Meio Ambiente', 'Mão de Obra', 'Material'];
+const CAUSA_COLORS: Record<Causa6M, string> = {
+  'Método': 'bg-blue-500/10 text-blue-700 border-blue-300',
+  'Máquina': 'bg-orange-500/10 text-orange-700 border-orange-300',
+  'Medida': 'bg-yellow-500/10 text-yellow-700 border-yellow-300',
+  'Meio Ambiente': 'bg-green-500/10 text-green-700 border-green-300',
+  'Mão de Obra': 'bg-red-500/10 text-red-700 border-red-300',
+  'Material': 'bg-purple-500/10 text-purple-700 border-purple-300',
+};
+
+function JustificativasStep({
+  atividades,
+  onUpdate,
+  skipJustificativas,
+  onToggleSkip,
+  onBack,
+  onCancel,
+  onConfirm,
+}: {
+  atividades: AtividadeProgSemanal[];
+  onUpdate: (id: string, descricao: string, patch: Partial<AtividadeProgSemanal>) => void;
+  skipJustificativas: boolean;
+  onToggleSkip: () => void;
+  onBack: () => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const allFilled = atividades.every(a => a.causas6M.length > 0);
+  const canConfirm = skipJustificativas || allFilled;
+
+  if (atividades.length === 0) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-lg border bg-muted/30 p-6 text-center space-y-2">
+          <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
+          <p className="font-semibold text-sm">✓ Todas as atividades foram executadas conforme previsto</p>
+          <p className="text-xs text-muted-foreground">Nenhuma justificativa necessária.</p>
+        </div>
+        <div className="flex justify-between gap-2 pt-2">
+          <Button variant="outline" onClick={onBack}>← Voltar</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+            <Button onClick={onConfirm} className="gradient-primary text-primary-foreground">Confirmar Importação</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+        <h3 className="font-semibold text-sm">Justificativas das Perdas — 6M</h3>
+        <p className="text-xs text-muted-foreground">
+          {atividades.length} atividade{atividades.length > 1 ? 's' : ''} não executada{atividades.length > 1 ? 's' : ''} conforme previsto.
+          Selecione ao menos uma causa 6M para cada e defina o plano de ação.
+        </p>
+      </div>
+
+      <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
+        {atividades.map((a) => (
+          <div key={`${a.id}-${a.descricao}`} className="rounded-lg border bg-card p-4 space-y-3">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-mono text-muted-foreground">{a.id}</span>
+                  <span className="text-sm font-medium">{a.descricao}</span>
+                </div>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <span className="text-[10px] text-muted-foreground">{a.area}</span>
+                  <span className="text-[10px] font-semibold text-destructive">
+                    PREV {a.quantidade.prev} {a.unidade} / REAL {a.quantidade.real} {a.unidade}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Observação original */}
+            {a.observacao && (
+              <div className="space-y-1">
+                <label className="text-[11px] text-muted-foreground font-medium">Observação do arquivo</label>
+                <div className="text-xs bg-muted/50 rounded p-2 text-muted-foreground italic">{a.observacao}</div>
+              </div>
+            )}
+
+            {/* 6M checkboxes */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-foreground">Causa raiz (6M) *</label>
+              <div className="flex flex-wrap gap-2">
+                {CAUSAS_6M.map(causa => {
+                  const checked = a.causas6M.includes(causa);
+                  return (
+                    <button
+                      key={causa}
+                      type="button"
+                      onClick={() => {
+                        const next = checked
+                          ? a.causas6M.filter(c => c !== causa)
+                          : [...a.causas6M, causa];
+                        onUpdate(a.id, a.descricao, { causas6M: next });
+                      }}
+                      className={`px-2.5 py-1 rounded border text-[11px] font-medium transition-all ${
+                        checked
+                          ? CAUSA_COLORS[causa] + ' ring-1 ring-current'
+                          : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted'
+                      }`}
+                    >
+                      {causa}
+                    </button>
+                  );
+                })}
+              </div>
+              {a.causas6M.length === 0 && (
+                <p className="text-[10px] text-destructive">Selecione ao menos uma causa</p>
+              )}
+            </div>
+
+            {/* Plano de ação */}
+            {a.causas6M.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-[11px] font-medium text-foreground">Plano de ação para recuperar a perda:</label>
+                <textarea
+                  className="w-full text-xs rounded border bg-background p-2 min-h-[60px] resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                  placeholder="Descreva as ações para recuperar a perda..."
+                  value={a.planoAcao}
+                  onChange={e => onUpdate(a.id, a.descricao, { planoAcao: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Skip option */}
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="h-4 w-4 accent-primary"
+          checked={skipJustificativas}
+          onChange={onToggleSkip}
+        />
+        <span className="text-xs text-muted-foreground">Pular justificativas (importar sem informar causas 6M)</span>
+      </label>
+
+      <div className="flex justify-between gap-2 pt-2">
+        <Button variant="outline" onClick={onBack}>← Voltar</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={onConfirm} disabled={!canConfirm} className="gradient-primary text-primary-foreground">
+            Confirmar Importação
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Fields Step ───
-type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo' | 'progSemanal';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
-  anyFieldChecked, onBack, onCancel, onConfirm,
+  anyFieldChecked, onBack, onCancel, onConfirm, confirmLabel,
   result, scheduleError, finCurveError,
 }: {
   files: File[];
@@ -2409,6 +2636,7 @@ function FieldsStep({
   onBack: () => void;
   onCancel: () => void;
   onConfirm: () => void;
+  confirmLabel?: string;
   result: ImportResult | null;
   scheduleError: string | null;
   finCurveError: string | null;
@@ -2499,7 +2727,7 @@ function FieldsStep({
         <div className="flex gap-2">
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
           <Button onClick={onConfirm} disabled={!anyFieldChecked} className="gradient-primary text-primary-foreground">
-            Confirmar Importação
+            {confirmLabel ?? 'Confirmar Importação'}
           </Button>
         </div>
       </div>
