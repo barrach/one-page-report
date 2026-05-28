@@ -89,6 +89,7 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@prodcontrol": path.resolve(__dirname, "./src/prodcontrol"),
+      "@budget": path.resolve(__dirname, "./src/budget"),
     },
     dedupe: ["react", "react-dom"],
   },

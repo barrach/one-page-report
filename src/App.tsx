@@ -14,6 +14,7 @@ import ControladoriaPage from "./pages/ControladoriaPage";
 import { useProjectStore } from "./store/projectStore";
 import ModuleTopNav from "./components/ModuleTopNav";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
+import BudgetApp from "./budget/BudgetApp";
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,9 @@ const AppContent = () => {
 
           {/* Controladoria */}
           <Route path="/controladoria" element={<ControladoriaPage />} />
+
+          {/* Budget Builder */}
+          <Route path="/budget/*" element={<BudgetApp />} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

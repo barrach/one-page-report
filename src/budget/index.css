@@ -1,0 +1,168 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light mode (padrão) */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 15%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 45%;
+
+    --accent: 38 92% 50%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 38%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 214 32% 88%;
+    --input: 214 32% 88%;
+    --ring: 217 91% 55%;
+
+    --radius: 0.5rem;
+
+    --sidebar-background: 210 40% 98%;
+    --sidebar-foreground: 222 30% 30%;
+    --sidebar-primary: 217 91% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 94%;
+    --sidebar-accent-foreground: 222 47% 15%;
+    --sidebar-border: 214 32% 88%;
+    --sidebar-ring: 217 91% 55%;
+
+    --chart-1: 217 91% 55%;
+    --chart-2: 38 92% 50%;
+    --chart-3: 142 71% 38%;
+    --chart-4: 280 67% 55%;
+    --chart-5: 0 84% 60%;
+
+    --schedule-level-1: 217 71% 34%;
+    --schedule-level-1-foreground: 0 0% 100%;
+    --schedule-level-2: 214 78% 88%;
+    --schedule-level-2-foreground: 222 47% 15%;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 95%;
+
+    --card: 222 40% 12%;
+    --card-foreground: 210 40% 95%;
+
+    --popover: 222 40% 12%;
+    --popover-foreground: 210 40% 95%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 222 47% 8%;
+
+    --secondary: 222 30% 18%;
+    --secondary-foreground: 210 40% 90%;
+
+    --muted: 222 25% 16%;
+    --muted-foreground: 215 20% 55%;
+
+    --accent: 38 92% 50%;
+    --accent-foreground: 222 47% 8%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 8%;
+
+    --border: 222 25% 20%;
+    --input: 222 25% 20%;
+    --ring: 217 91% 60%;
+
+    --sidebar-background: 222 47% 6%;
+    --sidebar-foreground: 210 20% 70%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 222 30% 14%;
+    --sidebar-accent-foreground: 210 40% 95%;
+    --sidebar-border: 222 25% 15%;
+    --sidebar-ring: 217 91% 60%;
+
+    --chart-1: 217 91% 60%;
+    --chart-2: 38 92% 50%;
+    --chart-3: 142 76% 36%;
+    --chart-4: 280 67% 60%;
+    --chart-5: 0 84% 60%;
+
+    --schedule-level-1: 217 64% 28%;
+    --schedule-level-1-foreground: 210 40% 98%;
+    --schedule-level-2: 217 42% 24%;
+    --schedule-level-2-foreground: 210 40% 95%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg;
+  }
+  .stat-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  }
+  .accent-glow {
+    box-shadow: 0 0 20px -5px hsl(var(--accent) / 0.3);
+  }
+  .scrollbar-subtle {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+  .scrollbar-subtle:hover {
+    scrollbar-color: hsl(var(--muted-foreground)) transparent;
+  }
+}
