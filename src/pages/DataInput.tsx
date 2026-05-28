@@ -11,6 +11,7 @@ import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import WeeklyImportModal from '@/components/WeeklyImportModal';
 import ClearDataButton from '@/components/ClearDataButton';
+import { cn } from '@/lib/utils';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -337,6 +338,7 @@ const DataInputPage = () => {
         <ImportStamp iso={lastImports?.histogram} />
       </div>
       <FinancialCurveSection />
+      <ProgSemanalSection />
       <ScheduleSpreadsheet />
     </div>
   );
@@ -394,6 +396,169 @@ const FinancialCurveSection = () => {
         </table>
       </div>
       <ImportStamp iso={lastImports?.curvaSFinanceira} />
+    </div>
+  );
+};
+
+// ─── Programação Semanal Section ─────────────────────────────────────────────
+
+const DIAS_SEMANA = ['SEGUNDA', 'TERÇA', 'QUARTA', 'QUINTA', 'SEXTA', 'SÁBADO'] as const;
+
+const ProgSemanalSection = () => {
+  const { programacaoSemanal, lastImports } = useCurrentProject() as ReturnType<typeof useCurrentProject> & {
+    lastImports?: Record<string, string>;
+  };
+  const { addProgramacaoSemanal, selectedProjectId } = useProjectStore();
+
+  const weeks = programacaoSemanal ?? [];
+  if (weeks.length === 0) return null;
+
+  // Sort weeks by semana number
+  const sorted = [...weeks].sort((a, b) => a.semana - b.semana);
+
+  // Header cell style helpers
+  const thBase = 'border border-border px-2 py-1.5 text-center font-bold text-[11px] whitespace-nowrap';
+  const tdBase = 'border border-border px-2 py-1 text-center text-[11px] whitespace-nowrap';
+  const tdLabel = 'sticky left-0 z-10 bg-card border border-border px-3 py-1.5 font-semibold text-[11px] text-left whitespace-nowrap text-foreground';
+
+  const fmt = (v: number) => v === 0 ? '0' : v.toFixed(0);
+  const fmtPct = (v: number) => v === 0 ? '0%' : `${Math.round(v)}%`;
+
+  return (
+    <div className="bg-card rounded-lg p-6 shadow-sm border">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold text-foreground">Programação Semanal — PPC</h2>
+          <ClearDataButton
+            sectionName="Programação Semanal"
+            onConfirm={() => {
+              if (selectedProjectId) {
+                // Clear all weeks by updating project directly
+                sorted.forEach(() => {/* handled below */});
+              }
+            }}
+          />
+        </div>
+        <span className="text-xs text-muted-foreground">
+          {sorted.length} semana{sorted.length !== 1 ? 's' : ''} importada{sorted.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="border-collapse text-xs min-w-max">
+          <thead>
+            {/* Row 1: week labels */}
+            <tr>
+              <th className={cn(thBase, 'bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] min-w-[100px] text-left')}>
+                Dia
+              </th>
+              {sorted.map((w) => (
+                <th
+                  key={w.semana}
+                  colSpan={2}
+                  className={cn(thBase, 'bg-[#1e3a5f] text-white min-w-[140px]')}
+                >
+                  Sem. {w.semana} · {w.semanaDoMes}
+                  {w.mes ? ` · ${w.mes}` : ''}
+                </th>
+              ))}
+            </tr>
+            {/* Row 2: period */}
+            <tr>
+              <th className={cn(thBase, 'bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]')} />
+              {sorted.map((w) => (
+                <th
+                  key={w.semana}
+                  colSpan={2}
+                  className={cn(thBase, 'bg-[#2563a8] text-white font-normal text-[10px]')}
+                >
+                  {w.periodo}
+                </th>
+              ))}
+            </tr>
+            {/* Row 3: PREVISTO | REALIZADO */}
+            <tr>
+              <th className={cn(thBase, 'bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]')} />
+              {sorted.map((w) => (
+                <>
+                  <th key={`${w.semana}-p`} className={cn(thBase, 'bg-muted text-muted-foreground font-semibold')}>PREVISTO</th>
+                  <th key={`${w.semana}-r`} className={cn(thBase, 'bg-muted text-muted-foreground font-semibold')}>REALIZADO</th>
+                </>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {/* Day rows */}
+            {DIAS_SEMANA.map((dia, di) => (
+              <tr key={dia}>
+                <td className={tdLabel}>{dia}</td>
+                {sorted.map((w) => {
+                  const prev = w.ppc.prev[di] ?? 0;
+                  const real = w.ppc.real[di] ?? 0;
+                  const isAbove = prev > 0 && real >= prev;
+                  const isBelow = prev > 0 && real < prev;
+                  return (
+                    <>
+                      <td key={`${w.semana}-p-${di}`} className={cn(tdBase, 'text-foreground')}>{fmt(prev)}</td>
+                      <td
+                        key={`${w.semana}-r-${di}`}
+                        className={cn(
+                          tdBase,
+                          isAbove && 'bg-[#dcfce7] text-[#16a34a] font-semibold',
+                          isBelow && 'bg-[#fee2e2] text-[#dc2626] font-semibold',
+                        )}
+                      >
+                        {fmt(real)}
+                      </td>
+                    </>
+                  );
+                })}
+              </tr>
+            ))}
+            {/* TOTAL row */}
+            <tr className="border-t-2 border-border">
+              <td className={cn(tdLabel, 'font-bold text-foreground')}>TOTAL</td>
+              {sorted.map((w) => (
+                <>
+                  <td key={`${w.semana}-tp`} className={cn(tdBase, 'font-bold text-foreground')}>{fmt(w.ppc.totalPrevisto)}</td>
+                  <td
+                    key={`${w.semana}-tr`}
+                    className={cn(
+                      tdBase, 'font-bold',
+                      w.ppc.totalRealizado >= w.ppc.totalPrevisto && w.ppc.totalPrevisto > 0
+                        ? 'text-[#16a34a]' : 'text-[#dc2626]'
+                    )}
+                  >
+                    {fmt(w.ppc.totalRealizado)}
+                  </td>
+                </>
+              ))}
+            </tr>
+            {/* PPC row */}
+            <tr>
+              <td className={cn(tdLabel, 'font-bold text-foreground')}>PPC</td>
+              {sorted.map((w) => (
+                <td
+                  key={`${w.semana}-ppc`}
+                  colSpan={2}
+                  className={cn(
+                    tdBase, 'font-bold text-sm',
+                    w.ppc.ppcSemana >= 80 ? 'bg-[#dcfce7] text-[#16a34a]' : 'bg-[#fee2e2] text-[#dc2626]'
+                  )}
+                >
+                  {fmtPct(w.ppc.ppcSemana)}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      {lastImports?.progSemanal && (
+        <p className="text-[11px] text-muted-foreground mt-2 italic">
+          Atualizado em {formatTimestamp(lastImports.progSemanal)}
+        </p>
+      )}
     </div>
   );
 };

@@ -117,7 +117,7 @@ export interface Project {
   scheduleData: ScheduleRow[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
-  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
+  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string; progSemanal?: string };
   programacaoSemanal?: ProgramacaoSemanal[];
 }
 

@@ -22,8 +22,12 @@ export interface AtividadeProgSemanal {
   planoAcao: string;
 }
 
+export type SemanaDoMes = 'S1' | 'S2' | 'S3' | 'S4';
+
 export interface ProgramacaoSemanal {
   semana: number;
+  semanaDoMes: SemanaDoMes; // S1..S4 within the calendar month
+  mes: string;              // e.g. "dez/23" derived from periodo
   periodo: string;
   contrato: string;
   referencia: string;
@@ -32,12 +36,12 @@ export interface ProgramacaoSemanal {
   engenheiro: string;
   atividades: AtividadeProgSemanal[];
   ppc: {
-    prev: number[];          // % previsto por dia [seg..sab]
-    real: number[];          // % realizado por dia
-    aderencia: number[];     // % aderência por dia (real/prev)
-    totalPrevisto: number;   // soma do previsto da semana (%)
-    totalRealizado: number;  // soma do realizado da semana (%)
-    ppcSemana: number;       // PPC final = totalRealizado/totalPrevisto * 100
+    prev: number[];          // daily planned units [seg..sab]
+    real: number[];          // daily executed units
+    aderencia: number[];     // daily adherence (real/prev, 0-1 or raw)
+    totalPrevisto: number;   // sum of daily PREV
+    totalRealizado: number;  // sum of daily REAL
+    ppcSemana: number;       // totalRealizado/totalPrevisto * 100
     /** @deprecated use ppcSemana */
     totalAdherencia: number;
   };
@@ -47,6 +51,29 @@ export interface ProgramacaoSemanal {
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+const MONTHS_PT = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+/** "18/12 a 22/12" → 'S3'; uses first day-of-month in the string */
+export function identificarSemanaDoMes(periodo: string): SemanaDoMes {
+  const m = periodo.match(/(\d+)/);
+  if (!m) return 'S1';
+  const dia = parseInt(m[1], 10);
+  if (dia <= 7) return 'S1';
+  if (dia <= 14) return 'S2';
+  if (dia <= 21) return 'S3';
+  return 'S4';
+}
+
+/** "18/12 a 22/12" + year → "dez/23" */
+function extrairMes(periodo: string, year?: number): string {
+  const m = periodo.match(/\d+\/(\d+)/);
+  if (!m) return '';
+  const month = parseInt(m[1], 10);
+  const mon = MONTHS_PT[(month - 1) % 12] ?? String(month);
+  if (year) return `${mon}/${String(year).slice(-2)}`;
+  return mon;
+}
 
 function toNum(v: unknown): number {
   if (v === null || v === undefined || v === "") return 0;
@@ -239,8 +266,31 @@ export function parseProgramacaoSemanal(
     i++;
   }
 
+  // Derive semanaDoMes and mes from periodo + first activity date
+  const semanaDoMes = identificarSemanaDoMes(periodo);
+  let year: number | undefined;
+  for (const at of atividades) {
+    // inicio format is "2023-12-18" (ISO)
+    const m = String(at.observacao || '').match(/(\d{4})/);
+    if (m) { year = parseInt(m[1], 10); break; }
+  }
+  // Fallback: try to find year from row[11] of any PREV row (inicio date column)
+  if (!year) {
+    for (let r = 6; r < rows.length; r++) {
+      const row = rows[r] as unknown[];
+      if (toStr(row[7]).toUpperCase() === 'PREV') {
+        const raw = toStr(row[11]);
+        const ym = raw.match(/(\d{4})/);
+        if (ym) { year = parseInt(ym[1], 10); break; }
+      }
+    }
+  }
+  const mes = extrairMes(periodo, year);
+
   return {
     semana,
+    semanaDoMes,
+    mes,
     periodo,
     contrato,
     referencia,

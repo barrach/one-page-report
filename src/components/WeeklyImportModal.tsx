@@ -2306,6 +2306,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       });
       const finalProg: ProgramacaoSemanal = { ...progSemanal, atividades: ativWithJust };
       addProgramacaoSemanal(selectedProjectId, finalProg);
+      setLastImport('progSemanal', now);
       count++;
     }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
