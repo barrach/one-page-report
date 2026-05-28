@@ -144,18 +144,6 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   // TAB A — PPC Médio Acumulado (summary badge, table rendered by PpcSemanalTable)
   // -------------------------------------------------------------------------
 
-  const ppcMedioAcumulado =
-    data.length > 0
-      ? Math.round(
-          data.reduce((sum, s) => {
-            const ppc = s.ppc.ppcSemana > 0
-              ? s.ppc.ppcSemana
-              : Math.round(s.ppc.totalAdherencia * 100);
-            return sum + ppc;
-          }, 0) / data.length * 10
-        ) / 10
-      : 0;
-
   // -------------------------------------------------------------------------
   // TAB B — Pareto 6M data
   // -------------------------------------------------------------------------
@@ -253,7 +241,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   ];
 
   return (
-    <div className="rounded-xl border bg-card p-4 space-y-4">
+    <div className="rounded-xl border bg-card p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -286,25 +274,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
 
       {/* TAB A — PPC Semanal (tabela) */}
       {activeTab === "ppc" && (
-        <div className="space-y-3">
-          <PpcSemanalTable data={data} showPeriodo />
-
-          {data.length > 0 && (
-            <div className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-muted/50 w-fit mx-auto">
-              <span className="text-xs text-muted-foreground font-medium">
-                PPC Médio Acumulado:
-              </span>
-              <span
-                className={cn(
-                  "text-sm font-bold",
-                  ppcMedioAcumulado >= 80 ? "text-green-500" : "text-destructive",
-                )}
-              >
-                {ppcMedioAcumulado}%
-              </span>
-            </div>
-          )}
-        </div>
+        <PpcSemanalTable data={data} showPeriodo />
       )}
 
       {/* TAB B — Pareto 6M */}
