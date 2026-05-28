@@ -163,7 +163,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const causaCount = {} as Record<Causa6M, number>;
   for (const semana of data) {
     for (const at of semana.atividades) {
-      if (!at.executada) {
+      if (!at.executada && at.causas6M.length > 0) {
         for (const c of at.causas6M) {
           causaCount[c] = (causaCount[c] || 0) + 1;
         }
@@ -201,7 +201,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const planoRows: PlanoRow[] = [];
   for (const semana of data) {
     for (const at of semana.atividades) {
-      if (!at.executada) {
+      if (!at.executada && at.causas6M.length > 0) {
         const key = `${semana.semana}-${at.id}-${at.descricao}`;
         planoRows.push({
           key,

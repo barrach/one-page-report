@@ -2300,6 +2300,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       count++;
     }
     if (progSemanal && selectedFields.progSemanal && selectedProjectId) {
+      // Guard: block confirmation if there are unfilled activities (defensive — button should already be disabled)
+      if (!skipJustificativas && ativJustificativas.length > 0) {
+        const invalidas = ativJustificativas.filter(a => a.causas6M.length === 0);
+        if (invalidas.length > 0) {
+          const nomes = invalidas.slice(0, 2).map(a => a.descricao).join(', ');
+          const extra = invalidas.length > 2 ? ` e mais ${invalidas.length - 2}` : '';
+          toast.error(`Preencha as causas 6M para: ${nomes}${extra}`);
+          return;
+        }
+      }
       const ativWithJust = progSemanal.atividades.map(a => {
         const just = ativJustificativas.find(j => j.id === a.id && j.descricao === a.descricao);
         return just ? { ...a, causas6M: just.causas6M, planoAcao: just.planoAcao } : a;
@@ -2463,13 +2473,13 @@ function MultiUploadZone({
 
 // ─── Justificativas Step ───
 const CAUSAS_6M: Causa6M[] = ['Método', 'Máquina', 'Medida', 'Meio Ambiente', 'Mão de Obra', 'Material'];
-const CAUSA_COLORS: Record<Causa6M, string> = {
-  'Método': 'bg-blue-500/10 text-blue-700 border-blue-300',
-  'Máquina': 'bg-orange-500/10 text-orange-700 border-orange-300',
-  'Medida': 'bg-yellow-500/10 text-yellow-700 border-yellow-300',
-  'Meio Ambiente': 'bg-green-500/10 text-green-700 border-green-300',
-  'Mão de Obra': 'bg-red-500/10 text-red-700 border-red-300',
-  'Material': 'bg-purple-500/10 text-purple-700 border-purple-300',
+const CAUSA_COLORS: Record<Causa6M, { idle: string; active: string }> = {
+  'Método':       { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300',    active: 'bg-blue-500 text-white border-blue-500' },
+  'Máquina':      { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300', active: 'bg-orange-500 text-white border-orange-500' },
+  'Medida':       { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', active: 'bg-yellow-500 text-white border-yellow-500' },
+  'Meio Ambiente':{ idle: 'bg-white text-gray-500 border-gray-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300',   active: 'bg-green-500 text-white border-green-500' },
+  'Mão de Obra':  { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300',        active: 'bg-red-500 text-white border-red-500' },
+  'Material':     { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300', active: 'bg-purple-500 text-white border-purple-500' },
 };
 
 function JustificativasStep({
@@ -2489,7 +2499,8 @@ function JustificativasStep({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
-  const allFilled = atividades.every(a => a.causas6M.length > 0);
+  const pendentes = atividades.filter(a => a.causas6M.length === 0).length;
+  const allFilled = pendentes === 0;
   const canConfirm = skipJustificativas || allFilled;
 
   if (atividades.length === 0) {
@@ -2513,87 +2524,125 @@ function JustificativasStep({
 
   return (
     <div className="space-y-4">
+      {/* Header with live counter */}
       <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
         <h3 className="font-semibold text-sm">Justificativas das Perdas — 6M</h3>
-        <p className="text-xs text-muted-foreground">
-          {atividades.length} atividade{atividades.length > 1 ? 's' : ''} não executada{atividades.length > 1 ? 's' : ''} conforme previsto.
-          Selecione ao menos uma causa 6M para cada e defina o plano de ação.
-        </p>
+        {skipJustificativas ? (
+          <p className="text-xs text-muted-foreground">
+            Justificativas serão puladas. Atividades sem causa não aparecerão no Pareto 6M nem nos Planos de Ação.
+          </p>
+        ) : allFilled ? (
+          <p className="text-xs font-medium text-green-600">
+            ✓ Todas as atividades preenchidas — pode confirmar
+          </p>
+        ) : (
+          <p className="text-xs font-medium text-red-600">
+            ⚠ {pendentes} de {atividades.length} atividade{pendentes > 1 ? 's' : ''} ainda sem causa informada
+          </p>
+        )}
       </div>
 
       <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-        {atividades.map((a) => (
-          <div key={`${a.id}-${a.descricao}`} className="rounded-lg border bg-card p-4 space-y-3">
-            {/* Header */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-mono text-muted-foreground">{a.id}</span>
-                  <span className="text-sm font-medium">{a.descricao}</span>
+        {atividades.map((a) => {
+          const filled = a.causas6M.length > 0;
+          return (
+            <div
+              key={`${a.id}-${a.descricao}`}
+              className="rounded-lg bg-card p-4 space-y-3 transition-colors"
+              style={{
+                border: skipJustificativas
+                  ? '1px solid hsl(var(--border))'
+                  : filled
+                  ? '2px solid #16a34a'
+                  : '2px solid #dc2626',
+              }}
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-mono text-muted-foreground">{a.id}</span>
+                    <span className="text-sm font-medium">{a.descricao}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <span className="text-[10px] text-muted-foreground">{a.area}</span>
+                    <span className="text-[10px] font-semibold text-destructive">
+                      PREV {a.quantidade.prev} {a.unidade} / REAL {a.quantidade.real} {a.unidade}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                  <span className="text-[10px] text-muted-foreground">{a.area}</span>
-                  <span className="text-[10px] font-semibold text-destructive">
-                    PREV {a.quantidade.prev} {a.unidade} / REAL {a.quantidade.real} {a.unidade}
+                {/* Validation badge */}
+                {!skipJustificativas && (
+                  <span
+                    className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      filled
+                        ? 'bg-green-100 text-green-700'
+                        : 'bg-red-100 text-red-700'
+                    }`}
+                  >
+                    {filled ? '✓ Preenchido' : '⚠ Obrigatório'}
                   </span>
+                )}
+              </div>
+
+              {/* Observação original */}
+              {a.observacao && (
+                <div className="space-y-1">
+                  <label className="text-[11px] text-muted-foreground font-medium">Observação do arquivo</label>
+                  <div className="text-xs bg-muted/50 rounded p-2 text-muted-foreground italic">{a.observacao}</div>
                 </div>
-              </div>
-            </div>
+              )}
 
-            {/* Observação original */}
-            {a.observacao && (
+              {/* 6M buttons */}
               <div className="space-y-1">
-                <label className="text-[11px] text-muted-foreground font-medium">Observação do arquivo</label>
-                <div className="text-xs bg-muted/50 rounded p-2 text-muted-foreground italic">{a.observacao}</div>
+                <label className="text-[11px] font-medium text-foreground">
+                  Causa raiz (6M) *
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {CAUSAS_6M.map(causa => {
+                    const checked = a.causas6M.includes(causa);
+                    return (
+                      <button
+                        key={causa}
+                        type="button"
+                        disabled={skipJustificativas}
+                        onClick={() => {
+                          const next = checked
+                            ? a.causas6M.filter(c => c !== causa)
+                            : [...a.causas6M, causa];
+                          onUpdate(a.id, a.descricao, { causas6M: next });
+                        }}
+                        className={`px-2.5 py-1 rounded border text-[11px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                          checked
+                            ? CAUSA_COLORS[causa].active
+                            : CAUSA_COLORS[causa].idle
+                        }`}
+                      >
+                        {causa}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!skipJustificativas && a.causas6M.length === 0 && (
+                  <p className="text-[10px] text-destructive">Selecione ao menos uma causa</p>
+                )}
               </div>
-            )}
 
-            {/* 6M checkboxes */}
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-foreground">Causa raiz (6M) *</label>
-              <div className="flex flex-wrap gap-2">
-                {CAUSAS_6M.map(causa => {
-                  const checked = a.causas6M.includes(causa);
-                  return (
-                    <button
-                      key={causa}
-                      type="button"
-                      onClick={() => {
-                        const next = checked
-                          ? a.causas6M.filter(c => c !== causa)
-                          : [...a.causas6M, causa];
-                        onUpdate(a.id, a.descricao, { causas6M: next });
-                      }}
-                      className={`px-2.5 py-1 rounded border text-[11px] font-medium transition-all ${
-                        checked
-                          ? CAUSA_COLORS[causa] + ' ring-1 ring-current'
-                          : 'bg-muted/30 text-muted-foreground border-border hover:bg-muted'
-                      }`}
-                    >
-                      {causa}
-                    </button>
-                  );
-                })}
-              </div>
-              {a.causas6M.length === 0 && (
-                <p className="text-[10px] text-destructive">Selecione ao menos uma causa</p>
+              {/* Plano de ação — show as soon as there is a cause */}
+              {a.causas6M.length > 0 && !skipJustificativas && (
+                <div className="space-y-1">
+                  <label className="text-[11px] font-medium text-foreground">Plano de ação para recuperar a perda:</label>
+                  <textarea
+                    className="w-full text-xs rounded border bg-background p-2 min-h-[60px] resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                    placeholder="Descreva as ações para recuperar a perda..."
+                    value={a.planoAcao}
+                    onChange={e => onUpdate(a.id, a.descricao, { planoAcao: e.target.value })}
+                  />
+                </div>
               )}
             </div>
-
-            {/* Plano de ação */}
-            {a.causas6M.length > 0 && (
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-foreground">Plano de ação para recuperar a perda:</label>
-                <textarea
-                  className="w-full text-xs rounded border bg-background p-2 min-h-[60px] resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                  placeholder="Descreva as ações para recuperar a perda..."
-                  value={a.planoAcao}
-                  onChange={e => onUpdate(a.id, a.descricao, { planoAcao: e.target.value })}
-                />
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Skip option */}
@@ -2604,14 +2653,20 @@ function JustificativasStep({
           checked={skipJustificativas}
           onChange={onToggleSkip}
         />
-        <span className="text-xs text-muted-foreground">Pular justificativas (importar sem informar causas 6M)</span>
+        <span className="text-xs text-muted-foreground">
+          Pular justificativas — atividades sem causa não aparecerão no Pareto 6M nem nos Planos de Ação
+        </span>
       </label>
 
       <div className="flex justify-between gap-2 pt-2">
         <Button variant="outline" onClick={onBack}>← Voltar</Button>
         <div className="flex gap-2">
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={onConfirm} disabled={!canConfirm} className="gradient-primary text-primary-foreground">
+          <Button
+            onClick={onConfirm}
+            disabled={!canConfirm}
+            className={`gradient-primary text-primary-foreground transition-opacity ${!canConfirm ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
             Confirmar Importação
           </Button>
         </div>
