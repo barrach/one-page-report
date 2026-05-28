@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart2, Activity, ArrowRight } from "lucide-react";
+import { BarChart2, Activity, TrendingUp, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 
 const apps = [
@@ -24,6 +24,18 @@ const apps = [
       "Registro e análise de observações de campo com gráficos, exportação e relatórios por IA.",
     color: "from-[hsl(220,70%,30%)] to-[hsl(220,70%,50%)]",
     badge: "Obra",
+    badgeColor: "bg-white/20 text-white",
+    iconBg: "bg-white/15",
+  },
+  {
+    to: "/controladoria",
+    icon: TrendingUp,
+    name: "Controladoria",
+    tagline: "Gestão financeira e orçamentária",
+    description:
+      "Dashboard financeiro com acompanhamento de receitas, custos, orçamento e indicadores gerenciais.",
+    color: "from-[hsl(158,60%,20%)] to-[hsl(158,55%,35%)]",
+    badge: "Financeiro",
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
   },
@@ -66,7 +78,7 @@ export default function HubPage() {
 
       {/* App cards */}
       <main className="flex-1 flex items-start justify-center px-4 pb-12">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 w-full max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 w-full max-w-4xl">
           {apps.map((app, i) => (
             <motion.div
               key={app.to}
