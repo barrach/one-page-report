@@ -482,7 +482,7 @@ interface CurveExtract {
   realAcuLast: number;
   prevAcuLast: number;
   hasReplanejado: boolean;
-  sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
+  sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number }[];
   weekly: { date: string; previsto: number; real: number }[];
   monthly: { label: string; previsto: number; real: number }[];
 }
@@ -2323,8 +2323,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length && selectedFields.sCurve) {
         setSCurveData(c.sCurve);
+        // Status index = última semana com Real OU Real Replanejado (Formato C: SEM25)
         let idx = -1;
-        c.sCurve.forEach((p, i) => { if (p.real > 0) idx = i; });
+        c.sCurve.forEach((p, i) => { if (p.real > 0 || (p.realReplanejado ?? 0) > 0) idx = i; });
         if (idx >= 0) setStatusDateIndex(idx);
         setLastImport('sCurve', now); count++;
       }

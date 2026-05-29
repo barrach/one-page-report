@@ -29,7 +29,7 @@ const SCurveChart = () => {
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
-  const statusReal = sCurveData[cutIndex]?.real ?? null;
+  const statusReal = sCurveData[cutIndex]?.real ?? sCurveData[cutIndex]?.realReplanejado ?? null;
   const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
   const hasRealReplanejado = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
 
