@@ -16,6 +16,9 @@ const FiveWeekChart = () => {
     [allWeeklyData, info?.atualizadoEm],
   );
 
+  const hasTendencia = weeklyData.some(w => (w.tendencia ?? 0) > 0);
+  const statusDate = weeklyData.find(w => w.isStatus)?.date ?? null;
+
   const handleClick = (data: any) => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'fiveweek');
   };
@@ -23,7 +26,7 @@ const FiveWeekChart = () => {
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Visão de 5 Semanas</h3>
-      <p className="text-xs text-muted-foreground mb-4">Resultado semanal previsto × real</p>
+      <p className="text-xs text-muted-foreground mb-4">Resultado semanal previsto × real{hasTendencia ? ' × tendência' : ''}</p>
       <div className="h-[240px] sm:h-[380px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={weeklyData} onClick={handleClick} style={{ cursor: 'pointer' }} barCategoryGap="15%" barGap={4} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
@@ -40,6 +43,17 @@ const FiveWeekChart = () => {
               formatter={(value: number) => `${value}%`}
             />
             <Legend />
+
+            {/* Status week marker (semana de referência — centro da janela) */}
+            {statusDate && (
+              <ReferenceLine
+                x={statusDate}
+                stroke="hsl(var(--chart-cutline))"
+                strokeDasharray="6 3"
+                strokeWidth={2}
+                label={{ value: '★', position: 'top', fontSize: 12, fill: 'hsl(var(--chart-cutline))' }}
+              />
+            )}
 
             {selectedDate && weeklyData.some(w => w.date === selectedDate) && (
               <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
@@ -65,6 +79,18 @@ const FiveWeekChart = () => {
                 />
               ))}
             </Bar>
+            {hasTendencia && (
+              <Bar dataKey="tendencia" name="Tendência" radius={[4, 4, 0, 0]} fill="#f97316">
+                <LabelList dataKey="tendencia" position="top" fontSize={11} fill="#f97316" formatter={(v: number) => v > 0 ? `${v}%` : ''} />
+                {weeklyData.map((entry, i) => (
+                  <Cell key={i}
+                    fill={selectedDate === null || selectedDate === entry.date
+                      ? '#f97316'
+                      : '#f9731640'}
+                  />
+                ))}
+              </Bar>
+            )}
           </BarChart>
         </ResponsiveContainer>
       </div>

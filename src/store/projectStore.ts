@@ -29,6 +29,10 @@ export interface WeekData {
   date: string;
   previsto: number;
   real: number;
+  /** Tendência semanal (Formato C) */
+  tendencia?: number;
+  /** Semana de status (centro da janela) — usada para destaque visual */
+  isStatus?: boolean;
 }
 
 export interface SCurvePoint {

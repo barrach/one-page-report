@@ -483,7 +483,7 @@ interface CurveExtract {
   prevAcuLast: number;
   hasReplanejado: boolean;
   sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number }[];
-  weekly: { date: string; previsto: number; real: number }[];
+  weekly: { date: string; previsto: number; real: number; tendencia?: number; isStatus?: boolean }[];
   monthly: { label: string; previsto: number; real: number }[];
 }
 
@@ -1257,15 +1257,22 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     };
   });
 
-  // 4. Resultado Semanal (FORMATO C): últimas 5 semanas ATÉ ULTIMA_REAL.
-  // Usar SOMENTE PREVISTO GERAL LB (ps) e REALIZADO GERAL (rs) — NUNCA os
-  // semanais de Replanejado (rps/rrps), que contêm deltas e não avanços.
-  const upToReal = ultimaRealIdx >= 0 ? semanas.slice(0, ultimaRealIdx + 1) : semanas;
-  const weekly = upToReal.slice(-5).map(s => ({
-    date: s.label,
-    previsto: s.ps,
-    real: s.rs,
-  }));
+  // 4. Visão 5 Semanas (FORMATO C) — janela centrada na semana de status
+  // Status = última semana com Real Replanejado Acumulado (ultimaRRaCol).
+  // Previsto  → row 13 (rps = REPLANJ SEMANAL) com fallback row 9 (ps = LB SEMANAL)
+  // Realizado → row 15 (rrps = REAL REPLANJ SEMANAL) com fallback row 11 (rs = REAL SEMANAL)
+  // Tendência → row 17 (ts = TEND GERAL SEMANAL)
+  const statusSemIdx = semanas.findIndex(s => s.j === (ultimaRRaCol > 0 ? ultimaRRaCol : lastLBCol));
+  const centerIdx = statusSemIdx >= 0 ? statusSemIdx : semanas.length - 1;
+  const winStart = Math.max(0, centerIdx - 2);
+  const windowSlice = semanas.slice(winStart, winStart + 5);
+  const weekly = windowSlice.map((s, wi) => {
+    const isStatus = (winStart + wi) === centerIdx;
+    const previsto = s.rps > 0 ? s.rps : s.ps;
+    const real     = s.rrps > 0 ? s.rrps : s.rs;
+    const tendencia = s.ts > 0 ? s.ts : undefined;
+    return { date: s.label, previsto, real, ...(tendencia != null ? { tendencia } : {}), isStatus };
+  });
 
 
 
