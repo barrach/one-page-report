@@ -2247,13 +2247,12 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
 
   // ─── Field selection (segunda etapa) ───
-  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo' | 'progSemanal';
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'finCurve' | 'projectInfo' | 'progSemanal';
   const FIELD_LABELS: Record<FieldKey, string> = {
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
     monthly: 'Prev × Mês (velocímetro mensal)',
     histogram: 'Histograma (barras de avanço por semana)',
-    schedule: 'Cronograma (Gantt)',
     finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
     progSemanal: 'Programação Semanal (PPC + 6M + Pareto)',
@@ -2264,7 +2263,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: sourceNames.curve,
     projectInfo: sourceNames.curve,
     histogram: sourceNames.hist || sourceNames.curve,
-    schedule: sourceNames.schedule,
     finCurve: sourceNames.finCurve,
     progSemanal: sourceNames.progSemanal,
   };
@@ -2282,14 +2280,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: !!(c && c.monthly.length),
     projectInfo: !!c,
     histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
-    schedule: !!(schedule && schedule.rows.length),
     finCurve: !!(finCurve && finCurve.length),
     progSemanal: !!progSemanal,
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
     sCurve: false, weekly: false, monthly: false, histogram: false,
-    schedule: false, finCurve: false, projectInfo: false, progSemanal: false,
+    finCurve: false, projectInfo: false, progSemanal: false,
   });
 
   const initJustificativas = () => {
@@ -2385,10 +2382,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
 
     if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
-    if (schedule && schedule.rows.length && selectedFields.schedule) {
-      setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
-      count++;
-    }
     if (finCurve && finCurve.length && selectedFields.finCurve) {
       setCurvaSFinanceira(finCurve);
       setLastImport('curvaSFinanceira', now);
@@ -2771,7 +2764,7 @@ function JustificativasStep({
 }
 
 // ─── Fields Step ───
-type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo' | 'progSemanal';
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'finCurve' | 'projectInfo' | 'progSemanal';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
   anyFieldChecked, onBack, onCancel, onConfirm, confirmLabel,
