@@ -2232,17 +2232,20 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     // Pré-marcar campos disponíveis
     const localC = res?.curve && !('error' in res.curve) ? (res.curve as CurveExtract) : null;
     const localH = res?.hist && !('error' in res.hist) ? (res.hist as HistExtract) : null;
-    const weeklyOk = !!localC && localC.weekly.length > 0 && (() => {
+    // weeklyOk: para Formato C usa rRps/rRrs (replanejado) — checar pelo weekly já computado.
+    // Para outros formatos: checar se cols recentes têm prevSem/realSem > 0.
+    const weeklyHasData = !!localC && localC.weekly.some(w => w.previsto > 0 || w.real > 0);
+    const weeklyColsOk = !!localC && (() => {
       const upTo = localC.cols.slice(0, localC.ultimaReal + 1).slice(-8);
       return upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length >= 3;
     })();
+    const weeklyOk = weeklyHasData || weeklyColsOk;
     setSelectedFields({
       sCurve: !!(localC && localC.sCurve.length),
       weekly: weeklyOk,
       monthly: !!(localC && localC.monthly.length),
       projectInfo: !!localC,
       histogram: !!(localH && localH.histogram.length),
-      schedule: !!(sched && sched.rows.length),
       finCurve: !!(fin && fin.length),
       progSemanal: !!parsedProgSemanal,
     });
