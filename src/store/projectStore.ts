@@ -37,6 +37,8 @@ export interface SCurvePoint {
   real: number;
   tendencia: number;
   replanejado?: number;
+  /** Real Replanejado (acumulado após replanejamento — série separada) */
+  realReplanejado?: number;
 }
 
 export interface SCurveSettings {

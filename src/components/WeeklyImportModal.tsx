@@ -884,6 +884,26 @@ const findRowByLabel = (labelMap: Record<string, number>, ...candidates: string[
 const isExcelDateSerial = (v: unknown): boolean =>
   typeof v === 'number' && v > 40000 && v < 60000;
 
+/** Returns true when a cell can be used as a week-axis tick (Date, serial, or text label like "26-SEM02"). */
+const isWeekLabel = (v: unknown): boolean => {
+  if (v instanceof Date) return !isNaN(v.getTime());
+  if (isExcelDateSerial(v)) return true;
+  if (typeof v === 'string') {
+    const s = v.trim();
+    // Accept "26-SEM02", "2026SEM03", "SEM02/26", "W02-2026", "01/2026" style labels
+    return /\d{2}[-\/\s]?SEM\d{2}|SEM\d{2}[-\/\s]?\d{2}|\d{2}[-\/]\d{4}/i.test(s);
+  }
+  return false;
+};
+
+/** Returns the display label for a week cell (formatted date string or raw text). */
+const getWeekLabelText = (v: unknown): string | null => {
+  const d = toDate(v);
+  if (d) return fmtDDmmm(d);
+  if (typeof v === 'string' && v.trim()) return v.trim();
+  return null;
+};
+
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
 
@@ -929,12 +949,12 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 
   if (rowDates < 0 || rowRealAcu < 0 || rowPrevAcu < 0) return null;
 
-  // 3. COL_START dinâmico: primeira col > 0 com Date na linha de datas
+  // 3. COL_START dinâmico: primeira col > 0 com Date OU label de semana textual (ex: "26-SEM02")
   const dateRow = grid[rowDates] || [];
   let colStart = -1;
   for (let j = 1; j < dateRow.length; j++) {
     const v = dateRow[j];
-    if (v instanceof Date || toDate(v)) { colStart = j; break; }
+    if (v instanceof Date || toDate(v) || isWeekLabel(v)) { colStart = j; break; }
   }
   if (colStart < 0) return null;
 
@@ -1099,6 +1119,19 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   }
   if (ultimaRealCol < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO C)' };
 
+  // 1a. Truncar "Real" ao primeiro run de 2+ valores iguais consecutivos (valores "travados")
+  // O valor antes do run é o último dado real válido.
+  for (let j = b.colStart + 1; j <= ultimaRealCol; j++) {
+    const cur = toPercentC(rRa[j]);
+    const prev = toPercentC(rRa[j - 1]);
+    if (cur > 0 && cur === prev) {
+      // Freeze detectado: j-1 é o último valor real válido
+      ultimaRealCol = j - 1;
+      console.log('[FORMATO C] Real truncado em col', j - 1, '(valor travado detectado em j=', j, ')');
+      break;
+    }
+  }
+
   // 1b. LAST_COL = última coluna com QUALQUER série acumulada > 0 (LB/Real/Replanj/Tend)
   // garante que Replanejado/Tendência futuros (até 26/jun) sejam plotados
   let lastCol = ultimaRealCol;
@@ -1109,8 +1142,8 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
       if (!isNaN(v) && v > 0 && j > lastCol) lastCol = j;
     }
   }
-  // truncar para colunas que ainda têm Date na linha de datas
-  while (lastCol > ultimaRealCol && !toDate(dateRow[lastCol])) lastCol--;
+  // truncar para colunas que ainda têm Date OU label de semana textual
+  while (lastCol > ultimaRealCol && !toDate(dateRow[lastCol]) && !isWeekLabel(dateRow[lastCol])) lastCol--;
 
   // 2. Construir array de semanas COL_START até LAST_COL (valores em %)
   type Semana = {
@@ -1121,9 +1154,12 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   const semanas: Semana[] = [];
   for (let j = b.colStart; j <= lastCol; j++) {
     const d = toDate(dateRow[j]);
-    if (!d) continue;
+    // Accept text week labels (e.g. "26-SEM02") when no Date is available
+    const textLabel = getWeekLabelText(dateRow[j]);
+    if (!d && !textLabel) continue;
+    const label = d ? fmtDDmmm(d) : textLabel!;
     semanas.push({
-      j, date: d, label: fmtDDmmm(d),
+      j, date: d ?? new Date(0), label,
       lb:   toPercentC(rPa[j]),
       ra:   toPercentC(rRa[j]),
       rpa:  rRpa ? toPercentC(rRpa[j]) : 0,
@@ -1148,6 +1184,7 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   console.log('semanas última:', semanas[semanas.length - 1]);
 
   const hasReplanejado = semanas.some(s => s.rpa > 0);
+  const hasRealReplanejado = semanas.some(s => s.rra > 0);
 
   // Tendência: se TODOS os valores > 0 forem < 10%, são deltas semanais (não acumulado).
   // Nesse caso, ocultar a linha de tendência no gráfico.
@@ -1159,9 +1196,11 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   const sCurve = semanas.map(s => ({
     date: s.label,
     previsto: s.lb > 0 ? s.lb : null as unknown as number,
-    real: s.ra > 0 ? s.ra : null as unknown as number,
+    // Real: only up to ultimaRealCol (already truncated above)
+    real: s.ra > 0 && s.j <= ultimaRealCol ? s.ra : null as unknown as number,
     tendencia: !tendIsDeltas && s.ta > 0 ? s.ta : null as unknown as number,
     ...(hasReplanejado ? { replanejado: s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
+    ...(hasRealReplanejado ? { realReplanejado: s.rra > 0 ? s.rra : null as unknown as number } : {}),
   }));
 
   // 4. Resultado Semanal (FORMATO C): últimas 5 semanas ATÉ ULTIMA_REAL.
@@ -1185,6 +1224,7 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   type MesAgg = { date: Date; lb: number; rpa: number; ra: number; rra: number };
   const mesesAgg = new Map<string, MesAgg>();
   upToReal.forEach(s => {
+    if (s.date.getTime() === 0) return; // skip entries with no real date (text-label rows)
     const key = `${s.date.getFullYear()}-${String(s.date.getMonth()).padStart(2, '0')}`;
     const cur = mesesAgg.get(key) || { date: s.date, lb: 0, rpa: 0, ra: 0, rra: 0 };
     if (s.date.getTime() >= cur.date.getTime()) cur.date = s.date;
