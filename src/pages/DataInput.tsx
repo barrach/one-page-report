@@ -8,7 +8,6 @@ import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
-import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import WeeklyImportModal from '@/components/WeeklyImportModal';
 import ClearDataButton from '@/components/ClearDataButton';
 import { cn } from '@/lib/utils';
@@ -340,7 +339,6 @@ const DataInputPage = () => {
       </div>
       <FinancialCurveSection />
       <ProgSemanalSection />
-      <ScheduleSpreadsheet />
     </div>
   );
 };
