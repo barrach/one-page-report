@@ -5,8 +5,6 @@ import ReportHeader from '@/components/ReportHeader';
 import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
 import MonthChart from '@/components/MonthChart';
-import ActionsTable from '@/components/ActionsTable';
-import RestrictionsChart from '@/components/RestrictionsChart';
 import ObservationsSection from '@/components/ObservationsSection';
 import HistogramChart from '@/components/HistogramChart';
 import FinancialCurveChart from '@/components/FinancialCurveChart';
@@ -308,8 +306,6 @@ const Index = () => {
             histogramData={current?.histogramData}
           />
         )}
-        <ActionsTable />
-        <RestrictionsChart />
         <ObservationsSection />
 
         <motion.div

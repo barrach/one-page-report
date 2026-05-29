@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useCurrentProject } from "@/store/projectStore";
 import {
   ComposedChart,
   Bar,
@@ -132,8 +133,12 @@ function ParetoTooltip({ active, payload, label }: ParetoTooltipProps) {
 // ---------------------------------------------------------------------------
 
 export default function ProgramacaoSemanalCard({ data }: Props) {
+  const { info } = useCurrentProject();
+  const clientName = info?.cliente?.trim() || "Cliente";
+
   const [activeTab, setActiveTab] = useState<TabId>("ppc");
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
+  const [responsavelMap, setResponsavelMap] = useState<Map<string, string>>(new Map());
 
   // Planos de Ação filter state
   const [filterSemana, setFilterSemana] = useState<string>("todas");
@@ -440,6 +445,9 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
                     <th className="text-left py-2 pr-3 font-medium">
                       Plano de Ação
                     </th>
+                    <th className="text-left py-2 pr-3 font-medium whitespace-nowrap">
+                      Responsável
+                    </th>
                     <th className="text-left py-2 font-medium">Status</th>
                   </tr>
                 </thead>
@@ -492,6 +500,27 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
                         </td>
                         <td className="py-2 pr-3 max-w-[200px] text-muted-foreground">
                           {row.planoAcao || "—"}
+                        </td>
+                        <td className="py-2 pr-3">
+                          <Select
+                            value={responsavelMap.get(row.key) ?? "Megasteam"}
+                            onValueChange={(val) =>
+                              setResponsavelMap((prev) => {
+                                const next = new Map(prev);
+                                next.set(row.key, val);
+                                return next;
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-7 w-32 text-xs px-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Megasteam">Megasteam</SelectItem>
+                              <SelectItem value={clientName}>{clientName}</SelectItem>
+                              <SelectItem value="Ambos">Ambos</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </td>
                         <td className="py-2">
                           <button
