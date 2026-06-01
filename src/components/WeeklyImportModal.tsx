@@ -1132,8 +1132,17 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     if (v > 0) { lastLBCol = j; if (v >= 99.9) break; }
   }
 
+  // ultimaRRaCol: última col com Real Replanejado Acu (row 16) > 0 = DATA DE STATUS
+  let ultimaRRaCol = -1;
+  if (rRra) {
+    for (let j = b.colStart; j < rRra.length; j++) {
+      const v = parseFloat(String(rRra[j]));
+      if (!isNaN(v) && v > 0) ultimaRRaCol = j;
+    }
+  }
+
   // firstReplanjCol: primeira col onde Replanj Previsto Acu (row 14) > 0
-  // marca o início do período replanejado
+  // Fallback: primeira col onde Real Replanj Acu (row 16) > 0 (quando row 14 não existe)
   let firstReplanjCol = -1;
   if (rRpa) {
     for (let j = b.colStart; j < rRpa.length; j++) {
@@ -1141,13 +1150,11 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
       if (!isNaN(v) && v > 0) { firstReplanjCol = j; break; }
     }
   }
-
-  // ultimaRRaCol: última col com Real Replanejado Acu (row 16) > 0 = DATA DE STATUS
-  let ultimaRRaCol = -1;
-  if (rRra) {
+  if (firstReplanjCol < 0 && ultimaRRaCol > 0 && rRra) {
+    // row 14 não encontrada — infere início do replanejamento a partir de row 16
     for (let j = b.colStart; j < rRra.length; j++) {
       const v = parseFloat(String(rRra[j]));
-      if (!isNaN(v) && v > 0) ultimaRRaCol = j;
+      if (!isNaN(v) && v > 0) { firstReplanjCol = j; break; }
     }
   }
 
@@ -1205,8 +1212,11 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   const ultimaRealIdx = semanas.findIndex(s => s.j === ultimaRealCol);
 
   console.log('[FORMATO C]', b.ref.sheetName,
-    '| lastLBCol:', lastLBCol, '| firstReplanjCol:', firstReplanjCol,
-    '| ultimaRRaCol:', ultimaRRaCol, '| lastCol:', lastCol);
+    '| lastLBCol:', lastLBCol, `(${semLabelRow?.[lastLBCol] ?? ''})`,
+    '| firstReplanjCol:', firstReplanjCol, `(${semLabelRow?.[firstReplanjCol] ?? ''})`,
+    '| ultimaRRaCol:', ultimaRRaCol, `(${semLabelRow?.[ultimaRRaCol] ?? ''})`,
+    '| lastCol:', lastCol,
+    '| hasReplanejado:', rRpa != null, '| hasRealReplanejado:', ultimaRRaCol > 0);
 
   // ── 3. Tendência cumulativa: a partir do último real (row 17 deltas) ──────
   const lastRRaValue = ultimaRRaCol > 0
