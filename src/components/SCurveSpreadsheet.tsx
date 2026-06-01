@@ -193,7 +193,7 @@ const SCurveSpreadsheet = () => {
                 <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
                 {sCurveData.map((point, i) => (
                   <td key={i} className="border border-border px-1 py-1">
-                    <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={point[field] ?? ''} onChange={(e) => updateCell(i, field, e.target.value)} />
+                    <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(point[field] ?? 0) || ''} onChange={(e) => updateCell(i, field, e.target.value)} />
                   </td>
                 ))}
               </tr>

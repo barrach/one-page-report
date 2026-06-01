@@ -1235,36 +1235,45 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     }
   }
 
-  const hasReplanejado    = rRpa != null && semanas.some(s => s.rpa > 0);
-  const hasRealReplanejado = rRra != null && semanas.some(s => s.rra > 0);
+  const hasReplanejado     = firstReplanjCol > 0 && rRpa != null && semanas.some(s => s.rpa > 0);
+  const hasRealReplanejado = firstReplanjCol > 0 && ultimaRRaCol > 0 && rRra != null && semanas.some(s => s.rra > 0);
 
-  // ── 4. sCurve — 5 séries separadas ────────────────────────────────────────
-  // previsto      = row 10 (LB Acu),             somente SEM02–SEM19
-  // real          = row 12 (Real Acu),            somente SEM02–SEM19
-  // replanejado   = row 14 (Replanj Previsto Acu),SEM23 em diante
-  // realReplanej. = row 16 (Real Replanj Acu),    SEM23–SEM26 (status)
-  // tendencia     = cumulativo row 17,            após SEM26
-  // Gap SEM20/21/22: toda série = null (não plotar)
-  const n = null as unknown as number;
+  console.log('[FORMATO C] hasReplanejado:', hasReplanejado,
+    '| hasRealReplanejado:', hasRealReplanejado,
+    '| firstReplanjCol:', firstReplanjCol, semLabelRow?.[firstReplanjCol],
+    '| ultimaRRaCol:', ultimaRRaCol, semLabelRow?.[ultimaRRaCol]);
+
+  // ── 4. sCurve — 5 séries explícitas ─────────────────────────────────────
+  // Usa 0 para semanas sem dado (não null), para evitar ambiguidade na store.
+  // previsto   = row 10 (LB Acu)            SEM02–SEM19
+  // real       = row 12 (Real Acu)          SEM02–SEM19
+  // replanejado= row 14 (Replanj Prev Acu)  SEM23+
+  // realReplanj= row 16 (Real Replanj Acu)  SEM23–status
+  // tendencia  = cumulativo row17           após status
+  // Gap SEM20–22: previsto=0, real=0 → não plotados no gráfico
   const sCurve = semanas.map(s => {
-    const inGap = firstReplanjCol > 0 && s.j > lastLBCol && s.j < firstReplanjCol;
-    if (inGap) return { date: s.label, previsto: n, real: n, tendencia: n };
+    const inGap     = firstReplanjCol > 0 && s.j > lastLBCol && s.j < firstReplanjCol;
+    const inPeriodLB    = !inGap && s.j <= lastLBCol;
+    const inPeriodRepl  = !inGap && firstReplanjCol > 0 && s.j >= firstReplanjCol;
 
-    const previsto    = s.lb > 0 && s.j <= lastLBCol ? s.lb : n;
-    const realVal     = s.ra > 0 && s.j <= lastLBCol ? s.ra : n;
-    const replanj     = hasReplanejado && s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) && s.rpa > 0
-                          ? s.rpa : n;
-    const realReplanj = hasRealReplanejado && s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) && s.rra > 0 && s.j <= ultimaRRaCol
-                          ? s.rra : n;
-    const tendencia   = tendCumulative.has(s.j) ? tendCumulative.get(s.j)! : n;
+    const previsto  = inPeriodLB  && s.lb > 0 ? s.lb : 0;
+    const realVal   = inPeriodLB  && s.ra > 0 ? s.ra : 0;
+    const replanj   = inPeriodRepl && s.rpa > 0 ? s.rpa : 0;
+    const rReplanj  = inPeriodRepl && s.rra > 0 && s.j <= ultimaRRaCol ? s.rra : 0;
+    const tendencia = tendCumulative.has(s.j) ? tendCumulative.get(s.j)! : 0;
 
-    return {
+    const entry: Record<string, number | string> = {
       date: s.label,
       previsto, real: realVal, tendencia,
-      ...(hasReplanejado     ? { replanejado:      replanj }     : {}),
-      ...(hasRealReplanejado ? { realReplanejado: realReplanj } : {}),
     };
+    if (hasReplanejado)     entry.replanejado     = replanj;
+    if (hasRealReplanejado) entry.realReplanejado = rReplanj;
+    return entry as unknown as { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number };
   });
+
+  const nReplanej = sCurve.filter(p => (p.replanejado    ?? 0) > 0).length;
+  const nRealRepl = sCurve.filter(p => (p.realReplanejado ?? 0) > 0).length;
+  console.log('[FORMATO C] sCurve:', sCurve.length, 'pts | replanj>0:', nReplanej, '| realReplanj>0:', nRealRepl);
 
   // 4. Visão 5 Semanas (FORMATO C) — janela centrada na semana de status
   // Status = última semana com Real Replanejado Acumulado (ultimaRRaCol).
@@ -2344,10 +2353,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length && selectedFields.sCurve) {
         setSCurveData(c.sCurve);
-        // Status index = última semana com Real OU Real Replanejado (Formato C: SEM25)
+        // Status index = última semana com Real OU Real Replanejado (Formato C: SEM26)
         let idx = -1;
         c.sCurve.forEach((p, i) => { if (p.real > 0 || (p.realReplanejado ?? 0) > 0) idx = i; });
         if (idx >= 0) setStatusDateIndex(idx);
+        const _series = ['LB/Real'];
+        if (c.sCurve.some(p => (p.replanejado    ?? 0) > 0)) _series.push('Prev.Replanj');
+        if (c.sCurve.some(p => (p.realReplanejado ?? 0) > 0)) _series.push('Real Replanj');
+        if (c.sCurve.some(p => (p.tendencia       ?? 0) > 0)) _series.push('Tend');
+        console.log('[IMPORT] Curva S séries:', _series.join(' + '), '| pts:', c.sCurve.length, '| status:', c.sCurve[idx]?.date);
+        toast.info(`Curva S: ${_series.join(' + ')} — ${c.sCurve.length} semanas`);
         setLastImport('sCurve', now); count++;
       }
       if (c.weekly.length && weeklyValido && selectedFields.weekly) {
