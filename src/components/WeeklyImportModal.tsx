@@ -2361,8 +2361,10 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (c.sCurve.some(p => (p.replanejado    ?? 0) > 0)) _series.push('Prev.Replanj');
         if (c.sCurve.some(p => (p.realReplanejado ?? 0) > 0)) _series.push('Real Replanj');
         if (c.sCurve.some(p => (p.tendencia       ?? 0) > 0)) _series.push('Tend');
-        console.log('[IMPORT] Curva S séries:', _series.join(' + '), '| pts:', c.sCurve.length, '| status:', c.sCurve[idx]?.date);
-        toast.info(`Curva S: ${_series.join(' + ')} — ${c.sCurve.length} semanas`);
+        const _nReplanj   = c.sCurve.filter(p => (p.replanejado    ?? 0) > 0).length;
+        const _nRealRepl  = c.sCurve.filter(p => (p.realReplanejado ?? 0) > 0).length;
+        console.log('[IMPORT] Curva S séries:', _series.join(' + '), '| pts:', c.sCurve.length, '| status:', c.sCurve[idx]?.date, '| replanj pts:', _nReplanj, '| realReplanj pts:', _nRealRepl);
+        toast.info(`Curva S: ${_series.join(' + ')} — ${c.sCurve.length} sem | Replanj: ${_nReplanj} | RealReplanj: ${_nRealRepl}`, { duration: 8000 });
         setLastImport('sCurve', now); count++;
       }
       if (c.weekly.length && weeklyValido && selectedFields.weekly) {
