@@ -1125,14 +1125,24 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   // ── 1. Key column positions ───────────────────────────────────────────────
 
-  // lastLBCol: where LB acumulado (row 10) ends — determines "Real histórico" truncation
+  // lastLBCol: primeira col onde LB (row 10) atinge 100% — fim do período LB
   let lastLBCol = -1;
   for (let j = b.colStart; j < rPa.length; j++) {
-    const v = parseFloat(String(rPa[j]));
-    if (!isNaN(v) && v > 0) lastLBCol = j;
+    const v = toPercentC(rPa[j]);
+    if (v > 0) { lastLBCol = j; if (v >= 99.9) break; }
   }
 
-  // ultimaRRaCol: last col with Real Replanejado (row 16) > 0 — for KPI status
+  // firstReplanjCol: primeira col onde Replanj Previsto Acu (row 14) > 0
+  // marca o início do período replanejado
+  let firstReplanjCol = -1;
+  if (rRpa) {
+    for (let j = b.colStart; j < rRpa.length; j++) {
+      const v = parseFloat(String(rRpa[j]));
+      if (!isNaN(v) && v > 0) { firstReplanjCol = j; break; }
+    }
+  }
+
+  // ultimaRRaCol: última col com Real Replanejado Acu (row 16) > 0 = DATA DE STATUS
   let ultimaRRaCol = -1;
   if (rRra) {
     for (let j = b.colStart; j < rRra.length; j++) {
@@ -1141,35 +1151,25 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     }
   }
 
-  // ultimaRealCol: used for status KPI reference = last rRra col, else last LB col
-  let ultimaRealCol = ultimaRRaCol > 0 ? ultimaRRaCol : lastLBCol;
-  if (ultimaRealCol < 0) {
-    // final fallback: last col with any real data
-    for (let j = b.colStart; j < rRa.length; j++) {
-      const v = parseFloat(String(rRa[j]));
-      if (!isNaN(v) && v > 0) ultimaRealCol = j;
-    }
-  }
+  // ultimaRealCol: referência para KPIs e janela semanal
+  const ultimaRealCol = ultimaRRaCol > 0 ? ultimaRRaCol
+    : lastLBCol > 0 ? lastLBCol : (() => {
+      let c = -1;
+      for (let j = b.colStart; j < rRa.length; j++) {
+        if (parseFloat(String(rRa[j])) > 0) c = j;
+      }
+      return c;
+    })();
   if (ultimaRealCol < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO C)' };
 
-  // 1b. LAST_COL = última coluna com QUALQUER série acumulada > 0 (inclui rRra)
+  // lastCol: estende até o fim das séries Replanj + Tend
   let lastCol = ultimaRealCol;
-  const accRows = [rPa, rRa, rRpa, rTa, rRra].filter(Boolean) as unknown[][];
-  for (const r of accRows) {
+  for (const r of [rPa, rRpa, rRra, rTs].filter(Boolean) as unknown[][]) {
     for (let j = b.colStart; j < r.length; j++) {
       const v = parseFloat(String(r[j]));
       if (!isNaN(v) && v > 0 && j > lastCol) lastCol = j;
     }
   }
-  // Also extend for tendency semanal (row 17) deltas — needed to project tendency
-  if (rTs) {
-    for (let j = b.colStart; j < rTs.length; j++) {
-      const v = parseFloat(String(rTs[j]));
-      if (!isNaN(v) && v > 0 && j > lastCol) lastCol = j;
-    }
-  }
-  // Clamp to columns that have a label (Date or text)
-  while (lastCol > ultimaRealCol && !toDate(dateRow[lastCol]) && !isWeekLabel(dateRow[lastCol])) lastCol--;
 
   // ── 2. Construir semanas COL_START até LAST_COL ──────────────────────────
   // Prefer text labels from "Semanal" row (e.g. "26-SEM02") over date-derived labels
@@ -1204,18 +1204,11 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
 
   const ultimaRealIdx = semanas.findIndex(s => s.j === ultimaRealCol);
 
-  console.log('=== FORMATO C DEBUG ===');
-  console.log('Aba Curva S:', b.ref.sheetName);
-  console.log('lastLBCol:', lastLBCol, '| ultimaRRaCol:', ultimaRRaCol, '| ultimaRealCol:', ultimaRealCol);
-  console.log('COL_START:', b.colStart, '| lastCol:', lastCol);
-  console.log('Total semanas:', semanas.length);
+  console.log('[FORMATO C]', b.ref.sheetName,
+    '| lastLBCol:', lastLBCol, '| firstReplanjCol:', firstReplanjCol,
+    '| ultimaRRaCol:', ultimaRRaCol, '| lastCol:', lastCol);
 
-  const hasReplanejado = semanas.some(s => s.rpa > 0);
-  const hasRealReplanejado = semanas.some(s => s.rra > 0);
-
-  // ── 3. Tendência: projeção cumulativa a partir do último Real Replanejado ─
-  // Usando deltas semanais da row 17 (rowTendSem) para semanas APÓS ultimaRRaCol
-  // tend[j] = ultimaRRaVal + Σ(row17 deltas from ultimaRRaCol+1 to j)
+  // ── 3. Tendência cumulativa: a partir do último real (row 17 deltas) ──────
   const lastRRaValue = ultimaRRaCol > 0
     ? toPercentC(rRra![ultimaRRaCol])
     : (lastLBCol > 0 ? toPercentC(rRa[lastLBCol]) : 0);
@@ -1224,37 +1217,48 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   if (lastRRaValue > 0 && rTs) {
     let cumul = lastRRaValue;
     for (const s of semanas) {
-      if (s.j <= (ultimaRRaCol > 0 ? ultimaRRaCol : ultimaRealCol)) continue;
+      if (s.j <= ultimaRealCol) continue;
       if (s.ts > 0) {
         cumul = Math.min(cumul + s.ts, 100);
         tendCumulative.set(s.j, cumul);
       }
     }
   }
-  // Fallback: use row 18 (ta) if it's absolute acumulado (values > 10%)
-  const tendVals = semanas.map(s => s.ta).filter(v => v > 0);
-  const tendIsDeltas = tendVals.length > 0 && tendVals.every(v => v < 10);
-  const hasTendencia = tendCumulative.size > 0 || (!tendIsDeltas && tendVals.length > 0);
-  if (!hasTendencia) console.log('[FORMATO C] Tendência sem dados projetados');
 
-  // ── 4. sCurve: null onde série = 0 para criar lacunas no gráfico ─────────
+  // ── 4. sCurve com REGRA DE TRANSIÇÃO ────────────────────────────────────
+  // ANTES do replanejamento (j <= lastLBCol):
+  //   previsto = row 10 (LB Acu), real = row 12 (Real Acu)
+  // GAP (lastLBCol < j < firstReplanjCol): semana omitida (toda série null)
+  // A PARTIR do replanejamento (j >= firstReplanjCol):
+  //   previsto = row 14 (Replanj Previsto Acu)
+  //   real     = row 16 (Real Replanj Acu), somente até ultimaRRaCol
+  const n = null as unknown as number;
   const sCurve = semanas.map(s => {
-    // Real histórico: ONLY up to where LB ends (lastLBCol)
-    const realVal = s.ra > 0 && lastLBCol > 0 && s.j <= lastLBCol
-      ? s.ra
-      : null as unknown as number;
-    // Tendência: prefer cumulative projection, else row 18 if absolute
-    const tendVal = tendCumulative.has(s.j)
-      ? tendCumulative.get(s.j)!
-      : (!tendIsDeltas && s.ta > 0 ? s.ta : null as unknown as number);
-    return {
-      date: s.label,
-      previsto: s.lb > 0 ? s.lb : null as unknown as number,
-      real: realVal,
-      tendencia: tendVal,
-      ...(hasReplanejado    ? { replanejado:      s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
-      ...(hasRealReplanejado ? { realReplanejado: s.rra > 0 ? s.rra : null as unknown as number } : {}),
-    };
+    const inGap = firstReplanjCol > 0
+      && s.j > lastLBCol
+      && s.j < firstReplanjCol;
+
+    if (inGap) {
+      // Semanas de carryforward entre o fim do LB e o início do Replanj — omitir
+      return { date: s.label, previsto: n, real: n, tendencia: n };
+    }
+
+    let previsto: number;
+    let realVal: number;
+
+    if (firstReplanjCol > 0 && s.j >= firstReplanjCol) {
+      // Período replanejado
+      previsto = s.rpa > 0 ? s.rpa : n;
+      realVal  = s.rra > 0 && s.j <= ultimaRRaCol ? s.rra : n;
+    } else {
+      // Período LB (j <= lastLBCol)
+      previsto = s.lb > 0 ? s.lb : n;
+      realVal  = s.ra > 0 && s.j <= lastLBCol ? s.ra : n;
+    }
+
+    const tendVal = tendCumulative.has(s.j) ? tendCumulative.get(s.j)! : n;
+
+    return { date: s.label, previsto, real: realVal, tendencia: tendVal };
   });
 
   // 4. Visão 5 Semanas (FORMATO C) — janela centrada na semana de status
@@ -1302,15 +1306,20 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     .slice(-4)
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.previsto, real: m.real }));
 
-  // 6. KPIs — usar dados da ULTIMA_REAL (não da última projeção)
-  const last = (ultimaRealIdx >= 0 ? semanas[ultimaRealIdx] : semanas[semanas.length - 1]);
-  const prevLast = last.rpa > 0 ? last.rpa : last.lb;
+  // 6. KPIs — usar semana de status (ultimaRRaCol) como referência
+  const last = ultimaRealIdx >= 0 ? semanas[ultimaRealIdx] : semanas[semanas.length - 1];
+  // % Realizado = row 16 (Real Replanj Acu); fallback row 12
+  const realAcuLast = last.rra > 0 ? last.rra : last.ra;
+  // Avanço Previsto = row 14 (Replanj Previsto Acu) na semana de status; fallback row 10
+  const prevAcuLast = last.rpa > 0 ? last.rpa : last.lb;
 
   // 7. cols compatível com CurveExtract (valores decimais para back-compat)
   const cols: CurveExtract['cols'] = semanas.map(s => ({
     date: s.date,
-    prevSem: s.ps / 100, prevAcu: s.lb / 100,
-    realSem: s.rs / 100, realAcu: s.ra / 100,
+    prevSem: s.rps > 0 ? s.rps / 100 : s.ps / 100,
+    prevAcu: s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) ? s.rpa / 100 : s.lb / 100,
+    realSem: s.rrps > 0 ? s.rrps / 100 : s.rs / 100,
+    realAcu: s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) ? s.rra / 100 : s.ra / 100,
     tendSem: 0, tendAcu: s.ta / 100,
     replanjSem: s.rps / 100, replanjAcu: s.rpa / 100,
   }));
@@ -1319,9 +1328,9 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     block: null as never,
     cols, ultimaReal: ultimaRealIdx >= 0 ? ultimaRealIdx : semanas.length - 1,
     statusDate: last.date,
-    realAcuLast: last.rra > 0 ? last.rra : last.ra,
-    prevAcuLast: prevLast,
-    hasReplanejado, sCurve, weekly, monthly,
+    realAcuLast,
+    prevAcuLast,
+    hasReplanejado: false, sCurve, weekly, monthly,
   };
 };
 
