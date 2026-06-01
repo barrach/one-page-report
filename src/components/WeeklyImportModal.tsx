@@ -1225,40 +1225,35 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     }
   }
 
-  // ── 4. sCurve com REGRA DE TRANSIÇÃO ────────────────────────────────────
-  // ANTES do replanejamento (j <= lastLBCol):
-  //   previsto = row 10 (LB Acu), real = row 12 (Real Acu)
-  // GAP (lastLBCol < j < firstReplanjCol): semana omitida (toda série null)
-  // A PARTIR do replanejamento (j >= firstReplanjCol):
-  //   previsto = row 14 (Replanj Previsto Acu)
-  //   real     = row 16 (Real Replanj Acu), somente até ultimaRRaCol
+  const hasReplanejado    = rRpa != null && semanas.some(s => s.rpa > 0);
+  const hasRealReplanejado = rRra != null && semanas.some(s => s.rra > 0);
+
+  // ── 4. sCurve — 5 séries separadas ────────────────────────────────────────
+  // previsto      = row 10 (LB Acu),             somente SEM02–SEM19
+  // real          = row 12 (Real Acu),            somente SEM02–SEM19
+  // replanejado   = row 14 (Replanj Previsto Acu),SEM23 em diante
+  // realReplanej. = row 16 (Real Replanj Acu),    SEM23–SEM26 (status)
+  // tendencia     = cumulativo row 17,            após SEM26
+  // Gap SEM20/21/22: toda série = null (não plotar)
   const n = null as unknown as number;
   const sCurve = semanas.map(s => {
-    const inGap = firstReplanjCol > 0
-      && s.j > lastLBCol
-      && s.j < firstReplanjCol;
+    const inGap = firstReplanjCol > 0 && s.j > lastLBCol && s.j < firstReplanjCol;
+    if (inGap) return { date: s.label, previsto: n, real: n, tendencia: n };
 
-    if (inGap) {
-      // Semanas de carryforward entre o fim do LB e o início do Replanj — omitir
-      return { date: s.label, previsto: n, real: n, tendencia: n };
-    }
+    const previsto    = s.lb > 0 && s.j <= lastLBCol ? s.lb : n;
+    const realVal     = s.ra > 0 && s.j <= lastLBCol ? s.ra : n;
+    const replanj     = hasReplanejado && s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) && s.rpa > 0
+                          ? s.rpa : n;
+    const realReplanj = hasRealReplanejado && s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) && s.rra > 0 && s.j <= ultimaRRaCol
+                          ? s.rra : n;
+    const tendencia   = tendCumulative.has(s.j) ? tendCumulative.get(s.j)! : n;
 
-    let previsto: number;
-    let realVal: number;
-
-    if (firstReplanjCol > 0 && s.j >= firstReplanjCol) {
-      // Período replanejado
-      previsto = s.rpa > 0 ? s.rpa : n;
-      realVal  = s.rra > 0 && s.j <= ultimaRRaCol ? s.rra : n;
-    } else {
-      // Período LB (j <= lastLBCol)
-      previsto = s.lb > 0 ? s.lb : n;
-      realVal  = s.ra > 0 && s.j <= lastLBCol ? s.ra : n;
-    }
-
-    const tendVal = tendCumulative.has(s.j) ? tendCumulative.get(s.j)! : n;
-
-    return { date: s.label, previsto, real: realVal, tendencia: tendVal };
+    return {
+      date: s.label,
+      previsto, real: realVal, tendencia,
+      ...(hasReplanejado     ? { replanejado:      replanj }     : {}),
+      ...(hasRealReplanejado ? { realReplanejado: realReplanj } : {}),
+    };
   });
 
   // 4. Visão 5 Semanas (FORMATO C) — janela centrada na semana de status
@@ -1330,7 +1325,7 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     statusDate: last.date,
     realAcuLast,
     prevAcuLast,
-    hasReplanejado: false, sCurve, weekly, monthly,
+    hasReplanejado, sCurve, weekly, monthly,
   };
 };
 

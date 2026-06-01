@@ -42,23 +42,31 @@ const SCurveChart = () => {
   };
 
   const legendPayload = [
-    { value: 'Linha de base', type: 'line' as const, id: 'previsto', color: COLORS.previsto },
-    { value: 'Real', type: 'line' as const, id: 'real', color: COLORS.real },
+    { value: 'Linha de base', type: 'line' as const, id: 'linhaDBase', color: COLORS.previsto },
+    { value: 'Real', type: 'line' as const, id: 'realMerged', color: COLORS.real },
     { value: 'Tendência', type: 'line' as const, id: 'tendencia', color: COLORS.tendencia },
-    ...(hasReplanejado ? [{ value: 'Replanejado Previsto', type: 'line' as const, id: 'replanejado', color: COLORS.replanejado }] : []),
-    ...(hasRealReplanejado ? [{ value: 'Real Replanejado', type: 'line' as const, id: 'realReplanejado', color: COLORS.realReplanejado }] : []),
+    ...(hasReplanejado && hasReplOverlap ? [{ value: 'Replanejado Previsto', type: 'line' as const, id: 'replanejado', color: COLORS.replanejado }] : []),
+    ...(hasRealReplanejado && hasRRaOverlap ? [{ value: 'Real Replanejado', type: 'line' as const, id: 'realReplanejado', color: COLORS.realReplanejado }] : []),
   ];
 
   const chartData = useMemo(() => {
-    return sCurveData.map((point) => ({
-      ...point,
-      previsto: point.previsto > 0 ? point.previsto : undefined,
-      real: point.real > 0 ? point.real : undefined,
-      tendencia: point.tendencia > 0 ? point.tendencia : undefined,
-      replanejado: (point.replanejado ?? 0) > 0 ? point.replanejado : undefined,
-      realReplanejado: (point.realReplanejado ?? 0) > 0 ? point.realReplanejado : undefined,
-    }));
+    return sCurveData.map((point) => {
+      const pv  = point.previsto > 0 ? point.previsto : undefined;
+      const rl  = point.real > 0 ? point.real : undefined;
+      const td  = point.tendencia > 0 ? point.tendencia : undefined;
+      const rp  = (point.replanejado ?? 0) > 0 ? point.replanejado : undefined;
+      const rra = (point.realReplanejado ?? 0) > 0 ? point.realReplanejado : undefined;
+      // Merged: LB(SEM02–19) + Replanj(SEM23+) form one visual "Linha de base" line
+      // Merged: Real(SEM02–19) + RealReplanj(SEM23+) form one visual "Real" line
+      const linhaDBase = pv ?? rp;
+      const realMerged = rl ?? rra;
+      return { ...point, previsto: pv, real: rl, tendencia: td, replanejado: rp, realReplanejado: rra, linhaDBase, realMerged };
+    });
   }, [sCurveData]);
+
+  // Show separate replanejado lines only when they overlap with previsto/real (non-Format-C)
+  const hasReplOverlap   = sCurveData.some(p => p.previsto > 0 && (p.replanejado ?? 0) > 0);
+  const hasRRaOverlap    = sCurveData.some(p => p.real > 0 && (p.realReplanejado ?? 0) > 0);
 
   // Find last index with a value for each series
   const lastIdx = useMemo(() => {
@@ -169,12 +177,14 @@ const SCurveChart = () => {
             <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
           )}
 
-          <Line type="monotone" dataKey="previsto" name="Linha de base"
+          {/* Linha de base: LB(SEM02–19) merged with Replanj Previsto(SEM23+) */}
+          <Line type="monotone" dataKey="linhaDBase" name="Linha de base"
             stroke={COLORS.previsto} strokeWidth={2}
-            dot={false} activeDot={{ r: 5 }}
+            dot={false} activeDot={{ r: 5 }} connectNulls={false}
             label={makeLabel('previsto', COLORS.previsto, 'top')}
             isAnimationActive={false} />
-          <Line type="monotone" dataKey="real" name="Real"
+          {/* Real: histórico(SEM02–19) merged with Real Replanejado(SEM23+) */}
+          <Line type="monotone" dataKey="realMerged" name="Real"
             stroke={COLORS.real} strokeWidth={2}
             dot={false} activeDot={{ r: 5 }} connectNulls={false}
             label={makeLabel('real', COLORS.real, 'bottom')}
@@ -184,14 +194,16 @@ const SCurveChart = () => {
             dot={false} activeDot={{ r: 5 }} connectNulls={false}
             label={makeLabel('tendencia', COLORS.tendencia, 'bottom')}
             isAnimationActive={false} />
-          {hasReplanejado && (
+          {/* Replanejado Previsto: shown as separate line only when it overlaps previsto (non-Format-C) */}
+          {hasReplanejado && hasReplOverlap && (
             <Line type="monotone" dataKey="replanejado" name="Replanejado Previsto"
               stroke={COLORS.replanejado} strokeWidth={2} strokeDasharray="4 4"
               dot={false} activeDot={{ r: 5 }} connectNulls={false}
               label={makeLabel('replanejado', COLORS.replanejado, 'top')}
               isAnimationActive={false} />
           )}
-          {hasRealReplanejado && (
+          {/* Real Replanejado: shown separately only when it overlaps real (non-Format-C) */}
+          {hasRealReplanejado && hasRRaOverlap && (
             <Line type="monotone" dataKey="realReplanejado" name="Real Replanejado"
               stroke={COLORS.realReplanejado} strokeWidth={2} strokeDasharray="6 3"
               dot={false} activeDot={{ r: 5 }} connectNulls={false}

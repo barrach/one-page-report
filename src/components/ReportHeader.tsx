@@ -89,17 +89,17 @@ const ReportHeader = () => {
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
-  // ULTIMA_SEMANA = last index where Real Acum. % > 0
+  // ULTIMA_SEMANA = last index where Real > 0 OR Real Replanejado > 0
   const ultIdx = (() => {
     for (let i = sCurveData.length - 1; i >= 0; i--) {
-      if ((sCurveData[i]?.real ?? 0) > 0) return i;
+      if ((sCurveData[i]?.real ?? 0) > 0 || (sCurveData[i]?.realReplanejado ?? 0) > 0) return i;
     }
     return -1;
   })();
-  // PENULTIMA_SEMANA = previous index with Real > 0
+  // PENULTIMA_SEMANA = previous index with real data
   const penIdx = (() => {
     for (let i = ultIdx - 1; i >= 0; i--) {
-      if ((sCurveData[i]?.real ?? 0) > 0) return i;
+      if ((sCurveData[i]?.real ?? 0) > 0 || (sCurveData[i]?.realReplanejado ?? 0) > 0) return i;
     }
     return -1;
   })();
@@ -107,29 +107,28 @@ const ReportHeader = () => {
   const ultPoint = ultIdx >= 0 ? sCurveData[ultIdx] : null;
   const penPoint = penIdx >= 0 ? sCurveData[penIdx] : null;
 
-  const hasReplanejado = sCurveData.some(p => (p as any).replanejado != null && (p as any).replanejado !== 0);
+  const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
   const refLabel = hasReplanejado ? 'replanj.' : 'LB';
 
+  // Real: use realReplanejado (Format C) when available, else real (other formats)
+  const getRealAt = (p: typeof ultPoint) =>
+    p == null ? 0 : (p.realReplanejado ?? 0) > 0 ? (p.realReplanejado ?? 0) : (p.real ?? 0);
+  // Prev: use replanejado (Format C) when available, else previsto
+  const getPrevAt = (p: typeof ultPoint) =>
+    p == null ? 0 : (p.replanejado ?? 0) > 0 ? (p.replanejado ?? 0) : (p.previsto ?? 0);
+
   // Prefer authoritative values from import (FORMATO D), fallback to S-Curve derivation
-  const avancoReal = info.realAcumulado ?? (ultPoint?.real ?? 0);
-  const refPrev = info.prevAcumulado ?? (ultPoint
-    ? (hasReplanejado && (ultPoint as any).replanejado != null
-        ? (ultPoint as any).replanejado
-        : (ultPoint.previsto ?? 0))
-    : 0);
-  const prevAvancoReal = penPoint?.real ?? 0;
-  const prevRefPrev = penPoint
-    ? (hasReplanejado && (penPoint as any).replanejado != null
-        ? (penPoint as any).replanejado
-        : (penPoint.previsto ?? 0))
-    : 0;
+  const avancoReal = info.realAcumulado ?? getRealAt(ultPoint);
+  const refPrev    = info.prevAcumulado ?? getPrevAt(ultPoint);
+  const prevAvancoReal = getRealAt(penPoint);
+  const prevRefPrev    = getPrevAt(penPoint);
 
   // Weekly Real % derived from accumulated delta
   const realSemUlt = info.desvioSemana ?? (ultIdx > 0
-    ? avancoReal - (sCurveData[ultIdx - 1]?.real ?? 0)
+    ? avancoReal - getRealAt(sCurveData[ultIdx - 1])
     : avancoReal);
   const realSemPen = penIdx > 0
-    ? prevAvancoReal - (sCurveData[penIdx - 1]?.real ?? 0)
+    ? prevAvancoReal - getRealAt(sCurveData[penIdx - 1])
     : prevAvancoReal;
 
   const desvio = info.desvioAcumulado ?? (avancoReal - refPrev);

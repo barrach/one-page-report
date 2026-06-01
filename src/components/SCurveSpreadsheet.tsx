@@ -17,7 +17,8 @@ const SCurveSpreadsheet = () => {
   const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const hasReplanejadoData = sCurveData.some(p => (p.replanejado ?? 0) > 0);
+  const hasReplanejadoData     = sCurveData.some(p => (p.replanejado ?? 0) > 0);
+  const hasRealReplanejadoData = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
   const [showReplanejadoManual, setShowReplanejadoManual] = useState(false);
   const showReplanejado = hasReplanejadoData || showReplanejadoManual;
   const setShowReplanejado = setShowReplanejadoManual;
@@ -180,8 +181,13 @@ const SCurveSpreadsheet = () => {
             {[
               { label: 'Linha base %', field: 'previsto' as const },
               { label: 'Real Acum. %', field: 'real' as const },
+              ...(showReplanejado || hasRealReplanejadoData
+                ? [{ label: 'Prev. Replanejado %', field: 'replanejado' as const }]
+                : []),
+              ...(hasRealReplanejadoData
+                ? [{ label: 'Real Replanejado %', field: 'realReplanejado' as const }]
+                : []),
               { label: 'Tendência %', field: 'tendencia' as const },
-              ...(showReplanejado ? [{ label: 'Replanejado %', field: 'replanejado' as const }] : []),
             ].map(({ label, field }) => (
               <tr key={field}>
                 <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
