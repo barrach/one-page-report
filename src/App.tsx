@@ -17,18 +17,30 @@ import { useProjectStore } from "./store/projectStore";
 import ModuleTopNav from "./components/ModuleTopNav";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
 import BudgetApp from "./budget/BudgetApp";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import { useNotifications } from "./hooks/useNotifications";
 
 const queryClient = new QueryClient();
 
 const AppContent = () => {
   const loadProjects = useProjectStore(s => s.loadProjects);
+  const { user } = useAuth();
+  const { requestPermission } = useNotifications();
 
   useEffect(() => {
     loadProjects();
   }, [loadProjects]);
+
+  // Solicita permissão de notificação após o primeiro login (uma vez)
+  useEffect(() => {
+    if (user && !sessionStorage.getItem('megahub_notif_asked')) {
+      sessionStorage.setItem('megahub_notif_asked', '1');
+      requestPermission();
+    }
+  }, [user, requestPermission]);
 
   const suspense = (node: React.ReactNode) => (
     <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
@@ -71,6 +83,7 @@ const AppContent = () => {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
+      <PWAInstallPrompt />
     </>
   );
 };
