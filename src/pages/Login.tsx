@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,9 @@ export default function Login() {
   useEffect(() => {
     if (!authLoading && user) navigate(redirectTo, { replace: true });
   }, [authLoading, user, navigate, redirectTo]);
+
+  // Se já autenticado, não renderiza o formulário (evita flash)
+  if (!authLoading && user) return <Navigate to={redirectTo} replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

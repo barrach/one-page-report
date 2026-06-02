@@ -4,22 +4,7 @@ import { supabase } from '@/lib/supabase';
 import type { UserPermission, UserRole, Module } from '@/types/auth';
 
 const ADMIN_EMAIL = 'michel.zabalia@megasteam.com.br';
-const CACHE_KEY = 'megahub_userPermission';
-
-const writeCache = (p: UserPermission | null) => {
-  try {
-    if (p) sessionStorage.setItem(CACHE_KEY, JSON.stringify(p));
-    else sessionStorage.removeItem(CACHE_KEY);
-  } catch { /* ignore */ }
-};
-const readCache = (email: string): UserPermission | null => {
-  try {
-    const raw = sessionStorage.getItem(CACHE_KEY);
-    if (!raw) return null;
-    const p = JSON.parse(raw) as UserPermission;
-    return p?.email?.toLowerCase() === email.toLowerCase() ? p : null;
-  } catch { return null; }
-};
+const ALL_MODULES: Module[] = ['megapricing', 'controladoria', 'prodcontrol', 'opr'];
 
 interface AuthState {
   user: User | null;
@@ -41,78 +26,75 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [userPermission, setUserPermission] = useState<UserPermission | null>(null);
 
-  // Busca permissões SEM nunca travar o loading. Usa cache de sessão.
-  const loadPermissions = async (u: User | null, opts: { useCache?: boolean } = {}): Promise<void> => {
-    if (!u?.email) { setUserPermission(null); writeCache(null); return; }
-
-    // 1. cache em sessionStorage — evita rebuscar na rede a cada reload
-    if (opts.useCache !== false) {
-      const cached = readCache(u.email);
-      if (cached) { setUserPermission(cached); return; }
-    }
-
-    // 2. busca no Supabase
+  // Busca permissões — SEMPRE finaliza o loading (finally) e tem fallback
+  // para o app funcionar mesmo se a RLS bloquear a query.
+  const fetchPermissions = async (email: string): Promise<void> => {
     try {
       const { data, error } = await supabase
         .from('user_permissions')
-        .select('id, email, role, modules')
-        .eq('email', u.email)
-        .maybeSingle();
+        .select('*')
+        .eq('email', email)
+        .single();
+
       if (error || !data) {
-        console.warn('[Auth] sem permissão para', u.email, error?.message ?? '');
-        setUserPermission(null); writeCache(null);
+        console.error('[Auth] erro ao buscar permissões:', error?.message ?? 'sem dados');
+        // Fallback: admin conhecido recebe acesso total; demais ficam como cliente
+        if (email.toLowerCase() === ADMIN_EMAIL) {
+          setUserPermission({ id: '', email, role: 'admin', modules: ALL_MODULES });
+        } else {
+          setUserPermission({ id: '', email, role: 'cliente', modules: [] });
+        }
       } else {
-        const perm: UserPermission = {
+        setUserPermission({
           id: data.id,
           email: data.email,
           role: data.role as UserRole,
           modules: (data.modules ?? []) as Module[],
-        };
-        setUserPermission(perm); writeCache(perm);
+        });
       }
-    } catch (e) {
-      console.warn('[Auth] erro ao buscar permissões:', (e as Error).message);
-      setUserPermission(null);
+    } catch (err) {
+      console.error('[Auth] exceção ao buscar permissões:', (err as Error).message);
+      setUserPermission(
+        email.toLowerCase() === ADMIN_EMAIL
+          ? { id: '', email, role: 'admin', modules: ALL_MODULES }
+          : { id: '', email, role: 'cliente', modules: [] }
+      );
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    let done = false;
-    const finish = () => { if (!done) { done = true; setLoading(false); } };
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) {
+        setUser(session.user);
+        fetchPermissions(session.user.email);
+      } else {
+        setUser(null);
+        setUserPermission(null);
+        setLoading(false);
+      }
+    }).catch(() => setLoading(false));
 
-    // Timeout de segurança: nunca deixa o loading preso > 5s
-    const safety = setTimeout(() => {
-      console.warn('[Auth] timeout de 5s — liberando loading');
-      finish();
-    }, 5000);
-
-    supabase.auth.getSession()
-      .then(async ({ data: { session } }) => {
-        const u = session?.user ?? null;
-        setUser(u);
-        await loadPermissions(u);
-      })
-      .catch((e) => console.warn('[Auth] getSession falhou:', (e as Error).message))
-      .finally(() => { clearTimeout(safety); finish(); });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      await loadPermissions(u);
-      finish();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setUser(null);
+        setUserPermission(null);
+        setLoading(false);
+        return;
+      }
+      if (session?.user?.email) {
+        setUser(session.user);
+        fetchPermissions(session.user.email);
+      }
     });
 
-    return () => { clearTimeout(safety); subscription.unsubscribe(); };
+    return () => subscription.unsubscribe();
   }, []);
 
   const role = userPermission?.role ?? null;
   const modules = userPermission?.modules ?? [];
   const isAdmin = role === 'admin' || user?.email?.toLowerCase() === ADMIN_EMAIL;
-
-  if (import.meta.env.DEV) {
-    // diagnóstico temporário
-    console.log('[Auth] state:', { email: user?.email ?? null, loading, role, modules });
-  }
 
   const value: AuthState = {
     user,
@@ -124,14 +106,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAdmin,
     hasModule: (m) => isAdmin || modules.includes(m),
     signOut: async () => {
-      // 1. tenta revogar a sessão no Supabase (não bloqueia se falhar)
-      try { await supabase.auth.signOut(); } catch (e) { console.warn('[Auth] signOut:', (e as Error).message); }
-      // 2. limpa todo o estado local
-      try { sessionStorage.clear(); localStorage.clear(); } catch { /* ignore */ }
-      // 3. redirect forçado (sem histórico para impossibilitar "voltar")
+      setUser(null);
+      setUserPermission(null);
+      sessionStorage.clear();
+      localStorage.clear();
+      try { await supabase.auth.signOut(); } catch { /* ignore */ }
       window.location.replace('/login');
     },
-    refreshPermissions: async () => { await loadPermissions(user, { useCache: false }); },
+    refreshPermissions: async () => { if (user?.email) await fetchPermissions(user.email); },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

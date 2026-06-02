@@ -40,18 +40,32 @@ export default function UserManagement() {
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<UserPermission>(emptyDraft());
   const [adding, setAdding] = useState(false);
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('user_permissions')
-      .select('id, email, role, modules')
-      .order('email');
-    if (error) { toast.error('Erro ao carregar: ' + error.message); setRows([]); }
-    else setRows((data ?? []).map(d => ({
-      id: d.id, email: d.email, role: d.role as UserRole, modules: (d.modules ?? []) as Module[],
-    })));
-    setLoading(false);
+    setLoadError('');
+    try {
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('*')
+        .order('email');
+      if (error) {
+        console.error('[Admin] erro ao buscar usuários:', error);
+        setLoadError('Erro ao carregar usuários. Verifique as permissões (RLS) no Supabase.');
+        setRows([]);
+      } else {
+        setRows((data ?? []).map(d => ({
+          id: d.id, email: d.email, role: d.role as UserRole, modules: (d.modules ?? []) as Module[],
+        })));
+      }
+    } catch (e) {
+      console.error('[Admin] exceção ao buscar usuários:', e);
+      setLoadError('Erro ao carregar usuários. Verifique as permissões (RLS) no Supabase.');
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -114,6 +128,8 @@ export default function UserManagement() {
         <div className="bg-card border rounded-xl overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="h-6 w-6 animate-spin" /></div>
+          ) : loadError ? (
+            <p className="text-center py-16 text-sm text-destructive font-medium px-4">{loadError}</p>
           ) : rows.length === 0 ? (
             <p className="text-center py-16 text-sm text-muted-foreground">Nenhum usuário cadastrado.</p>
           ) : (
