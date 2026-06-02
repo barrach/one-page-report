@@ -1,15 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { supabase as prodSupabase } from '@prodcontrol/integrations/supabase/client';
 
-// Projeto Supabase dedicado à AUTENTICAÇÃO e permissões do MegaHub.
-// (Os dados dos módulos — OPR, ProdControl etc. — usam outros clients.)
-const SUPABASE_URL = 'https://rlpmwuaaosmxlrqtruol.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_VwRu9H9CZAauaBReX2SZ_Q_maYAKGje';
-
-export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
-  auth: {
-    storage: localStorage,
-    persistSession: true,
-    autoRefreshToken: true,
-    storageKey: 'megahub-auth',
-  },
-});
+// AUTENTICAÇÃO UNIFICADA DO MEGAHUB
+// Reutiliza o MESMO client/projeto Supabase do ProdControl (adpwboqltejtfzcvrvon).
+// Assim a sessão é única (SSO real): login no MegaHub já autentica o ProdControl,
+// e a tabela `user_permissions` vive neste mesmo projeto.
+//
+// Tipado como SupabaseClient genérico para permitir queries a `user_permissions`
+// (que não está no Database tipado do ProdControl).
+export const supabase = prodSupabase as unknown as SupabaseClient;
