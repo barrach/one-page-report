@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { permissionsClient as supabase } from '@/lib/permissionsClient';
-import { ALL_MODULES, ALL_ROLES, ROLE_BADGE, type Module, type UserRole, type UserPermission } from '@/types/auth';
+import { ALL_MODULES, ALL_ROLES, ROLE_BADGE, modulesForRole, type Module, type UserRole, type UserPermission } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,9 +21,9 @@ import { ArrowLeft, Plus, Pencil, Trash2, Loader2, UserCog } from 'lucide-react'
 
 const emptyDraft = (): UserPermission => ({ id: '', email: '', role: 'cliente', modules: [] });
 
-const ModuleChecks = ({ value, onToggle }: { value: Module[]; onToggle: (m: Module) => void }) => (
+const ModuleChecks = ({ value, role, onToggle }: { value: Module[]; role: UserRole; onToggle: (m: Module) => void }) => (
   <div className="grid grid-cols-2 gap-2">
-    {ALL_MODULES.map(m => (
+    {modulesForRole(role).map(m => (
       <label key={m.id} className="flex items-center gap-2 text-sm cursor-pointer">
         <Checkbox checked={value.includes(m.id)} onCheckedChange={() => onToggle(m.id)} />
         {m.label}
@@ -179,7 +179,11 @@ export default function UserManagement() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Role</Label>
-              <Select value={draft.role} onValueChange={(v) => setDraft({ ...draft, role: v as UserRole })}>
+              <Select value={draft.role} onValueChange={(v) => {
+                const role = v as UserRole;
+                const allowed = modulesForRole(role).map(m => m.id);
+                setDraft({ ...draft, role, modules: draft.modules.filter(m => allowed.includes(m)) });
+              }}>
                 <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>{ALL_ROLES.map(r => <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>)}</SelectContent>
               </Select>
@@ -187,7 +191,7 @@ export default function UserManagement() {
           </div>
           <div className="space-y-2">
             <Label className="text-xs font-semibold">Módulos com acesso</Label>
-            <ModuleChecks value={draft.modules} onToggle={toggleDraftModule} />
+            <ModuleChecks value={draft.modules} role={draft.role} onToggle={toggleDraftModule} />
           </div>
           <div className="flex justify-end">
             <Button onClick={handleAdd} disabled={adding} className="gap-1.5">
@@ -209,14 +213,18 @@ export default function UserManagement() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Role</Label>
-                <Select value={editing.role} onValueChange={(v) => setEditing({ ...editing, role: v as UserRole })}>
+                <Select value={editing.role} onValueChange={(v) => {
+                  const role = v as UserRole;
+                  const allowed = modulesForRole(role).map(m => m.id);
+                  setEditing({ ...editing, role, modules: editing.modules.filter(m => allowed.includes(m)) });
+                }}>
                   <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
                   <SelectContent>{ALL_ROLES.map(r => <SelectItem key={r} value={r} className="capitalize">{r}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
                 <Label className="text-xs font-semibold">Módulos com acesso</Label>
-                <ModuleChecks value={editing.modules} onToggle={toggleEditModule} />
+                <ModuleChecks value={editing.modules} role={editing.role} onToggle={toggleEditModule} />
               </div>
             </div>
           )}

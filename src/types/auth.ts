@@ -1,5 +1,5 @@
 export type UserRole = 'admin' | 'diretor' | 'orcamento' | 'obra' | 'cliente';
-export type Module = 'megapricing' | 'controladoria' | 'prodcontrol' | 'opr';
+export type Module = 'megapricing' | 'controladoria' | 'prodcontrol' | 'opr' | 'megawork';
 
 export interface UserPermission {
   id: string;
@@ -8,12 +8,18 @@ export interface UserPermission {
   modules: Module[];
 }
 
-export const ALL_MODULES: { id: Module; label: string }[] = [
+export const ALL_MODULES: { id: Module; label: string; roles?: UserRole[] }[] = [
   { id: 'megapricing',   label: 'MegaPricing' },
   { id: 'controladoria', label: 'Controladoria' },
   { id: 'prodcontrol',   label: 'ProdControl' },
   { id: 'opr',           label: 'One Page Report' },
+  // MegaWork — só atribuível a Admin, Diretor ou Obra
+  { id: 'megawork',      label: 'MegaWork', roles: ['admin', 'diretor', 'obra'] },
 ];
+
+// Módulos disponíveis para atribuição dado um role
+export const modulesForRole = (role: UserRole) =>
+  ALL_MODULES.filter(m => !m.roles || m.roles.includes(role));
 
 export const ALL_ROLES: UserRole[] = ['admin', 'diretor', 'orcamento', 'obra', 'cliente'];
 

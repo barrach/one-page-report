@@ -2,12 +2,12 @@ import { Link } from "react-router-dom";
 import { BarChart2, Activity, TrendingUp, HardHat, HardHat as Helmet, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import type { Module } from "@/types/auth";
+import type { Module, UserRole } from "@/types/auth";
 
 const apps: {
   to: string; icon: typeof BarChart2; name: string; tagline: string;
   description: string; color: string; badge: string; badgeColor: string; iconBg: string;
-  module?: Module;
+  module?: Module; roles?: UserRole[];
 }[] = [
   {
     to: "/budget",
@@ -72,12 +72,16 @@ const apps: {
     badge: "Operação",
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
+    roles: ["admin", "diretor", "obra"],
   },
 ];
 
 export default function HubPage() {
-  const { hasModule } = useAuth();
-  const visibleApps = apps.filter(app => (app.module ? hasModule(app.module) : true));
+  const { hasModule, role } = useAuth();
+  const visibleApps = apps.filter(app => {
+    if (app.roles) return !!role && app.roles.includes(role);
+    return app.module ? hasModule(app.module) : true;
+  });
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
