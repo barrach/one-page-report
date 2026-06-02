@@ -1563,6 +1563,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const rowPrevAcumReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)'); // row14
   const rowRealSem       = findRowByLabel(labelMap, 'REALIZADO GERAL', 'REALIZADO GERAL ');
   const rowRealAcum      = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');             // row12
+  const rowRealReplanAcum = findRowByLabel(labelMap, 'REALIZADO GERAL REPLANEJADO (ACUMULADO)'); // row16 — referência de status
   const rowTendSem       = findRowByLabel(labelMap, 'TENDÊNCIA GERAL', 'TENDENCIA GERAL', 'TENDÊNCIA GERAL ', 'TENDENCIA GERAL '); // row17 (semanal)
   const rowTend          = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)'); // row18
 
@@ -1576,6 +1577,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     prevLbSem: number | null; prevLbAcu: number | null;     // row9/10
     prevReplanSem: number | null; prevReplanAcu: number | null; // row13/14
     realSem: number | null; realAcu: number | null;          // row11/12
+    realReplanAcu: number | null;                            // row16
     tendSem: number | null;                                  // row17
   };
   const rows: Row[] = [];
@@ -1587,6 +1589,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const rPrevAcumReplan = rowPrevAcumReplan >= 0 ? g[rowPrevAcumReplan] : [];
   const rRealSem = rowRealSem >= 0 ? g[rowRealSem] : [];
   const rRealAcum = g[rowRealAcum] || [];
+  const rRealReplanAcum = rowRealReplanAcum >= 0 ? g[rowRealReplanAcum] : [];
   const rTendSem = rowTendSem >= 0 ? g[rowTendSem] : [];
   const maxC = Math.max(rDatas.length, rSem.length, rPrevAcumLB.length, rPrevAcumReplan.length, rRealAcum.length, rTendSem.length);
   for (let c = 1; c < maxC; c++) {
@@ -1609,6 +1612,7 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
       prevReplanAcu,
       realSem: numOrNull(rRealSem[c]),
       realAcu,
+      realReplanAcu: numOrNull(rRealReplanAcum[c]),
       tendSem: numOrNull(rTendSem[c]),
     });
   }
@@ -1628,9 +1632,11 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   for (let i = 0; i < rows.length; i++) {
     if (rows[i].prevReplanAcu != null && rows[i].prevReplanAcu! > 0) { firstReplanIdx = i; break; }
   }
-  // ultimaReal (STATUS): último índice onde Real Acum (row12) > 0 (SEM26)
+  // ultimaReal (STATUS): última semana com Real Replanejado Acum (row16) > 0 = SEM26.
+  // Fallback: última semana com Real Acum (row12) > 0.
   let ultimaReal = -1;
-  rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
+  rows.forEach((r, i) => { if (r.realReplanAcu != null && r.realReplanAcu > 0) ultimaReal = i; });
+  if (ultimaReal < 0) rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
   if (ultimaReal < 0) ultimaReal = rows.length - 1;
 
   const hasReplanejado     = rows.some(r => r.prevReplanAcu != null && r.prevReplanAcu > 0);
@@ -1707,8 +1713,12 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   }));
 
   const last = rows[ultimaReal];
-  // KPIs: % Realizado = row12 no status (SEM26=89); Avanço Prev = row14 no status (SEM26=87)
-  const realAcuLast = last.realAcu != null ? toPct(last.realAcu) : 0;
+  // KPIs na semana de status (SEM26):
+  // % Realizado = row16 (Real Replanj Acu = 89); fallback row12
+  // Avanço Prev = row14 (Replanj Previsto Acu = 87); fallback row10
+  const realAcuLast = last.realReplanAcu != null && last.realReplanAcu > 0
+    ? toPct(last.realReplanAcu)
+    : (last.realAcu != null ? toPct(last.realAcu) : 0);
   const prevAcuLast = last.prevReplanAcu != null && last.prevReplanAcu > 0
     ? toPct(last.prevReplanAcu)
     : (last.prevLbAcu != null ? toPct(last.prevLbAcu) : 0);
@@ -2434,8 +2444,18 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
-        if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
-        if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
+        // Se a Curva S tem replanejado, os valores derivados da curva (status week)
+        // são autoritativos — NÃO sobrescrever com o RESUMO (que traz o LB final = 100%).
+        const curveHasReplanejado = curveOk && (result!.curve as CurveExtract).hasReplanejado;
+        if (!curveHasReplanejado) {
+          if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
+          if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
+        } else {
+          // curva replanejada: usa prevAcuLast/realAcuLast (row14/row12 na semana de status)
+          const c = result!.curve as CurveExtract;
+          infoPatch.avancoPrev = c.prevAcuLast; infoPatch.prevAcumulado = c.prevAcuLast;
+          infoPatch.avancoReal = c.realAcuLast; infoPatch.realAcumulado = c.realAcuLast;
+        }
         if (fdInfo.prevSemanal != null) infoPatch.prevSemana = fdInfo.prevSemanal;
         if (fdInfo.realSemanal != null) infoPatch.realSemana = fdInfo.realSemanal;
         if (fdInfo.desvioSemanal != null) infoPatch.desvioSemana = fdInfo.desvioSemanal;
