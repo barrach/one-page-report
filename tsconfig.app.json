@@ -17,9 +17,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
+      "@/*": ["./src/*"],
+      "@opscontrol/*": ["./src/opscontrol/*"],
+      "@prodcontrol/*": ["./src/prodcontrol/*"],
+      "@budget/*": ["./src/budget/*"]
     },
     "skipLibCheck": true,
     "strict": false,

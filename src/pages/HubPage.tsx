@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart2, Activity, TrendingUp, HardHat, ArrowRight } from "lucide-react";
+import { BarChart2, Activity, TrendingUp, HardHat, HardHat as Helmet, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import type { Module } from "@/types/auth";
@@ -60,6 +60,18 @@ const apps: {
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
     module: "opr",
+  },
+  {
+    to: "/opscontrol",
+    icon: Helmet,
+    name: "OpsControl",
+    tagline: "Gestão de campo",
+    description:
+      "Gestão de campo com LPS, check-in, RDO e planejamento puxado.",
+    color: "from-[hsl(222,47%,11%)] to-[hsl(217,40%,22%)]",
+    badge: "Operação",
+    badgeColor: "bg-white/20 text-white",
+    iconBg: "bg-white/15",
   },
 ];
 
