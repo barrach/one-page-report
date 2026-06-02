@@ -11,6 +11,7 @@ import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ProgramacaoSemanalCard from '@/components/ProgramacaoSemanalCard';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
+import DesvioAnalysisCard from '@/components/DesvioAnalysisCard';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
@@ -285,6 +286,7 @@ const Index = () => {
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
         {showExecutive && <ExecutiveSummary />}
+        <DesvioAnalysisCard />
 
         {showSCurve && <SCurveChart />}
         {showHistogram && <HistogramChart />}

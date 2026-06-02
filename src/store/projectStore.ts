@@ -109,6 +109,20 @@ export interface ScheduleRow {
   milestone?: boolean;
 }
 
+export type DesvioCausaRaiz = 'Mão de Obra' | 'Material' | 'Equipamento' | 'Clima' | 'Escopo' | 'Projeto' | 'Outro' | '';
+export type DesvioImpactoPrazo = 'sem_impacto' | 'risco' | 'confirmado' | '';
+
+export interface DesvioAnalise {
+  /** sinal do desvio quando foi salvo: 'atraso' | 'adiantamento' — para resetar ao trocar de sinal */
+  tipo: 'atraso' | 'adiantamento' | '';
+  causaRaiz: DesvioCausaRaiz;
+  descricao: string;
+  impactoPrazo: DesvioImpactoPrazo;
+  acaoCorretiva: string;
+  prazoResposta: string;
+  responsavel: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -125,6 +139,7 @@ export interface Project {
   aiInsights?: Record<string, string>; // chartType -> insight text
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string; progSemanal?: string };
   programacaoSemanal?: ProgramacaoSemanal[];
+  desvioAnalise?: DesvioAnalise;
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -238,6 +253,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
     programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
+    desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
   };
 };
 
@@ -259,6 +275,7 @@ const projectToDb = (p: Project): any => ({
     aiInsights: p.aiInsights || {},
     lastImports: p.lastImports || {},
     programacaoSemanal: p.programacaoSemanal || [],
+    desvioAnalise: p.desvioAnalise || null,
   },
 });
 
@@ -290,6 +307,7 @@ interface ProjectStoreState {
   setWeeklyData: (data: WeekData[]) => void;
   setSCurveData: (data: SCurvePoint[]) => void;
   setMonthData: (data: MonthWeekData[]) => void;
+  setDesvioAnalise: (data: DesvioAnalise) => void;
   addWeek: () => void;
   removeWeek: (index: number) => void;
   addSCurvePoint: () => void;
@@ -394,6 +412,13 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
 
   setMonthData: (data) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ monthData: data }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setDesvioAnalise: (data) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ desvioAnalise: data }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
     return { projects: updated };
