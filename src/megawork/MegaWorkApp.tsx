@@ -5,6 +5,7 @@ import MegaWorkSidebar from '@megawork/components/MegaWorkSidebar';
 import Dashboard from '@megawork/pages/Dashboard';
 import Obras from '@megawork/pages/Obras';
 import ObrasDetalhe from '@megawork/pages/ObrasDetalhe';
+import CheckinCheckout from '@megawork/pages/CheckinCheckout';
 import Stub from '@megawork/pages/Stub';
 
 function MegaWorkRoutes() {
@@ -23,7 +24,7 @@ function MegaWorkRoutes() {
       <Route index element={<Dashboard />} />
       <Route path="obras" element={<Obras />} />
       <Route path="obras/:id" element={<ObrasDetalhe />} />
-      <Route path="checkin" element={<Stub title="Check-in / Check-out" />} />
+      <Route path="checkin" element={<CheckinCheckout />} />
       <Route path="dds" element={<Stub title="DDS — Diálogo Diário de Segurança" />} />
       <Route path="atividades" element={<Stub title="Atividades" />} />
       <Route path="restricoes" element={<Stub title="Restrições" />} />

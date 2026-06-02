@@ -21,7 +21,7 @@ import { Plus, Pencil, Trash2, Loader2, Building2, Search } from 'lucide-react';
 
 const empty = (): OpsObra => ({
   id: '', nome: '', cliente: '', contrato: '',
-  data_inicio: '', data_termino: '', status: 'ativa', gestor_responsavel: '',
+  data_inicio: '', data_termino: '', status: 'ativa', gestor_responsavel: '', num_turnos: 1,
 });
 
 const fmtDate = (d: string | null) => {
@@ -79,6 +79,7 @@ export default function Obras() {
       nome: editing.nome, cliente: editing.cliente, contrato: editing.contrato,
       data_inicio: editing.data_inicio || null, data_termino: editing.data_termino || null,
       status: editing.status, gestor_responsavel: editing.gestor_responsavel,
+      num_turnos: editing.num_turnos || 1,
     };
     const { error } = isNew
       ? await megaworkClient.from('ops_obras').insert([payload])
@@ -231,6 +232,17 @@ export default function Obras() {
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold">Gestor responsável</Label>
                 <Input value={editing.gestor_responsavel} onChange={(e) => setEditing({ ...editing, gestor_responsavel: e.target.value })} className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Número de turnos</Label>
+                <Select value={String(editing.num_turnos || 1)} onValueChange={(v) => setEditing({ ...editing, num_turnos: parseInt(v, 10) })}>
+                  <SelectTrigger className="h-9"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1 turno</SelectItem>
+                    <SelectItem value="2">2 turnos</SelectItem>
+                    <SelectItem value="3">3 turnos</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           )}

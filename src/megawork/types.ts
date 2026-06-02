@@ -17,6 +17,22 @@ export interface OpsObra {
   data_termino: string | null;
   status: 'ativa' | 'encerrada';
   gestor_responsavel: string;
+  num_turnos: number;
+}
+
+export type CheckinTipo = 'checkin' | 'checkout';
+
+export interface OpsCheckin {
+  id: string;
+  obra_id: string;
+  data: string;
+  turno: number;
+  tipo: CheckinTipo;
+  horario: string;
+  encarregado_email: string;
+  encarregado_nome: string;
+  atividades: string;
+  observacoes: string;
 }
 
 export const OPS_ROLES: OpsRole[] = ['Admin', 'Gestor', 'Engenheiro', 'Encarregado'];
