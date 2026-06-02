@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { megaworkClient } from '@megawork/lib/supabase';
 import type { OpsRole, OpsUser } from '@megawork/types';
 
 interface MegaWorkAuthState {

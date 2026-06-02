@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { megaworkClient } from '@megawork/lib/supabase';
 import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 import type { OpsObra, OpsCheckin, OpsUser, CheckinTipo } from '@megawork/types';
 import { Button } from '@/components/ui/button';

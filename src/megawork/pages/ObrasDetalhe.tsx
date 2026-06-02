@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { megaworkClient } from '@megawork/lib/supabase';
 import type { OpsObra } from '@megawork/types';
 import { ArrowLeft, Building2, LogIn, ListChecks, AlertTriangle, Loader2 } from 'lucide-react';
 

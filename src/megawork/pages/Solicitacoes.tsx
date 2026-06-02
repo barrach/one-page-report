@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { megaworkClient, makeEphemeralClient } from '@megawork/lib/megaworkClient';
+import { megaworkClient, makeEphemeralClient } from '@megawork/lib/supabase';
 import type { OpsSolicitacao, OpsObra, OpsRole } from '@megawork/types';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';

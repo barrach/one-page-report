@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Building2, LogIn, ListChecks, AlertTriangle } from 'lucide-react';
-import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { megaworkClient } from '@megawork/lib/supabase';
 
 const KpiCard = ({ icon: Icon, label, value, hint, color }: {
   icon: typeof Building2; label: string; value: string | number; hint?: string; color: string;

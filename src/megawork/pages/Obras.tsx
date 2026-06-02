@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { megaworkClient } from '@megawork/lib/supabase';
 import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 import type { OpsObra } from '@megawork/types';
 import { Button } from '@/components/ui/button';
