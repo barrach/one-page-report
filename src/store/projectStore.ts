@@ -13,6 +13,8 @@ export interface ProjectInfo {
   avancoPrev: number;
   avancoReal: number;
   atualizadoEm: string;
+  /** ISO timestamp do último "Salvar alterações" das Informações do Projeto */
+  infoSavedAt?: string;
   contrato?: string;
   escopo?: string;
   // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
@@ -121,6 +123,8 @@ export interface DesvioAnalise {
   acaoCorretiva: string;
   prazoResposta: string;
   responsavel: string;
+  /** ISO timestamp do último salvamento */
+  savedAt?: string;
 }
 
 export interface Project {

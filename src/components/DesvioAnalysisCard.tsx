@@ -26,6 +26,15 @@ const autoResize = (el: HTMLTextAreaElement) => {
   el.style.height = `${el.scrollHeight}px`;
 };
 
+// dd/MM/yyyy às HH:mm
+const fmtSavedAt = (iso?: string): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} às ${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 const DesvioAnalysisCard = () => {
   const { sCurveData, info, desvioAnalise } = useCurrentProject();
   const setDesvioAnalise = useProjectStore(s => s.setDesvioAnalise);
@@ -62,7 +71,10 @@ const DesvioAnalysisCard = () => {
   };
 
   const handleSave = () => {
-    setDesvioAnalise({ ...form, tipo });
+    const savedAt = new Date().toISOString();
+    const next = { ...form, tipo, savedAt };
+    setDesvioAnalise(next);
+    setForm(next);
     setSaved(true);
     setExpanded(false); // recolher automaticamente após salvar
     setTimeout(() => setSaved(false), 2000);
@@ -97,14 +109,6 @@ const DesvioAnalysisCard = () => {
         style={{ resize: 'none', overflow: 'hidden', minHeight: '36px' }}
       />
     );
-    const responsavelInput = (
-      <Input
-        type="text" value={form.responsavel}
-        onChange={(e) => update('responsavel', e.target.value)}
-        placeholder="Responsável"
-        className="h-9 text-sm w-full sm:w-[200px] sm:shrink-0"
-      />
-    );
     const saveBtn = (
       <div className="flex items-center gap-2 shrink-0">
         {saved && (
@@ -134,30 +138,31 @@ const DesvioAnalysisCard = () => {
     );
 
     return (
-      <div className={`bg-card rounded-lg border ${accent.ring}`} style={{ height: 'auto' }}>
-        {isLong ? (
-          // Empilhado
-          <div className="flex flex-col gap-2 px-3 sm:px-4 py-3">
-            {header}
-            {justTextarea}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              {responsavelInput}
-              {saveBtn}
+      <div>
+        <div className={`bg-card rounded-lg border ${accent.ring}`} style={{ height: 'auto' }}>
+          {isLong ? (
+            // Empilhado
+            <div className="flex flex-col gap-2 px-3 sm:px-4 py-3">
+              {header}
+              {justTextarea}
+              <div className="flex justify-end">{saveBtn}</div>
             </div>
-          </div>
-        ) : (
-          // Linha única (empilha só no mobile)
-          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
-            <div className="flex items-center gap-1.5 shrink-0 sm:pt-1.5">
-              <AccentIcon className={`h-4 w-4 ${accent.text}`} />
-              <span className={`text-xs sm:text-sm font-bold ${accent.text} whitespace-nowrap`}>
-                {accent.emoji} Adiantamento {fmtPct(desvio)}
-              </span>
+          ) : (
+            // Linha única (empilha só no mobile)
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
+              <div className="flex items-center gap-1.5 shrink-0 sm:pt-1.5">
+                <AccentIcon className={`h-4 w-4 ${accent.text}`} />
+                <span className={`text-xs sm:text-sm font-bold ${accent.text} whitespace-nowrap`}>
+                  {accent.emoji} Adiantamento {fmtPct(desvio)}
+                </span>
+              </div>
+              {justTextarea}
+              <div className="sm:pt-0.5">{saveBtn}</div>
             </div>
-            {justTextarea}
-            {responsavelInput}
-            <div className="sm:pt-0.5">{saveBtn}</div>
-          </div>
+          )}
+        </div>
+        {form.savedAt && (
+          <p className="text-[11px] text-muted-foreground mt-1 px-1">Salvo em {fmtSavedAt(form.savedAt)}</p>
         )}
       </div>
     );
@@ -165,6 +170,7 @@ const DesvioAnalysisCard = () => {
 
   // ── ATRASO: card completo colapsável ───────────────────────────────────────
   return (
+    <div>
     <div className={`bg-card rounded-xl border ${accent.ring} card-shadow overflow-hidden`}>
       {/* Header — clicável para alternar */}
       <button
@@ -306,6 +312,10 @@ const DesvioAnalysisCard = () => {
       </div>
         </div>
       </div>
+    </div>
+      {form.savedAt && (
+        <p className="text-[11px] text-muted-foreground mt-1 px-1">Salvo em {fmtSavedAt(form.savedAt)}</p>
+      )}
     </div>
   );
 };
