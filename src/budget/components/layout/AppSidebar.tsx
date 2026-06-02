@@ -12,7 +12,6 @@ import {
   FileText,
   Settings,
   Building2,
-  Briefcase,
   X,
 } from "lucide-react";
 import { cn } from "@budget/lib/utils";
@@ -45,7 +44,6 @@ interface NavItem {
 const allNavItems: NavItem[] = [
   { path: "/budget/projetos", label: "Orçamentos", icon: FolderOpen, adminOnly: false, permissionKey: "projetos" },
   { path: "/budget/propostas", label: "Propostas", icon: FileText, adminOnly: false, permissionKey: "propostas" },
-  { path: "/budget/contratos", label: "Contratos", icon: Briefcase, adminOnly: false },
   { path: "/budget/biblioteca", label: "Biblioteca Técnica", icon: Library, adminOnly: false },
   { path: "/budget/importacao", label: "Importar Planilhas", icon: Upload, adminOnly: true, permissionKey: "importar_planilhas" },
   { path: "/budget/configuracoes", label: "Configurações", icon: Settings, adminOnly: true },
