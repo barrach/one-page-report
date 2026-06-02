@@ -109,9 +109,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signOut: async () => {
       setUser(null);
       setUserPermission(null);
-      sessionStorage.clear();
-      localStorage.clear();
+      // Logout ISOLADO: encerra apenas a sessão do MegaHub (o próprio client
+      // remove seu storageKey). NÃO usar localStorage.clear()/sessionStorage.clear()
+      // — isso apagaria os tokens dos outros módulos (MegaWork, ProdControl, Budget).
       try { await supabase.auth.signOut(); } catch { /* ignore */ }
+      // limpa só chaves específicas do MegaHub
+      try {
+        sessionStorage.removeItem('megahub_userPermission');
+        sessionStorage.removeItem('megahub_notif_asked');
+      } catch { /* ignore */ }
       window.location.replace('/login');
     },
     refreshPermissions: async () => { if (user?.email) await fetchPermissions(user.email); },
