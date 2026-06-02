@@ -14,10 +14,10 @@ import HubPage from "./pages/HubPage";
 import Login from "./pages/Login";
 import ControladoriaPage from "./pages/ControladoriaPage";
 import { useProjectStore } from "./store/projectStore";
-import ModuleTopNav from "./components/ModuleTopNav";
+import Sidebar from "./components/Sidebar";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
 import BudgetApp from "./budget/BudgetApp";
-import { AuthProvider } from "./context/AuthContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 
@@ -25,6 +25,7 @@ const queryClient = new QueryClient();
 
 const AppContent = () => {
   const loadProjects = useProjectStore(s => s.loadProjects);
+  const { user } = useAuth();
 
   useEffect(() => {
     loadProjects();
@@ -38,9 +39,9 @@ const AppContent = () => {
 
   return (
     <>
-      <ModuleTopNav />
-      {/* pt-10 para compensar a barra MegaHub fixa (h-10) */}
-      <div className="pt-10">
+      <Sidebar />
+      {/* ml-14 (56px) compensa o sidebar fixo; some quando deslogado (/login) */}
+      <div className={user ? "ml-14" : ""}>
         <Routes>
           {/* Login — público */}
           <Route path="/login" element={<Login />} />

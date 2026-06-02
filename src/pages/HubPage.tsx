@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { BarChart2, Activity, TrendingUp, HardHat, ArrowRight, Settings } from "lucide-react";
+import { BarChart2, Activity, TrendingUp, HardHat, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import type { Module } from "@/types/auth";
@@ -61,26 +61,11 @@ const apps: {
     iconBg: "bg-white/15",
     module: "opr",
   },
-  {
-    to: "/admin",
-    icon: Settings,
-    name: "Configurações",
-    tagline: "Gerenciamento de usuários",
-    description:
-      "Painel administrativo para gerenciar usuários, permissões e acesso aos módulos do MegaHub.",
-    color: "from-[hsl(240,10%,25%)] to-[hsl(240,8%,40%)]",
-    badge: "Admin",
-    badgeColor: "bg-white/20 text-white",
-    iconBg: "bg-white/15",
-    adminOnly: true,
-  },
 ];
 
 export default function HubPage() {
-  const { hasModule, isAdmin } = useAuth();
-  const visibleApps = apps.filter(app =>
-    app.adminOnly ? isAdmin : (app.module ? hasModule(app.module) : true)
-  );
+  const { hasModule } = useAuth();
+  const visibleApps = apps.filter(app => (app.module ? hasModule(app.module) : true));
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
