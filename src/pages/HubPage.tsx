@@ -1,8 +1,14 @@
 import { Link } from "react-router-dom";
-import { BarChart2, Activity, TrendingUp, HardHat, ArrowRight } from "lucide-react";
+import { BarChart2, Activity, TrendingUp, HardHat, ArrowRight, Settings } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/context/AuthContext";
+import type { ModuleId } from "@/lib/permissions";
 
-const apps = [
+const apps: {
+  to: string; icon: typeof BarChart2; name: string; tagline: string;
+  description: string; color: string; badge: string; badgeColor: string; iconBg: string;
+  module?: ModuleId; adminOnly?: boolean;
+}[] = [
   {
     to: "/budget",
     icon: HardHat,
@@ -14,6 +20,7 @@ const apps = [
     badge: "Orçamento",
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
+    module: "megapricing",
   },
   {
     to: "/controladoria",
@@ -26,6 +33,7 @@ const apps = [
     badge: "Financeiro",
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
+    module: "controladoria",
   },
   {
     to: "/prodcontrol",
@@ -38,6 +46,7 @@ const apps = [
     badge: "Obra",
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
+    module: "prodcontrol",
   },
   {
     to: "/opr",
@@ -50,10 +59,28 @@ const apps = [
     badge: "Projetos",
     badgeColor: "bg-white/20 text-white",
     iconBg: "bg-white/15",
+    module: "opr",
+  },
+  {
+    to: "/admin",
+    icon: Settings,
+    name: "Configurações",
+    tagline: "Gerenciamento de usuários",
+    description:
+      "Painel administrativo para gerenciar usuários, permissões e acesso aos módulos do MegaHub.",
+    color: "from-[hsl(240,10%,25%)] to-[hsl(240,8%,40%)]",
+    badge: "Admin",
+    badgeColor: "bg-white/20 text-white",
+    iconBg: "bg-white/15",
+    adminOnly: true,
   },
 ];
 
 export default function HubPage() {
+  const { hasModule, isAdmin } = useAuth();
+  const visibleApps = apps.filter(app =>
+    app.adminOnly ? isAdmin : (app.module ? hasModule(app.module) : true)
+  );
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -91,7 +118,7 @@ export default function HubPage() {
       {/* App cards */}
       <main className="flex-1 flex items-start justify-center px-4 pb-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 w-full max-w-5xl">
-          {apps.map((app, i) => (
+          {visibleApps.map((app, i) => (
             <motion.div
               key={app.to}
               initial={{ opacity: 0, y: 20 }}

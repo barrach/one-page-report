@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
+import UserMenu from "@/components/auth/UserMenu";
 
 export default function ModuleTopNav() {
   return (
-    <div className="fixed top-0 left-0 right-0 z-[100] flex h-10 items-center border-b border-border bg-background/95 px-3 backdrop-blur-sm">
+    <div className="fixed top-0 left-0 right-0 z-[100] flex h-10 items-center justify-between border-b border-border bg-background/95 px-3 backdrop-blur-sm">
       <Link
         to="/"
         className="flex items-center gap-1.5 group"
@@ -15,6 +16,7 @@ export default function ModuleTopNav() {
           MegaHub
         </span>
       </Link>
+      <UserMenu />
     </div>
   );
 }

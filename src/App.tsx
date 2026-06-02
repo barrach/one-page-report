@@ -7,14 +7,18 @@ import { useEffect, lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
 const Admin = lazy(() => import("./pages/Admin"));
+const UserManagement = lazy(() => import("./pages/UserManagement"));
 import Install from "./pages/Install";
 import NotFound from "./pages/NotFound";
 import HubPage from "./pages/HubPage";
+import Login from "./pages/Login";
 import ControladoriaPage from "./pages/ControladoriaPage";
 import { useProjectStore } from "./store/projectStore";
 import ModuleTopNav from "./components/ModuleTopNav";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
 import BudgetApp from "./budget/BudgetApp";
+import { AuthProvider } from "./context/AuthContext";
+import { RequireAuth, RequireAdmin } from "./components/auth/RouteGuards";
 
 const queryClient = new QueryClient();
 
@@ -25,33 +29,41 @@ const AppContent = () => {
     loadProjects();
   }, [loadProjects]);
 
+  const suspense = (node: React.ReactNode) => (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
+      {node}
+    </Suspense>
+  );
+
   return (
     <>
       <ModuleTopNav />
       {/* pt-10 para compensar a barra MegaHub fixa (h-10) */}
       <div className="pt-10">
         <Routes>
-          {/* Hub — página de seleção de módulo */}
-          <Route path="/" element={<HubPage />} />
+          {/* Login — público */}
+          <Route path="/login" element={<Login />} />
 
-          {/* One Page Report — movido para /opr */}
-          <Route path="/opr" element={<Index />} />
-          <Route path="/opr/dados" element={<DadosPage />} />
-          <Route path="/opr/admin" element={
-            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
-              <Admin />
-            </Suspense>
-          } />
-          <Route path="/opr/install" element={<Install />} />
+          {/* Hub — exige autenticação */}
+          <Route path="/" element={<RequireAuth><HubPage /></RequireAuth>} />
+
+          {/* Painel Admin — só admin */}
+          <Route path="/admin" element={<RequireAdmin>{suspense(<UserManagement />)}</RequireAdmin>} />
+
+          {/* One Page Report — módulo opr */}
+          <Route path="/opr" element={<RequireAuth module="opr"><Index /></RequireAuth>} />
+          <Route path="/opr/dados" element={<RequireAuth module="opr"><DadosPage /></RequireAuth>} />
+          <Route path="/opr/admin" element={<RequireAdmin>{suspense(<Admin />)}</RequireAdmin>} />
+          <Route path="/opr/install" element={<RequireAuth module="opr"><Install /></RequireAuth>} />
 
           {/* ProdControl */}
-          <Route path="/prodcontrol/*" element={<ProdControlApp />} />
+          <Route path="/prodcontrol/*" element={<RequireAuth module="prodcontrol"><ProdControlApp /></RequireAuth>} />
 
           {/* Controladoria */}
-          <Route path="/controladoria" element={<ControladoriaPage />} />
+          <Route path="/controladoria" element={<RequireAuth module="controladoria"><ControladoriaPage /></RequireAuth>} />
 
-          {/* Budget Builder */}
-          <Route path="/budget/*" element={<BudgetApp />} />
+          {/* Budget Builder / MegaPricing */}
+          <Route path="/budget/*" element={<RequireAuth module="megapricing"><BudgetApp /></RequireAuth>} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -66,7 +78,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <AppContent />
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

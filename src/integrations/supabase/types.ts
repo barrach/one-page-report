@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      user_permissions: {
+        Row: {
+          id: string
+          email: string
+          modules: string[]
+          role: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          email: string
+          modules?: string[]
+          role?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          modules?: string[]
+          role?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
