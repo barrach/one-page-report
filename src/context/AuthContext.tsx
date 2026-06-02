@@ -25,46 +25,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [userPermission, setUserPermission] = useState<UserPermission | null>(null);
 
-  const loadPermissions = async (u: User | null) => {
+  // Busca permissões SEM nunca travar o loading.
+  const loadPermissions = async (u: User | null): Promise<void> => {
     if (!u?.email) { setUserPermission(null); return; }
-    const { data, error } = await supabase
-      .from('user_permissions')
-      .select('id, email, role, modules')
-      .eq('email', u.email)
-      .maybeSingle();
-    if (!error && data) {
-      setUserPermission({
-        id: data.id,
-        email: data.email,
-        role: data.role as UserRole,
-        modules: (data.modules ?? []) as Module[],
-      });
-    } else {
+    try {
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('id, email, role, modules')
+        .eq('email', u.email)
+        .maybeSingle();
+      if (error || !data) {
+        // autenticado mas sem permissão cadastrada (ou RLS bloqueou)
+        console.warn('[Auth] sem permissão para', u.email, error?.message ?? '');
+        setUserPermission(null);
+      } else {
+        setUserPermission({
+          id: data.id,
+          email: data.email,
+          role: data.role as UserRole,
+          modules: (data.modules ?? []) as Module[],
+        });
+      }
+    } catch (e) {
+      console.warn('[Auth] erro ao buscar permissões:', (e as Error).message);
       setUserPermission(null);
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      await loadPermissions(u);
-      setLoading(false);
-    });
+    let done = false;
+    const finish = () => { if (!done) { done = true; setLoading(false); } };
+
+    // Timeout de segurança: nunca deixa o loading preso > 5s
+    const safety = setTimeout(() => {
+      console.warn('[Auth] timeout de 5s — liberando loading');
+      finish();
+    }, 5000);
+
+    supabase.auth.getSession()
+      .then(async ({ data: { session } }) => {
+        const u = session?.user ?? null;
+        setUser(u);
+        await loadPermissions(u);
+      })
+      .catch((e) => console.warn('[Auth] getSession falhou:', (e as Error).message))
+      .finally(() => { clearTimeout(safety); finish(); });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       await loadPermissions(u);
-      setLoading(false);
+      finish();
     });
 
-    return () => subscription.unsubscribe();
+    return () => { clearTimeout(safety); subscription.unsubscribe(); };
   }, []);
 
   const role = userPermission?.role ?? null;
   const modules = userPermission?.modules ?? [];
   const isAdmin = role === 'admin' || user?.email?.toLowerCase() === ADMIN_EMAIL;
+
+  if (import.meta.env.DEV) {
+    // diagnóstico temporário
+    console.log('[Auth] state:', { email: user?.email ?? null, loading, role, modules });
+  }
 
   const value: AuthState = {
     user,
