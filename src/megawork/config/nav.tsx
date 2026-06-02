@@ -14,8 +14,7 @@ export interface MegaWorkNavItem {
 }
 
 export const OPS_NAV: MegaWorkNavItem[] = [
-  { key: 'dashboard',  label: 'Dashboard',           path: '',                     icon: LayoutDashboard, roles: ['Gestor', 'Engenheiro'] },
-  { key: 'inicio',     label: 'Início',              path: 'inicio',               icon: Home,            roles: ['Encarregado'] },
+  { key: 'dashboard',  label: 'Dashboard',           path: '',                     icon: LayoutDashboard, roles: ['Gestor', 'Engenheiro', 'Encarregado'] },
   { key: 'obras',      label: 'Obras',               path: 'obras',                icon: Building2,       roles: ['Gestor', 'Engenheiro'] },
   { key: 'checkin',    label: 'Check-in/Check-out',  path: 'checkin',              icon: LogIn,           roles: ['Encarregado'] },
   { key: 'dds',        label: 'DDS',                 path: 'dds',                  icon: ShieldCheck,     roles: ['Encarregado'] },

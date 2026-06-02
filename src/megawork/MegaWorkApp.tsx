@@ -5,11 +5,10 @@ import MegaWorkSidebar from '@megawork/components/MegaWorkSidebar';
 import Dashboard from '@megawork/pages/Dashboard';
 import Obras from '@megawork/pages/Obras';
 import ObrasDetalhe from '@megawork/pages/ObrasDetalhe';
-import Inicio from '@megawork/pages/Inicio';
 import Stub from '@megawork/pages/Stub';
 
 function MegaWorkRoutes() {
-  const { loading, role } = useMegaWorkAuth();
+  const { loading } = useMegaWorkAuth();
 
   if (loading) {
     return (
@@ -19,13 +18,9 @@ function MegaWorkRoutes() {
     );
   }
 
-  // Encarregado entra na tela "Início"; demais no Dashboard
-  const indexEl = role === 'Encarregado' ? <Inicio /> : <Dashboard />;
-
   return (
     <Routes>
-      <Route index element={indexEl} />
-      <Route path="inicio" element={<Inicio />} />
+      <Route index element={<Dashboard />} />
       <Route path="obras" element={<Obras />} />
       <Route path="obras/:id" element={<ObrasDetalhe />} />
       <Route path="checkin" element={<Stub title="Check-in / Check-out" />} />
