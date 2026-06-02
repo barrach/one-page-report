@@ -13,6 +13,7 @@ import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import DesvioAnalysisCard from '@/components/DesvioAnalysisCard';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
+import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -38,6 +39,7 @@ const Index = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const current = useCurrentProject();
+  const { isAdmin } = useAuth();
 
   const hasRows = (arr: any[] | undefined, keys: string[]) =>
     Array.isArray(arr) && arr.some((r) => r && keys.some((k) => {
@@ -165,10 +167,12 @@ const Index = () => {
                 <Database className="h-3.5 w-3.5" />
                 Dados
               </Link>
-              <Link to="/opr/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-                <Shield className="h-3.5 w-3.5" />
-                Admin
-              </Link>
+              {isAdmin && (
+                <Link to="/opr/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+                  <Shield className="h-3.5 w-3.5" />
+                  Admin
+                </Link>
+              )}
             </nav>
           </div>
 
@@ -328,10 +332,12 @@ const Index = () => {
             <Database className="h-5 w-5" />
             <span className="text-[10px] font-medium">Dados</span>
           </Link>
-          <Link to="/opr/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
-            <Shield className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Admin</span>
-          </Link>
+          {isAdmin && (
+            <Link to="/opr/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+              <Shield className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Admin</span>
+            </Link>
+          )}
         </nav>
       )}
     </div>
