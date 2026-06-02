@@ -123,15 +123,16 @@ const ReportHeader = () => {
   const prevAvancoReal = getRealAt(penPoint);
   const prevRefPrev    = getPrevAt(penPoint);
 
-  // Weekly Real % derived from accumulated delta
-  const realSemUlt = info.desvioSemana ?? (ultIdx > 0
-    ? avancoReal - getRealAt(sCurveData[ultIdx - 1])
-    : avancoReal);
+  // Weekly Real % derived from accumulated delta.
+  // Quando há replanejamento, ignorar info.desvioSemana/desvioAcumulado (vêm do RESUMO,
+  // relativos à LB) e calcular sempre da Curva S (Real Replanejado).
+  const realSemUltCalc = ultIdx > 0 ? avancoReal - getRealAt(sCurveData[ultIdx - 1]) : avancoReal;
+  const realSemUlt = hasReplanejado ? realSemUltCalc : (info.desvioSemana ?? realSemUltCalc);
   const realSemPen = penIdx > 0
     ? prevAvancoReal - getRealAt(sCurveData[penIdx - 1])
     : prevAvancoReal;
 
-  const desvio = info.desvioAcumulado ?? (avancoReal - refPrev);
+  const desvio = hasReplanejado ? (avancoReal - refPrev) : (info.desvioAcumulado ?? (avancoReal - refPrev));
   const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
   const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
 

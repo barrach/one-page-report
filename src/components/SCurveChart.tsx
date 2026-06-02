@@ -29,7 +29,15 @@ const SCurveChart = () => {
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
-  const statusReal = sCurveData[cutIndex]?.real ?? sCurveData[cutIndex]?.realReplanejado ?? null;
+  // Real no status: prefere Real Replanejado (row16) quando > 0, senão Real (row12).
+  // Usa checagem > 0 (não ??) porque real=0 nas semanas replanejadas.
+  const statusReal = (() => {
+    const p = sCurveData[cutIndex];
+    if (!p) return null;
+    if ((p.realReplanejado ?? 0) > 0) return p.realReplanejado!;
+    if (p.real > 0) return p.real;
+    return null;
+  })();
   const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
   const hasRealReplanejado = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
 

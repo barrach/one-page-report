@@ -1642,8 +1642,11 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const hasReplanejado     = rows.some(r => r.prevReplanAcu != null && r.prevReplanAcu > 0);
   const hasRealReplanejado = firstReplanIdx >= 0; // há período replanejado → mostra Real Replanejado (row12 completa)
 
-  // ── Tendência cumulativa: do último real (row12) somando deltas row17 ──────
-  const lastRealVal = rows[ultimaReal]?.realAcu != null ? toPct(rows[ultimaReal].realAcu) : 0;
+  // ── Tendência cumulativa: do último real (row16, senão row12) + deltas row17 ──
+  const statusRow = rows[ultimaReal];
+  const lastRealVal = statusRow?.realReplanAcu != null && statusRow.realReplanAcu > 0
+    ? toPct(statusRow.realReplanAcu)
+    : (statusRow?.realAcu != null ? toPct(statusRow.realAcu) : 0);
   const tendCumulative = new Map<number, number>();
   if (lastRealVal > 0) {
     let cumul = lastRealVal;
