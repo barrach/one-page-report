@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { permissionsClient as supabase } from '@/lib/permissionsClient';
 import { ALL_MODULES, ALL_ROLES, ROLE_BADGE, type Module, type UserRole, type UserPermission } from '@/types/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -96,13 +96,7 @@ export default function UserManagement() {
       .insert([{ email, role: draft.role, modules: draft.modules }]);
     setAdding(false);
     if (error) { toast.error('Erro ao adicionar: ' + error.message); return; }
-    // Tenta enviar convite de senha (pode falhar sem service role — apenas avisa)
-    try {
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo: `${window.location.origin}/login` });
-      toast.success('Usuário adicionado e convite de senha enviado.');
-    } catch {
-      toast.success('Usuário adicionado. O usuário deve criar a senha em "Esqueci minha senha".');
-    }
+    toast.success('Usuário adicionado. O usuário deve criar a senha em "Esqueci minha senha" no login.');
     setDraft(emptyDraft()); load();
   };
 

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { permissionsClient } from '@/lib/permissionsClient';
 import type { UserPermission, UserRole, Module } from '@/types/auth';
 
 const ADMIN_EMAIL = 'michel.zabalia@megasteam.com.br';
@@ -30,7 +31,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // para o app funcionar mesmo se a RLS bloquear a query.
   const fetchPermissions = async (email: string): Promise<void> => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await permissionsClient
         .from('user_permissions')
         .select('*')
         .eq('email', email)
