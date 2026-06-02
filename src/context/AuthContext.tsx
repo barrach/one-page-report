@@ -4,6 +4,22 @@ import { supabase } from '@/lib/supabase';
 import type { UserPermission, UserRole, Module } from '@/types/auth';
 
 const ADMIN_EMAIL = 'michel.zabalia@megasteam.com.br';
+const CACHE_KEY = 'megahub_userPermission';
+
+const writeCache = (p: UserPermission | null) => {
+  try {
+    if (p) sessionStorage.setItem(CACHE_KEY, JSON.stringify(p));
+    else sessionStorage.removeItem(CACHE_KEY);
+  } catch { /* ignore */ }
+};
+const readCache = (email: string): UserPermission | null => {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const p = JSON.parse(raw) as UserPermission;
+    return p?.email?.toLowerCase() === email.toLowerCase() ? p : null;
+  } catch { return null; }
+};
 
 interface AuthState {
   user: User | null;
@@ -25,9 +41,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [userPermission, setUserPermission] = useState<UserPermission | null>(null);
 
-  // Busca permissões SEM nunca travar o loading.
-  const loadPermissions = async (u: User | null): Promise<void> => {
-    if (!u?.email) { setUserPermission(null); return; }
+  // Busca permissões SEM nunca travar o loading. Usa cache de sessão.
+  const loadPermissions = async (u: User | null, opts: { useCache?: boolean } = {}): Promise<void> => {
+    if (!u?.email) { setUserPermission(null); writeCache(null); return; }
+
+    // 1. cache em sessionStorage — evita rebuscar na rede a cada reload
+    if (opts.useCache !== false) {
+      const cached = readCache(u.email);
+      if (cached) { setUserPermission(cached); return; }
+    }
+
+    // 2. busca no Supabase
     try {
       const { data, error } = await supabase
         .from('user_permissions')
@@ -35,16 +59,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq('email', u.email)
         .maybeSingle();
       if (error || !data) {
-        // autenticado mas sem permissão cadastrada (ou RLS bloqueou)
         console.warn('[Auth] sem permissão para', u.email, error?.message ?? '');
-        setUserPermission(null);
+        setUserPermission(null); writeCache(null);
       } else {
-        setUserPermission({
+        const perm: UserPermission = {
           id: data.id,
           email: data.email,
           role: data.role as UserRole,
           modules: (data.modules ?? []) as Module[],
-        });
+        };
+        setUserPermission(perm); writeCache(perm);
       }
     } catch (e) {
       console.warn('[Auth] erro ao buscar permissões:', (e as Error).message);
@@ -99,8 +123,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     modules,
     isAdmin,
     hasModule: (m) => isAdmin || modules.includes(m),
-    signOut: async () => { await supabase.auth.signOut(); setUser(null); setUserPermission(null); },
-    refreshPermissions: async () => { await loadPermissions(user); },
+    signOut: async () => {
+      await supabase.auth.signOut();
+      writeCache(null);
+      // redirect forçado (full reload) para limpar todo o estado de auth
+      window.location.href = '/login';
+    },
+    refreshPermissions: async () => { await loadPermissions(user, { useCache: false }); },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
