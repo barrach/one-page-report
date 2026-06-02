@@ -18,7 +18,8 @@ import ModuleTopNav from "./components/ModuleTopNav";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
 import BudgetApp from "./budget/BudgetApp";
 import { AuthProvider } from "./context/AuthContext";
-import { RequireAuth, RequireAdmin } from "./components/auth/RouteGuards";
+import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -45,25 +46,25 @@ const AppContent = () => {
           <Route path="/login" element={<Login />} />
 
           {/* Hub — exige autenticação */}
-          <Route path="/" element={<RequireAuth><HubPage /></RequireAuth>} />
+          <Route path="/" element={<ProtectedRoute><HubPage /></ProtectedRoute>} />
 
           {/* Painel Admin — só admin */}
-          <Route path="/admin" element={<RequireAdmin>{suspense(<UserManagement />)}</RequireAdmin>} />
+          <Route path="/admin" element={<AdminRoute>{suspense(<UserManagement />)}</AdminRoute>} />
 
           {/* One Page Report — módulo opr */}
-          <Route path="/opr" element={<RequireAuth module="opr"><Index /></RequireAuth>} />
-          <Route path="/opr/dados" element={<RequireAuth module="opr"><DadosPage /></RequireAuth>} />
-          <Route path="/opr/admin" element={<RequireAdmin>{suspense(<Admin />)}</RequireAdmin>} />
-          <Route path="/opr/install" element={<RequireAuth module="opr"><Install /></RequireAuth>} />
+          <Route path="/opr" element={<ProtectedRoute module="opr"><Index /></ProtectedRoute>} />
+          <Route path="/opr/dados" element={<ProtectedRoute module="opr"><DadosPage /></ProtectedRoute>} />
+          <Route path="/opr/admin" element={<AdminRoute>{suspense(<Admin />)}</AdminRoute>} />
+          <Route path="/opr/install" element={<ProtectedRoute module="opr"><Install /></ProtectedRoute>} />
 
           {/* ProdControl */}
-          <Route path="/prodcontrol/*" element={<RequireAuth module="prodcontrol"><ProdControlApp /></RequireAuth>} />
+          <Route path="/prodcontrol/*" element={<ProtectedRoute module="prodcontrol"><ProdControlApp /></ProtectedRoute>} />
 
           {/* Controladoria */}
-          <Route path="/controladoria" element={<RequireAuth module="controladoria"><ControladoriaPage /></RequireAuth>} />
+          <Route path="/controladoria" element={<ProtectedRoute module="controladoria"><ControladoriaPage /></ProtectedRoute>} />
 
           {/* Budget Builder / MegaPricing */}
-          <Route path="/budget/*" element={<RequireAuth module="megapricing"><BudgetApp /></RequireAuth>} />
+          <Route path="/budget/*" element={<ProtectedRoute module="megapricing"><BudgetApp /></ProtectedRoute>} />
 
           <Route path="*" element={<NotFound />} />
         </Routes>

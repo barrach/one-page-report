@@ -2,12 +2,12 @@ import { Link } from "react-router-dom";
 import { BarChart2, Activity, TrendingUp, HardHat, ArrowRight, Settings } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
-import type { ModuleId } from "@/lib/permissions";
+import type { Module } from "@/types/auth";
 
 const apps: {
   to: string; icon: typeof BarChart2; name: string; tagline: string;
   description: string; color: string; badge: string; badgeColor: string; iconBg: string;
-  module?: ModuleId; adminOnly?: boolean;
+  module?: Module; adminOnly?: boolean;
 }[] = [
   {
     to: "/budget",

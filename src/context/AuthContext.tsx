@@ -1,16 +1,19 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import { seedFor, isAdminEmail, type ModuleId, type Role } from '@/lib/permissions';
+import { supabase } from '@/lib/supabase';
+import type { UserPermission, UserRole, Module } from '@/types/auth';
+
+const ADMIN_EMAIL = 'michel.zabalia@megasteam.com.br';
 
 interface AuthState {
   user: User | null;
   email: string | null;
   loading: boolean;
-  role: Role | null;
-  modules: ModuleId[];
+  userPermission: UserPermission | null;
+  role: UserRole | null;
+  modules: Module[];
   isAdmin: boolean;
-  hasModule: (m: ModuleId) => boolean;
+  hasModule: (m: Module) => boolean;
   signOut: () => Promise<void>;
   refreshPermissions: () => Promise<void>;
 }
@@ -20,31 +23,25 @@ const AuthContext = createContext<AuthState | undefined>(undefined);
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<Role | null>(null);
-  const [modules, setModules] = useState<ModuleId[]>([]);
+  const [userPermission, setUserPermission] = useState<UserPermission | null>(null);
 
   const loadPermissions = async (u: User | null) => {
-    if (!u?.email) { setRole(null); setModules([]); return; }
-    // 1. tenta ler da tabela user_permissions
+    if (!u?.email) { setUserPermission(null); return; }
     const { data, error } = await supabase
       .from('user_permissions')
-      .select('role, modules')
+      .select('id, email, role, modules')
       .eq('email', u.email)
       .maybeSingle();
     if (!error && data) {
-      setRole((data.role as Role) ?? null);
-      setModules((data.modules as ModuleId[]) ?? []);
-      return;
+      setUserPermission({
+        id: data.id,
+        email: data.email,
+        role: data.role as UserRole,
+        modules: (data.modules ?? []) as Module[],
+      });
+    } else {
+      setUserPermission(null);
     }
-    // 2. fallback no seed local
-    const seed = seedFor(u.email);
-    if (seed) { setRole(seed.role); setModules(seed.modules); return; }
-    // 3. admin por e-mail mesmo sem registro
-    if (isAdminEmail(u.email)) {
-      setRole('admin'); setModules(['megapricing', 'controladoria', 'prodcontrol', 'opr']);
-      return;
-    }
-    setRole(null); setModules([]);
   };
 
   useEffect(() => {
@@ -65,15 +62,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const role = userPermission?.role ?? null;
+  const modules = userPermission?.modules ?? [];
+  const isAdmin = role === 'admin' || user?.email?.toLowerCase() === ADMIN_EMAIL;
+
   const value: AuthState = {
     user,
     email: user?.email ?? null,
     loading,
+    userPermission,
     role,
     modules,
-    isAdmin: role === 'admin' || isAdminEmail(user?.email),
-    hasModule: (m) => modules.includes(m) || role === 'admin' || isAdminEmail(user?.email),
-    signOut: async () => { await supabase.auth.signOut(); setUser(null); setRole(null); setModules([]); },
+    isAdmin,
+    hasModule: (m) => isAdmin || modules.includes(m),
+    signOut: async () => { await supabase.auth.signOut(); setUser(null); setUserPermission(null); },
     refreshPermissions: async () => { await loadPermissions(user); },
   };
 
