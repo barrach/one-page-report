@@ -9,7 +9,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Check, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Check, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 
 const CAUSA_OPTIONS: DesvioCausaRaiz[] = ['Mão de Obra', 'Material', 'Equipamento', 'Clima', 'Escopo', 'Projeto', 'Outro'];
 
@@ -32,6 +32,11 @@ const DesvioAnalysisCard = () => {
   // Estado local do formulário — carrega do store, reseta se o sinal mudou
   const [form, setForm] = useState<DesvioAnalise>(EMPTY);
   const [saved, setSaved] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  // Já foi preenchido/salvo para este tipo de desvio?
+  const isFilled = !!desvioAnalise && desvioAnalise.tipo === tipo
+    && (!!desvioAnalise.causaRaiz || !!desvioAnalise.acaoCorretiva || !!desvioAnalise.descricao);
 
   useEffect(() => {
     if (desvioAnalise && desvioAnalise.tipo === tipo && tipo !== '') {
@@ -39,6 +44,7 @@ const DesvioAnalysisCard = () => {
     } else {
       setForm({ ...EMPTY, tipo });
     }
+    setExpanded(false); // recolhido por padrão ao abrir / trocar sinal
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [desvioAnalise, tipo]);
 
@@ -52,6 +58,7 @@ const DesvioAnalysisCard = () => {
   const handleSave = () => {
     setDesvioAnalise({ ...form, tipo });
     setSaved(true);
+    setExpanded(false); // recolher automaticamente após salvar
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -109,23 +116,59 @@ const DesvioAnalysisCard = () => {
     );
   }
 
-  // ── ATRASO: card completo ──────────────────────────────────────────────────
+  // ── ATRASO: card completo colapsável ───────────────────────────────────────
   return (
     <div className={`bg-card rounded-xl border ${accent.ring} card-shadow overflow-hidden`}>
-      {/* Header */}
-      <div className={`flex items-center justify-between gap-3 px-4 sm:px-6 py-3 ${accent.headBg}`}>
-        <div className="flex items-center gap-2">
-          <AccentIcon className={`h-5 w-5 ${accent.text}`} />
+      {/* Header — clicável para alternar */}
+      <button
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        className={`w-full flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-4 sm:px-6 py-3 ${accent.headBg} text-left`}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <AccentIcon className={`h-5 w-5 ${accent.text} shrink-0`} />
           <h3 className={`text-sm sm:text-base font-bold ${accent.text}`}>
             {accent.emoji} {accent.title}
           </h3>
         </div>
-        <div className={`text-sm sm:text-base font-bold ${accent.text} whitespace-nowrap`}>
-          {fmtPct(desvio)} <span className="font-medium opacity-80 text-xs sm:text-sm">{accent.desvioLabel}</span>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Desvio: com label quando vazio, só % quando preenchido+recolhido */}
+          <span className={`text-sm sm:text-base font-bold ${accent.text} whitespace-nowrap`}>
+            {fmtPct(desvio)}
+            {!(isFilled && !expanded) && (
+              <span className="font-medium opacity-80 text-xs sm:text-sm"> {accent.desvioLabel}</span>
+            )}
+          </span>
+          {/* Resumo quando preenchido + recolhido */}
+          {isFilled && !expanded && (
+            <>
+              {form.causaRaiz && (
+                <span className="text-xs font-medium text-foreground bg-background/60 rounded px-2 py-0.5 whitespace-nowrap">
+                  Causa: {form.causaRaiz}
+                </span>
+              )}
+              {form.responsavel && (
+                <span className="text-xs font-medium text-foreground bg-background/60 rounded px-2 py-0.5 whitespace-nowrap">
+                  Resp.: {form.responsavel}
+                </span>
+              )}
+            </>
+          )}
+          {/* Toggle */}
+          <span className={`flex items-center gap-1 text-xs font-semibold ${accent.text} whitespace-nowrap`}>
+            {expanded ? <><ChevronUp className="h-4 w-4" /> Recolher</>
+              : isFilled ? <><ChevronDown className="h-4 w-4" /> Expandir</>
+              : <><ChevronDown className="h-4 w-4" /> Preencher</>}
+          </span>
         </div>
-      </div>
+      </button>
 
-      {/* Body */}
+      {/* Body — animação de expand/collapse */}
+      <div
+        className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+        style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+      >
+        <div className="overflow-hidden">
       <div className="p-4 sm:p-6 space-y-4">
         {/* 1. Causa Raiz */}
         <div className="space-y-1.5">
@@ -212,6 +255,8 @@ const DesvioAnalysisCard = () => {
           <Button onClick={handleSave} size="sm" className="gap-1.5">
             <Check className="h-4 w-4" /> Salvar Análise
           </Button>
+        </div>
+      </div>
         </div>
       </div>
     </div>
