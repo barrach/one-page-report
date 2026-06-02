@@ -1,16 +1,16 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { navForRole } from '@opscontrol/config/nav';
-import { useOpsAuth } from '@opscontrol/context/OpsAuthContext';
+import { navForRole } from '@megawork/config/nav';
+import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 import { cn } from '@/lib/utils';
 
-export default function OpsSidebar() {
-  const { role } = useOpsAuth();
+export default function MegaWorkSidebar() {
+  const { role } = useMegaWorkAuth();
   const location = useLocation();
   const items = navForRole(role);
 
   const isActive = (path: string) => {
-    const full = `/opscontrol${path ? '/' + path : ''}`;
-    if (path === '') return location.pathname === '/opscontrol' || location.pathname === '/opscontrol/';
+    const full = `/megawork${path ? '/' + path : ''}`;
+    if (path === '') return location.pathname === '/megawork' || location.pathname === '/megawork/';
     return location.pathname === full || location.pathname.startsWith(full + '/');
   };
 
@@ -23,7 +23,7 @@ export default function OpsSidebar() {
           return (
             <NavLink
               key={item.key}
-              to={`/opscontrol${item.path ? '/' + item.path : ''}`}
+              to={`/megawork${item.path ? '/' + item.path : ''}`}
               end={item.path === ''}
               className={cn(
                 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors',

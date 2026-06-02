@@ -17,7 +17,7 @@ import { useProjectStore } from "./store/projectStore";
 import ModuleTopNav from "./components/ModuleTopNav";
 import ProdControlApp from "./prodcontrol/ProdControlApp";
 import BudgetApp from "./budget/BudgetApp";
-const OpsControlApp = lazy(() => import("./opscontrol/OpsControlApp"));
+const MegaWorkApp = lazy(() => import("./megawork/MegaWorkApp"));
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -74,8 +74,8 @@ const AppContent = () => {
           {/* ProdControl */}
           <Route path="/prodcontrol/*" element={<ProtectedRoute module="prodcontrol"><ProdControlApp /></ProtectedRoute>} />
 
-          {/* OpsControl */}
-          <Route path="/opscontrol/*" element={<ProtectedRoute>{suspense(<OpsControlApp />)}</ProtectedRoute>} />
+          {/* MegaWork */}
+          <Route path="/megawork/*" element={<ProtectedRoute>{suspense(<MegaWorkApp />)}</ProtectedRoute>} />
 
           {/* Controladoria */}
           <Route path="/controladoria" element={<ProtectedRoute module="controladoria"><ControladoriaPage /></ProtectedRoute>} />

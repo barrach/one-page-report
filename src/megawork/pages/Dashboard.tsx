@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Building2, LogIn, ListChecks, AlertTriangle } from 'lucide-react';
-import { opsClient } from '@opscontrol/lib/opsClient';
+import { megaworkClient } from '@megawork/lib/megaworkClient';
 
 const KpiCard = ({ icon: Icon, label, value, hint, color }: {
   icon: typeof Building2; label: string; value: string | number; hint?: string; color: string;
@@ -22,7 +22,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     (async () => {
-      const { count } = await opsClient
+      const { count } = await megaworkClient
         .from('ops_obras')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'ativa');

@@ -10,7 +10,7 @@ export default function Stub({ title }: { title: string }) {
         </div>
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="text-xs text-muted-foreground max-w-sm">
-          Esta seção faz parte do OpsControl e será implementada em breve.
+          Esta seção faz parte do MegaWork e será implementada em breve.
         </p>
       </div>
     </div>

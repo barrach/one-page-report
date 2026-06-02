@@ -1,12 +1,12 @@
 import { useNavigate } from 'react-router-dom';
 import { HardHat, LogOut, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useOpsAuth } from '@opscontrol/context/OpsAuthContext';
+import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 
-export default function OpsHeader() {
+export default function MegaWorkHeader() {
   const navigate = useNavigate();
   const { signOut } = useAuth();
-  const { opsUser } = useOpsAuth();
+  const { opsUser } = useMegaWorkAuth();
 
   return (
     <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-card shrink-0">
@@ -15,7 +15,7 @@ export default function OpsHeader() {
           <HardHat className="h-4 w-4 text-blue-400" />
         </div>
         <div className="leading-tight">
-          <span className="block text-sm font-black text-foreground">OpsControl</span>
+          <span className="block text-sm font-black text-foreground">MegaWork</span>
           <span className="block text-[10px] text-muted-foreground">Gestão de campo</span>
         </div>
       </div>

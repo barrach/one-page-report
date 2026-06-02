@@ -1,19 +1,19 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { OpsAuthProvider, useOpsAuth } from '@opscontrol/context/OpsAuthContext';
-import OpsHeader from '@opscontrol/components/OpsHeader';
-import OpsSidebar from '@opscontrol/components/OpsSidebar';
-import Dashboard from '@opscontrol/pages/Dashboard';
-import Obras from '@opscontrol/pages/Obras';
-import Inicio from '@opscontrol/pages/Inicio';
-import Stub from '@opscontrol/pages/Stub';
+import { MegaWorkAuthProvider, useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
+import MegaWorkHeader from '@megawork/components/MegaWorkHeader';
+import MegaWorkSidebar from '@megawork/components/MegaWorkSidebar';
+import Dashboard from '@megawork/pages/Dashboard';
+import Obras from '@megawork/pages/Obras';
+import Inicio from '@megawork/pages/Inicio';
+import Stub from '@megawork/pages/Stub';
 
-function OpsRoutes() {
-  const { loading, role } = useOpsAuth();
+function MegaWorkRoutes() {
+  const { loading, role } = useMegaWorkAuth();
 
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center text-muted-foreground text-sm">
-        Carregando OpsControl…
+        Carregando MegaWork…
       </div>
     );
   }
@@ -38,29 +38,29 @@ function OpsRoutes() {
       <Route path="licoes" element={<Stub title="Lições Aprendidas" />} />
       <Route path="usuarios" element={<Stub title="Usuários" />} />
       <Route path="configuracoes" element={<Stub title="Configurações" />} />
-      <Route path="*" element={<Navigate to="/opscontrol" replace />} />
+      <Route path="*" element={<Navigate to="/megawork" replace />} />
     </Routes>
   );
 }
 
-function OpsShell() {
+function MegaWorkShell() {
   return (
     <div className="h-[calc(100vh-2.5rem)] flex flex-col bg-background">
-      <OpsHeader />
+      <MegaWorkHeader />
       <div className="flex flex-1 overflow-hidden">
-        <OpsSidebar />
+        <MegaWorkSidebar />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <OpsRoutes />
+          <MegaWorkRoutes />
         </main>
       </div>
     </div>
   );
 }
 
-export default function OpsControlApp() {
+export default function MegaWorkApp() {
   return (
-    <OpsAuthProvider>
-      <OpsShell />
-    </OpsAuthProvider>
+    <MegaWorkAuthProvider>
+      <MegaWorkShell />
+    </MegaWorkAuthProvider>
   );
 }

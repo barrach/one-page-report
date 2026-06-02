@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
-import { opsClient } from '@opscontrol/lib/opsClient';
-import type { OpsObra } from '@opscontrol/types';
+import { megaworkClient } from '@megawork/lib/megaworkClient';
+import type { OpsObra } from '@megawork/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -32,7 +32,7 @@ export default function Obras() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await opsClient
+    const { data, error } = await megaworkClient
       .from('ops_obras')
       .select('*')
       .order('nome');
@@ -53,8 +53,8 @@ export default function Obras() {
       status: editing.status, gestor_responsavel: editing.gestor_responsavel,
     };
     const { error } = isNew
-      ? await opsClient.from('ops_obras').insert([payload])
-      : await opsClient.from('ops_obras').update(payload).eq('id', editing.id);
+      ? await megaworkClient.from('ops_obras').insert([payload])
+      : await megaworkClient.from('ops_obras').update(payload).eq('id', editing.id);
     setSaving(false);
     if (error) { toast.error('Erro ao salvar: ' + error.message); return; }
     toast.success(isNew ? 'Obra criada.' : 'Obra atualizada.');
@@ -63,7 +63,7 @@ export default function Obras() {
 
   const remove = async () => {
     if (!removing) return;
-    const { error } = await opsClient.from('ops_obras').delete().eq('id', removing.id);
+    const { error } = await megaworkClient.from('ops_obras').delete().eq('id', removing.id);
     if (error) { toast.error('Erro ao remover: ' + error.message); return; }
     toast.success('Obra removida.');
     setRemoving(null); load();

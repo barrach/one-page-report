@@ -1,18 +1,18 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { opsClient } from '@opscontrol/lib/opsClient';
-import type { OpsRole, OpsUser } from '@opscontrol/types';
+import { megaworkClient } from '@megawork/lib/megaworkClient';
+import type { OpsRole, OpsUser } from '@megawork/types';
 
-interface OpsAuthState {
+interface MegaWorkAuthState {
   email: string | null;
   opsUser: OpsUser | null;
   role: OpsRole | null;
   loading: boolean;
 }
 
-const OpsAuthContext = createContext<OpsAuthState | undefined>(undefined);
+const MegaWorkAuthContext = createContext<MegaWorkAuthState | undefined>(undefined);
 
-export function OpsAuthProvider({ children }: { children: ReactNode }) {
+export function MegaWorkAuthProvider({ children }: { children: ReactNode }) {
   const { email, isAdmin } = useAuth();
   const [opsUser, setOpsUser] = useState<OpsUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ export function OpsAuthProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       if (!email) { setOpsUser(null); setLoading(false); return; }
       try {
-        const { data } = await opsClient
+        const { data } = await megaworkClient
           .from('ops_users')
           .select('id, email, nome, role, obra_id')
           .eq('email', email)
@@ -48,15 +48,15 @@ export function OpsAuthProvider({ children }: { children: ReactNode }) {
   }, [email, isAdmin]);
 
   return (
-    <OpsAuthContext.Provider value={{ email, opsUser, role: opsUser?.role ?? null, loading }}>
+    <MegaWorkAuthContext.Provider value={{ email, opsUser, role: opsUser?.role ?? null, loading }}>
       {children}
-    </OpsAuthContext.Provider>
+    </MegaWorkAuthContext.Provider>
   );
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useOpsAuth(): OpsAuthState {
-  const ctx = useContext(OpsAuthContext);
-  if (!ctx) throw new Error('useOpsAuth deve ser usado dentro de OpsAuthProvider');
+export function useMegaWorkAuth(): MegaWorkAuthState {
+  const ctx = useContext(MegaWorkAuthContext);
+  if (!ctx) throw new Error('useMegaWorkAuth deve ser usado dentro de MegaWorkAuthProvider');
   return ctx;
 }

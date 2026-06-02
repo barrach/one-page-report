@@ -62,9 +62,9 @@ const apps: {
     module: "opr",
   },
   {
-    to: "/opscontrol",
+    to: "/megawork",
     icon: Helmet,
-    name: "OpsControl",
+    name: "MegaWork",
     tagline: "Gestão de campo",
     description:
       "Gestão de campo com LPS, check-in, RDO e planejamento puxado.",

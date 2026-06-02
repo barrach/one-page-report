@@ -94,7 +94,7 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
       "@prodcontrol": path.resolve(__dirname, "./src/prodcontrol"),
       "@budget": path.resolve(__dirname, "./src/budget"),
-      "@opscontrol": path.resolve(__dirname, "./src/opscontrol"),
+      "@megawork": path.resolve(__dirname, "./src/megawork"),
     },
     dedupe: ["react", "react-dom"],
   },

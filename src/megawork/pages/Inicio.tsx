@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { opsClient } from '@opscontrol/lib/opsClient';
-import { useOpsAuth } from '@opscontrol/context/OpsAuthContext';
+import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 import { Button } from '@/components/ui/button';
 import { LogIn, MapPin, CalendarDays } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Inicio() {
-  const { opsUser } = useOpsAuth();
+  const { opsUser } = useMegaWorkAuth();
   const [obraNome, setObraNome] = useState<string>('—');
   const [checkedIn, setCheckedIn] = useState(false);
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
@@ -14,7 +14,7 @@ export default function Inicio() {
   useEffect(() => {
     (async () => {
       if (!opsUser?.obra_id) return;
-      const { data } = await opsClient.from('ops_obras').select('nome').eq('id', opsUser.obra_id).maybeSingle();
+      const { data } = await megaworkClient.from('ops_obras').select('nome').eq('id', opsUser.obra_id).maybeSingle();
       if (data) setObraNome((data as { nome: string }).nome);
     })();
   }, [opsUser?.obra_id]);

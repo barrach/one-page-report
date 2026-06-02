@@ -3,17 +3,17 @@ import {
   AlertTriangle, CalendarRange, TrendingUp, Users, GitBranch,
   NotebookPen, Lightbulb, UserCog, Settings,
 } from 'lucide-react';
-import type { OpsRole } from '@opscontrol/types';
+import type { OpsRole } from '@megawork/types';
 
-export interface OpsNavItem {
+export interface MegaWorkNavItem {
   key: string;
   label: string;
-  path: string;       // relativo a /opscontrol
+  path: string;       // relativo a /megawork
   icon: typeof Home;
   roles: OpsRole[];   // perfis que veem o item (Admin sempre vê tudo)
 }
 
-export const OPS_NAV: OpsNavItem[] = [
+export const OPS_NAV: MegaWorkNavItem[] = [
   { key: 'dashboard',  label: 'Dashboard',           path: '',                     icon: LayoutDashboard, roles: ['Gestor', 'Engenheiro'] },
   { key: 'inicio',     label: 'Início',              path: 'inicio',               icon: Home,            roles: ['Encarregado'] },
   { key: 'obras',      label: 'Obras',               path: 'obras',                icon: Building2,       roles: ['Gestor', 'Engenheiro'] },
@@ -31,7 +31,7 @@ export const OPS_NAV: OpsNavItem[] = [
   { key: 'config',     label: 'Configurações',       path: 'configuracoes',        icon: Settings,        roles: [] }, // só Admin
 ];
 
-export const navForRole = (role: OpsRole | null): OpsNavItem[] => {
+export const navForRole = (role: OpsRole | null): MegaWorkNavItem[] => {
   if (!role) return [];
   if (role === 'Admin') return OPS_NAV;
   return OPS_NAV.filter(i => i.roles.includes(role));
