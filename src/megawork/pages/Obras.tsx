@@ -33,7 +33,7 @@ const fmtDate = (d: string | null) => {
 
 export default function Obras() {
   const navigate = useNavigate();
-  const { role } = useMegaWorkAuth();
+  const { role, obraIds } = useMegaWorkAuth();
   const canManage = role === 'Admin' || role === 'Gestor';
 
   const [rows, setRows] = useState<OpsObra[]>([]);
@@ -64,11 +64,12 @@ export default function Obras() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter(o => {
+      if (obraIds !== null && !obraIds.includes(o.id)) return false; // acesso por obra
       if (statusFilter !== 'todas' && o.status !== statusFilter) return false;
       if (q && !(`${o.nome} ${o.cliente}`.toLowerCase().includes(q))) return false;
       return true;
     });
-  }, [rows, statusFilter, search]);
+  }, [rows, statusFilter, search, obraIds]);
 
   const save = async () => {
     if (!editing) return;

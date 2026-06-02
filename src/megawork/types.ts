@@ -36,3 +36,16 @@ export interface OpsCheckin {
 }
 
 export const OPS_ROLES: OpsRole[] = ['Admin', 'Gestor', 'Engenheiro', 'Encarregado'];
+
+export type SolicitacaoStatus = 'pendente' | 'aprovado' | 'rejeitado';
+
+export interface OpsSolicitacao {
+  id: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  obra_interesse: string;
+  role_desejado: 'Encarregado' | 'Engenheiro' | 'Gestor';
+  status: SolicitacaoStatus;
+  created_at: string;
+}

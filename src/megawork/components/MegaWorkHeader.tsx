@@ -1,12 +1,15 @@
 import { useNavigate } from 'react-router-dom';
 import { HardHat, LogOut, ArrowLeft } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
 import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 
 export default function MegaWorkHeader() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
-  const { opsUser } = useMegaWorkAuth();
+  const { opsUser, signOut } = useMegaWorkAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/megawork/login', { replace: true });
+  };
 
   return (
     <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-card shrink-0">
@@ -32,7 +35,7 @@ export default function MegaWorkHeader() {
           <span className="block text-[10px] text-muted-foreground">{opsUser?.role}</span>
         </div>
         <button
-          onClick={() => signOut()}
+          onClick={handleLogout}
           className="flex items-center gap-1.5 text-xs font-medium text-destructive hover:opacity-80 transition-opacity"
           title="Sair"
         >

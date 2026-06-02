@@ -1,7 +1,7 @@
 import {
   LayoutDashboard, Home, Building2, LogIn, ShieldCheck, ListChecks,
   AlertTriangle, CalendarRange, TrendingUp, Users, GitBranch,
-  NotebookPen, Lightbulb, UserCog, Settings,
+  NotebookPen, Lightbulb, UserCog, Settings, Inbox,
 } from 'lucide-react';
 import type { OpsRole } from '@megawork/types';
 
@@ -26,6 +26,7 @@ export const OPS_NAV: MegaWorkNavItem[] = [
   { key: 'puxado',     label: 'Planejamento Puxado', path: 'planejamento-puxado',  icon: GitBranch,       roles: ['Gestor'] },
   { key: 'rdo',        label: 'Anotações/RDO',       path: 'rdo',                  icon: NotebookPen,     roles: ['Engenheiro', 'Encarregado'] },
   { key: 'licoes',     label: 'Lições Aprendidas',   path: 'licoes',               icon: Lightbulb,       roles: ['Gestor', 'Engenheiro'] },
+  { key: 'solicitacoes', label: 'Solicitações',      path: 'solicitacoes',         icon: Inbox,           roles: [] }, // só Admin
   { key: 'usuarios',   label: 'Usuários',            path: 'usuarios',             icon: UserCog,         roles: [] }, // só Admin
   { key: 'config',     label: 'Configurações',       path: 'configuracoes',        icon: Settings,        roles: [] }, // só Admin
 ];

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { megaworkClient } from '@megawork/lib/megaworkClient';
+import { useMegaWorkAuth } from '@megawork/context/MegaWorkAuthContext';
 import type { OpsObra, OpsCheckin, OpsUser, CheckinTipo } from '@megawork/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ interface Draft {
 }
 
 export default function CheckinCheckout() {
+  const { obraIds } = useMegaWorkAuth();
   const [obras, setObras] = useState<OpsObra[]>([]);
   const [obraId, setObraId] = useState<string>('');
   const [data, setData] = useState<string>(todayISO());
@@ -46,13 +48,14 @@ export default function CheckinCheckout() {
   useEffect(() => {
     (async () => {
       const { data: rows } = await megaworkClient.from('ops_obras').select('*').eq('status', 'ativa').order('nome');
-      const list = (rows ?? []) as OpsObra[];
+      let list = (rows ?? []) as OpsObra[];
+      if (obraIds !== null) list = list.filter(o => obraIds.includes(o.id)); // acesso por obra
       setObras(list);
       if (list.length && !obraId) setObraId(list[0].id);
       setLoading(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [obraIds]);
 
   // Encarregados da obra selecionada
   useEffect(() => {

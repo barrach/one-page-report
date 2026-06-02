@@ -74,8 +74,8 @@ const AppContent = () => {
           {/* ProdControl */}
           <Route path="/prodcontrol/*" element={<ProtectedRoute module="prodcontrol"><ProdControlApp /></ProtectedRoute>} />
 
-          {/* MegaWork */}
-          <Route path="/megawork/*" element={<ProtectedRoute>{suspense(<MegaWorkApp />)}</ProtectedRoute>} />
+          {/* MegaWork — autenticação própria e independente do MegaHub */}
+          <Route path="/megawork/*" element={suspense(<MegaWorkApp />)} />
 
           {/* Controladoria */}
           <Route path="/controladoria" element={<ProtectedRoute module="controladoria"><ControladoriaPage /></ProtectedRoute>} />
