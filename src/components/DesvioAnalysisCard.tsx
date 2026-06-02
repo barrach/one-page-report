@@ -67,6 +67,49 @@ const DesvioAnalysisCard = () => {
   const acaoPlaceholder = isAtraso ? 'Descreva as ações de recuperação...' : 'Descreva como o adiantamento será mantido...';
   const acaoLabel = isAtraso ? 'Ação Corretiva' : 'Justificativa';
 
+  // ── ADIANTAMENTO: card compacto, 2 campos em linha única ──────────────────
+  if (isAdiantado) {
+    return (
+      <div className={`bg-card rounded-lg border ${accent.ring} overflow-hidden`}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
+          {/* Título + desvio */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <AccentIcon className={`h-4 w-4 ${accent.text}`} />
+            <span className={`text-xs sm:text-sm font-bold ${accent.text} whitespace-nowrap`}>
+              {accent.emoji} Adiantamento {fmtPct(desvio)}
+            </span>
+          </div>
+          {/* Justificativa (expande) */}
+          <Textarea
+            rows={1} maxLength={300} value={form.acaoCorretiva}
+            onChange={(e) => update('acaoCorretiva', e.target.value)}
+            placeholder="Descreva o motivo do adiantamento..."
+            className="text-sm resize-none min-h-9 py-1.5 flex-1"
+          />
+          {/* Responsável */}
+          <Input
+            type="text" value={form.responsavel}
+            onChange={(e) => update('responsavel', e.target.value)}
+            placeholder="Responsável"
+            className="h-9 text-sm w-full sm:w-40 shrink-0"
+          />
+          {/* Salvar */}
+          <div className="flex items-center gap-2 shrink-0">
+            {saved && (
+              <span className="flex items-center gap-1 text-xs font-medium text-success">
+                <Check className="h-3.5 w-3.5" /> Salva
+              </span>
+            )}
+            <Button onClick={handleSave} size="sm" variant="outline" className="gap-1.5">
+              <Check className="h-4 w-4" /> Salvar
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ATRASO: card completo ──────────────────────────────────────────────────
   return (
     <div className={`bg-card rounded-xl border ${accent.ring} card-shadow overflow-hidden`}>
       {/* Header */}
