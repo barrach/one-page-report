@@ -1558,18 +1558,26 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const rowDatas         = findRowByLabel(labelMap, 'Evento ( Cronograma)', 'Evento (Cronograma)', 'EVENTO');
   const rowSemanas       = findRowByLabel(labelMap, 'Semanal', 'SEMANAL');
   const rowPrevSemLB     = findRowByLabel(labelMap, 'PREVISTO GERAL LB', 'PREVISTO GERAL LB ');
-  const rowPrevAcumLB    = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)');
+  const rowPrevAcumLB    = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)');           // row10
   const rowPrevSemReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (SEMANAL)');
-  const rowPrevAcumReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)');
+  const rowPrevAcumReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)'); // row14
   const rowRealSem       = findRowByLabel(labelMap, 'REALIZADO GERAL', 'REALIZADO GERAL ');
-  const rowRealAcum      = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');
-  const rowTend          = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)');
+  const rowRealAcum      = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');             // row12
+  const rowTendSem       = findRowByLabel(labelMap, 'TENDÊNCIA GERAL', 'TENDENCIA GERAL', 'TENDÊNCIA GERAL ', 'TENDENCIA GERAL '); // row17 (semanal)
+  const rowTend          = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)'); // row18
 
-  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcumLB < 0 || rowPrevAcumReplan < 0 || rowRealAcum < 0) {
+  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcumLB < 0 || rowRealAcum < 0) {
     return { error: 'Aba "01-CURVA S- PROJETO" não contém as linhas esperadas (Evento/Semanal/Previsto/Realizado)' };
   }
 
-  type Row = { date: Date; semana: string; prevSem: number | null; prevAcu: number | null; tendAcu: number | null; realSem: number | null; realAcu: number | null };
+  // Mantém séries SEPARADAS (não mescla LB com Replanejado)
+  type Row = {
+    date: Date; semana: string;
+    prevLbSem: number | null; prevLbAcu: number | null;     // row9/10
+    prevReplanSem: number | null; prevReplanAcu: number | null; // row13/14
+    realSem: number | null; realAcu: number | null;          // row11/12
+    tendSem: number | null;                                  // row17
+  };
   const rows: Row[] = [];
   const rDatas = g[rowDatas] || [];
   const rSem = g[rowSemanas] || [];
@@ -1579,8 +1587,8 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const rPrevAcumReplan = rowPrevAcumReplan >= 0 ? g[rowPrevAcumReplan] : [];
   const rRealSem = rowRealSem >= 0 ? g[rowRealSem] : [];
   const rRealAcum = g[rowRealAcum] || [];
-  const rT = rowTend >= 0 ? g[rowTend] : [];
-  const maxC = Math.max(rDatas.length, rSem.length, rPrevAcumLB.length, rPrevAcumReplan.length, rRealAcum.length, rT.length);
+  const rTendSem = rowTendSem >= 0 ? g[rowTendSem] : [];
+  const maxC = Math.max(rDatas.length, rSem.length, rPrevAcumLB.length, rPrevAcumReplan.length, rRealAcum.length, rTendSem.length);
   for (let c = 1; c < maxC; c++) {
     const semVal = rSem[c];
     if (semVal == null || semVal === '') break;
@@ -1588,20 +1596,20 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     if (!d) continue;
     const prevLbAcu = numOrNull(rPrevAcumLB[c]);
     const prevReplanAcu = numOrNull(rPrevAcumReplan[c]);
-    const prevLbSem = numOrNull(rPrevSemLB[c]);
-    const prevReplanSem = numOrNull(rPrevSemReplan[c]);
-    const prevAcu = prevLbAcu != null && prevLbAcu > 0 ? prevLbAcu : (prevReplanAcu != null && prevReplanAcu > 0 ? prevReplanAcu : null);
-    const prevSem = prevLbSem != null && prevLbSem > 0 ? prevLbSem : (prevReplanSem != null && prevReplanSem > 0 ? prevReplanSem : null);
     const realAcu = numOrNull(rRealAcum[c]);
-    if ((prevAcu == null || prevAcu <= 0) && (realAcu == null || realAcu <= 0)) continue;
+    if ((prevLbAcu == null || prevLbAcu <= 0)
+        && (prevReplanAcu == null || prevReplanAcu <= 0)
+        && (realAcu == null || realAcu <= 0)) continue;
     rows.push({
       date: d,
       semana: String(semVal),
-      prevSem,
-      prevAcu,
+      prevLbSem: numOrNull(rPrevSemLB[c]),
+      prevLbAcu,
+      prevReplanSem: numOrNull(rPrevSemReplan[c]),
+      prevReplanAcu,
       realSem: numOrNull(rRealSem[c]),
       realAcu,
-      tendAcu: numOrNull(rT[c]),
+      tendSem: numOrNull(rTendSem[c]),
     });
   }
   if (!rows.length) return { error: 'Aba "01-CURVA S- PROJETO" sem dados válidos' };
@@ -1611,61 +1619,77 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     return Math.abs(v) <= 1.5 ? round2(v * 100) : round2(v);
   };
 
+  // ── Posições-chave ────────────────────────────────────────────────────────
+  // lastLBidx: último índice onde LB (row10) > 0 (fim do período LB, SEM19)
+  let lastLBidx = -1;
+  rows.forEach((r, i) => { if (r.prevLbAcu != null && r.prevLbAcu > 0) lastLBidx = i; });
+  // firstReplanIdx: primeiro índice onde Replanj Previsto (row14) > 0 (SEM23)
+  let firstReplanIdx = -1;
+  for (let i = 0; i < rows.length; i++) {
+    if (rows[i].prevReplanAcu != null && rows[i].prevReplanAcu! > 0) { firstReplanIdx = i; break; }
+  }
+  // ultimaReal (STATUS): último índice onde Real Acum (row12) > 0 (SEM26)
   let ultimaReal = -1;
   rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
-  const lastRealFromCurve = ultimaReal;
-  if (statusDate) {
-    let bestIdx = -1, bestDiff = Infinity;
-    rows.forEach((r, i) => {
-      const diff = Math.abs(r.date.getTime() - statusDate.getTime());
-      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
-    });
-    if (bestIdx >= 0) ultimaReal = bestIdx;
-  }
   if (ultimaReal < 0) ultimaReal = rows.length - 1;
 
-  const hasTendencia = rows.some(r => r.tendAcu != null && r.tendAcu > 0);
+  const hasReplanejado     = rows.some(r => r.prevReplanAcu != null && r.prevReplanAcu > 0);
+  const hasRealReplanejado = firstReplanIdx >= 0; // há período replanejado → mostra Real Replanejado (row12 completa)
 
-  // Reconcile real curve with RESUMO value: if the status week is beyond
-  // the last realAcum point in L12, interpolate linearly so the chart ends
-  // at the same % shown on the KPI cards.
-  const realAcumOverride: (number | null)[] = rows.map(r => r.realAcu);
-  if (realFromResumoPct != null && lastRealFromCurve >= 0 && ultimaReal > lastRealFromCurve) {
-    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
-    const startVal = rows[lastRealFromCurve].realAcu ?? 0;
-    const gap = targetDec - startVal;
-    const steps = ultimaReal - lastRealFromCurve;
-    if (Math.abs(gap) > 0.0001 && steps > 0) {
-      for (let k = 1; k <= steps; k++) {
-        realAcumOverride[lastRealFromCurve + k] = startVal + (gap * k) / steps;
-      }
+  // ── Tendência cumulativa: do último real (row12) somando deltas row17 ──────
+  const lastRealVal = rows[ultimaReal]?.realAcu != null ? toPct(rows[ultimaReal].realAcu) : 0;
+  const tendCumulative = new Map<number, number>();
+  if (lastRealVal > 0) {
+    let cumul = lastRealVal;
+    for (let i = ultimaReal + 1; i < rows.length; i++) {
+      const ts = toPct(rows[i].tendSem);
+      if (ts > 0) { cumul = Math.min(cumul + ts, 100); tendCumulative.set(i, cumul); }
     }
-  } else if (realFromResumoPct != null && ultimaReal >= 0) {
-    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
-    realAcumOverride[ultimaReal] = targetDec;
   }
 
-  const sCurve = rows.map((r, i) => ({
-    date: r.semana,
-    previsto: r.prevAcu != null ? toPct(r.prevAcu) : (null as unknown as number),
-    real: i <= ultimaReal && realAcumOverride[i] != null ? toPct(realAcumOverride[i] as number) : (null as unknown as number),
-    tendencia: hasTendencia && r.tendAcu != null && r.tendAcu > 0 ? toPct(r.tendAcu) : (null as unknown as number),
-  }));
+  // ── sCurve — 5 séries SEPARADAS ────────────────────────────────────────────
+  // previsto       = row10 (LB Acu)            → SEM02–SEM19
+  // real           = row12 (Real Acu)          → SEM02–SEM19 (truncado em lastLBidx)
+  // replanejado    = row14 (Replanj Prev Acu)  → SEM23+
+  // realReplanejado= row12 (Real Acu COMPLETA) → todas as semanas com valor
+  // tendencia      = cumulativo                → após status
+  const sCurve = rows.map((r, i) => {
+    const previsto        = r.prevLbAcu != null && r.prevLbAcu > 0 ? toPct(r.prevLbAcu) : 0;
+    const real            = i <= lastLBidx && r.realAcu != null && r.realAcu > 0 ? toPct(r.realAcu) : 0;
+    const replanejado     = r.prevReplanAcu != null && r.prevReplanAcu > 0 ? toPct(r.prevReplanAcu) : 0;
+    const realReplanejado = r.realAcu != null && r.realAcu > 0 ? toPct(r.realAcu) : 0;
+    const tendencia       = tendCumulative.has(i) ? tendCumulative.get(i)! : 0;
+    const entry: Record<string, number | string> = { date: r.semana, previsto, real, tendencia };
+    if (hasReplanejado)     entry.replanejado     = replanejado;
+    if (hasRealReplanejado) entry.realReplanejado = realReplanejado;
+    return entry as unknown as { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number };
+  });
 
+  console.log('[FORMATO D] sCurve | lastLBidx:', lastLBidx, rows[lastLBidx]?.semana,
+    '| firstReplanIdx:', firstReplanIdx, rows[firstReplanIdx]?.semana,
+    '| ultimaReal(status):', ultimaReal, rows[ultimaReal]?.semana,
+    '| hasReplanejado:', hasReplanejado, '| hasRealReplanejado:', hasRealReplanejado,
+    '| replanj pts:', sCurve.filter(p => (p.replanejado ?? 0) > 0).length,
+    '| realReplanj pts:', sCurve.filter(p => (p.realReplanejado ?? 0) > 0).length);
+
+  // ── Visão 5 Semanas — janela centrada no status ────────────────────────────
   let wStart = ultimaReal - 2, wEnd = ultimaReal + 3;
   if (wStart < 0) { wEnd -= wStart; wStart = 0; }
   if (wEnd > rows.length) { wStart -= (wEnd - rows.length); wEnd = rows.length; wStart = Math.max(0, wStart); }
-  const weekly = rows.slice(wStart, wEnd).map(r => ({
-    date: fmtDDmmm(r.date),
-    previsto: toPct(r.prevSem),
+  const weekly = rows.slice(wStart, wEnd).map((r, wi) => ({
+    date: r.semana,
+    previsto: toPct(r.prevReplanSem != null && r.prevReplanSem > 0 ? r.prevReplanSem : r.prevLbSem),
     real: toPct(r.realSem),
+    ...(r.tendSem != null && r.tendSem > 0 ? { tendencia: toPct(r.tendSem) } : {}),
+    isStatus: (wStart + wi) === ultimaReal,
   }));
 
+  // ── Prev × Mês ─────────────────────────────────────────────────────────────
   const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
-  rows.slice(0, ultimaReal + 1).forEach((r, i) => {
+  rows.slice(0, ultimaReal + 1).forEach((r) => {
     const key = `${r.date.getFullYear()}-${String(r.date.getMonth()).padStart(2, '0')}`;
-    const realVal = realAcumOverride[i];
-    monthMap.set(key, { date: r.date, prevAcu: toPct(r.prevAcu), realAcu: realVal != null ? toPct(realVal) : 0 });
+    const prevV = r.prevReplanAcu != null && r.prevReplanAcu > 0 ? r.prevReplanAcu : r.prevLbAcu;
+    monthMap.set(key, { date: r.date, prevAcu: toPct(prevV), realAcu: r.realAcu != null ? toPct(r.realAcu) : 0 });
   });
   const monthly = [...monthMap.values()]
     .filter(m => m.prevAcu > 0)
@@ -1674,23 +1698,27 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.prevAcu, real: m.realAcu }));
 
   const dec = (v: number | null) => v == null ? 0 : (Math.abs(v) <= 1.5 ? v : v / 100);
-  const cols: CurveExtract['cols'] = rows.map((r, i) => ({
+  const cols: CurveExtract['cols'] = rows.map((r) => ({
     date: r.date,
-    prevSem: dec(r.prevSem), prevAcu: dec(r.prevAcu),
-    realSem: dec(r.realSem), realAcu: dec(realAcumOverride[i] ?? null),
-    tendSem: 0, tendAcu: dec(r.tendAcu),
-    replanjSem: 0, replanjAcu: 0,
+    prevSem: dec(r.prevLbSem), prevAcu: dec(r.prevLbAcu),
+    realSem: dec(r.realSem), realAcu: dec(r.realAcu),
+    tendSem: dec(r.tendSem), tendAcu: 0,
+    replanjSem: dec(r.prevReplanSem), replanjAcu: dec(r.prevReplanAcu),
   }));
 
   const last = rows[ultimaReal];
-  const lastRealOverride = realAcumOverride[ultimaReal];
+  // KPIs: % Realizado = row12 no status (SEM26=89); Avanço Prev = row14 no status (SEM26=87)
+  const realAcuLast = last.realAcu != null ? toPct(last.realAcu) : 0;
+  const prevAcuLast = last.prevReplanAcu != null && last.prevReplanAcu > 0
+    ? toPct(last.prevReplanAcu)
+    : (last.prevLbAcu != null ? toPct(last.prevLbAcu) : 0);
   return {
     block: null as never,
     cols, ultimaReal,
-    statusDate: statusDate || last.date,
-    realAcuLast: lastRealOverride != null ? toPct(lastRealOverride as number) : 0,
-    prevAcuLast: last.prevAcu != null ? toPct(last.prevAcu) : 0,
-    hasReplanejado: false,
+    statusDate: last.date,
+    realAcuLast,
+    prevAcuLast,
+    hasReplanejado,
     sCurve, weekly, monthly,
   };
 };
