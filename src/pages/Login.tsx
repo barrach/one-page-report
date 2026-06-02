@@ -112,9 +112,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: DARK }}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-8">
-          <div className="h-14 w-14 rounded-2xl bg-white/10 flex items-center justify-center">
-            <span className="text-white font-black text-2xl">M</span>
-          </div>
+          <img src="/logo.svg" alt="MegaHub" className="h-16 w-16 rounded-2xl shadow-lg" />
           <h1 className="text-2xl font-black text-white tracking-tight">{title}</h1>
           <p className="text-sm text-white/60 text-center">{subtitle}</p>
         </div>

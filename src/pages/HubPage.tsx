@@ -77,9 +77,7 @@ export default function HubPage() {
             transition={{ duration: 0.4 }}
             className="flex items-center justify-center gap-2 mb-4"
           >
-            <div className="h-10 w-10 rounded-xl gradient-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-black text-lg">M</span>
-            </div>
+            <img src="/logo.svg" alt="MegaHub" className="h-12 w-12 rounded-xl shadow-md" />
           </motion.div>
           <motion.h1
             initial={{ opacity: 0, y: -8 }}

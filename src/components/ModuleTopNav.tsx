@@ -9,9 +9,7 @@ export default function ModuleTopNav() {
         className="flex items-center gap-1.5 group"
         title="Voltar ao MegaHub"
       >
-        <div className="h-5 w-5 rounded-md gradient-primary flex items-center justify-center shrink-0">
-          <span className="text-primary-foreground font-black text-[10px] leading-none">M</span>
-        </div>
+        <img src="/logo.svg" alt="MegaHub" className="h-5 w-5 rounded-md shrink-0" />
         <span className="text-[12px] font-black text-foreground tracking-tight group-hover:text-primary transition-colors">
           MegaHub
         </span>
