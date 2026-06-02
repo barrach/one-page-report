@@ -11,6 +11,7 @@ const UserManagement = lazy(() => import("./pages/UserManagement"));
 import Install from "./pages/Install";
 import HubPage from "./pages/HubPage";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import ControladoriaPage from "./pages/ControladoriaPage";
 import { useProjectStore } from "./store/projectStore";
 import ModuleTopNav from "./components/ModuleTopNav";
@@ -41,8 +42,9 @@ const AppContent = () => {
       {/* pt-10 para compensar a barra MegaHub fixa (h-10) */}
       <div className="pt-10">
         <Routes>
-          {/* Login — público */}
+          {/* Login / recuperação — públicos */}
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Hub — exige autenticação */}
           <Route path="/" element={<ProtectedRoute><HubPage /></ProtectedRoute>} />
