@@ -37,7 +37,7 @@ export default function UserMenu() {
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
-            onClick={async () => { await signOut(); navigate('/login', { replace: true }); }}
+            onClick={() => signOut()}
             className="cursor-pointer text-destructive focus:text-destructive"
           >
             <LogOut className="h-4 w-4 mr-2" /> Sair

@@ -2,14 +2,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
 const Admin = lazy(() => import("./pages/Admin"));
 const UserManagement = lazy(() => import("./pages/UserManagement"));
 import Install from "./pages/Install";
-import NotFound from "./pages/NotFound";
 import HubPage from "./pages/HubPage";
 import Login from "./pages/Login";
 import ControladoriaPage from "./pages/ControladoriaPage";
@@ -66,7 +65,8 @@ const AppContent = () => {
           {/* Budget Builder / MegaPricing */}
           <Route path="/budget/*" element={<ProtectedRoute module="megapricing"><BudgetApp /></ProtectedRoute>} />
 
-          <Route path="*" element={<NotFound />} />
+          {/* Catch-all: rotas desconhecidas vão para o login */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
     </>

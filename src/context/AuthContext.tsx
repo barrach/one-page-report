@@ -124,10 +124,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isAdmin,
     hasModule: (m) => isAdmin || modules.includes(m),
     signOut: async () => {
-      await supabase.auth.signOut();
-      writeCache(null);
-      // redirect forçado (full reload) para limpar todo o estado de auth
-      window.location.href = '/login';
+      // 1. tenta revogar a sessão no Supabase (não bloqueia se falhar)
+      try { await supabase.auth.signOut(); } catch (e) { console.warn('[Auth] signOut:', (e as Error).message); }
+      // 2. limpa todo o estado local
+      try { sessionStorage.clear(); localStorage.clear(); } catch { /* ignore */ }
+      // 3. redirect forçado (sem histórico para impossibilitar "voltar")
+      window.location.replace('/login');
     },
     refreshPermissions: async () => { await loadPermissions(user, { useCache: false }); },
   };
