@@ -20,6 +20,12 @@ const EMPTY: DesvioAnalise = {
 
 const fmtPct = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1).replace('.', ',')}%`;
 
+// Cresce o textarea conforme o conteúdo
+const autoResize = (el: HTMLTextAreaElement) => {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight}px`;
+};
+
 const DesvioAnalysisCard = () => {
   const { sCurveData, info, desvioAnalise } = useCurrentProject();
   const setDesvioAnalise = useProjectStore(s => s.setDesvioAnalise);
@@ -74,44 +80,85 @@ const DesvioAnalysisCard = () => {
   const acaoPlaceholder = isAtraso ? 'Descreva as ações de recuperação...' : 'Descreva como o adiantamento será mantido...';
   const acaoLabel = isAtraso ? 'Ação Corretiva' : 'Justificativa';
 
-  // ── ADIANTAMENTO: card compacto, 2 campos em linha única ──────────────────
+  // ── ADIANTAMENTO: textarea auto-expansível; linha única quando curto,
+  //    empilha quando o texto fica longo (>= 80 chars) ────────────────────────
   if (isAdiantado) {
-    return (
-      <div className={`bg-card rounded-lg border ${accent.ring} overflow-hidden`}>
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
-          {/* Título + desvio */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            <AccentIcon className={`h-4 w-4 ${accent.text}`} />
-            <span className={`text-xs sm:text-sm font-bold ${accent.text} whitespace-nowrap`}>
-              {accent.emoji} Adiantamento {fmtPct(desvio)}
-            </span>
-          </div>
-          {/* Justificativa (expande) */}
-          <Textarea
-            rows={1} maxLength={300} value={form.acaoCorretiva}
-            onChange={(e) => update('acaoCorretiva', e.target.value)}
-            placeholder="Descreva o motivo do adiantamento..."
-            className="text-sm resize-none min-h-9 py-1.5 flex-1"
-          />
-          {/* Responsável */}
-          <Input
-            type="text" value={form.responsavel}
-            onChange={(e) => update('responsavel', e.target.value)}
-            placeholder="Responsável"
-            className="h-9 text-sm w-full sm:w-40 shrink-0"
-          />
-          {/* Salvar */}
-          <div className="flex items-center gap-2 shrink-0">
-            {saved && (
-              <span className="flex items-center gap-1 text-xs font-medium text-success">
-                <Check className="h-3.5 w-3.5" /> Salva
-              </span>
-            )}
-            <Button onClick={handleSave} size="sm" variant="outline" className="gap-1.5">
-              <Check className="h-4 w-4" /> Salvar
-            </Button>
-          </div>
+    const isLong = form.acaoCorretiva.length >= 80;
+
+    const justTextarea = (
+      <textarea
+        ref={(el) => { if (el) autoResize(el); }}
+        maxLength={300}
+        value={form.acaoCorretiva}
+        onChange={(e) => { update('acaoCorretiva', e.target.value); autoResize(e.target); }}
+        placeholder="Descreva o motivo do adiantamento..."
+        rows={1}
+        className="flex-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        style={{ resize: 'none', overflow: 'hidden', minHeight: '36px' }}
+      />
+    );
+    const responsavelInput = (
+      <Input
+        type="text" value={form.responsavel}
+        onChange={(e) => update('responsavel', e.target.value)}
+        placeholder="Responsável"
+        className="h-9 text-sm w-full sm:w-[200px] sm:shrink-0"
+      />
+    );
+    const saveBtn = (
+      <div className="flex items-center gap-2 shrink-0">
+        {saved && (
+          <span className="flex items-center gap-1 text-xs font-medium text-success">
+            <Check className="h-3.5 w-3.5" /> Salva
+          </span>
+        )}
+        <Button onClick={handleSave} size="sm" variant="outline" className="gap-1.5">
+          <Check className="h-4 w-4" /> Salvar
+        </Button>
+      </div>
+    );
+    const header = (
+      <div className="flex items-center justify-between gap-2 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <AccentIcon className={`h-4 w-4 ${accent.text}`} />
+          <span className={`text-xs sm:text-sm font-bold ${accent.text} whitespace-nowrap`}>
+            {accent.emoji} Adiantamento {fmtPct(desvio)}
+          </span>
         </div>
+        {isLong && (
+          <span className={`text-xs font-medium ${accent.text} opacity-80 whitespace-nowrap`}>
+            {fmtPct(desvio)} {accent.desvioLabel}
+          </span>
+        )}
+      </div>
+    );
+
+    return (
+      <div className={`bg-card rounded-lg border ${accent.ring}`} style={{ height: 'auto' }}>
+        {isLong ? (
+          // Empilhado
+          <div className="flex flex-col gap-2 px-3 sm:px-4 py-3">
+            {header}
+            {justTextarea}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              {responsavelInput}
+              {saveBtn}
+            </div>
+          </div>
+        ) : (
+          // Linha única (empilha só no mobile)
+          <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 px-3 sm:px-4 py-2.5">
+            <div className="flex items-center gap-1.5 shrink-0 sm:pt-1.5">
+              <AccentIcon className={`h-4 w-4 ${accent.text}`} />
+              <span className={`text-xs sm:text-sm font-bold ${accent.text} whitespace-nowrap`}>
+                {accent.emoji} Adiantamento {fmtPct(desvio)}
+              </span>
+            </div>
+            {justTextarea}
+            {responsavelInput}
+            <div className="sm:pt-0.5">{saveBtn}</div>
+          </div>
+        )}
       </div>
     );
   }
