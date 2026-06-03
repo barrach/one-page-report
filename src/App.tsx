@@ -71,7 +71,8 @@ const AppContent = () => {
           <Route path="/opr/install" element={<ProtectedRoute module="opr"><Install /></ProtectedRoute>} />
 
           {/* ProdControl */}
-          <Route path="/prodcontrol/*" element={<ProtectedRoute module="prodcontrol"><ProdControlApp /></ProtectedRoute>} />
+          {/* ProdControl — autenticação própria e independente (adpwboqltejtfzcvrvon) */}
+          <Route path="/prodcontrol/*" element={<ProdControlApp />} />
 
           {/* Controladoria */}
           <Route path="/controladoria" element={<ProtectedRoute module="controladoria"><ControladoriaPage /></ProtectedRoute>} />
