@@ -19,3 +19,11 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, 
     autoRefreshToken: true,
   }
 });
+
+// Diagnóstico: mostra no console qual projeto Supabase o MegaHub está usando.
+// Permite confirmar (em DevTools → Console) se o código em execução está no
+// projeto correto ou se o navegador está servindo bundle antigo (cache/SW).
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line no-console
+  console.log('[MegaHub] Supabase URL em uso:', SUPABASE_URL);
+}
