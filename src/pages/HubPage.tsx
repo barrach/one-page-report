@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { BarChart2, Activity, TrendingUp, HardHat, HardHat as Helmet, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import type { Module, UserRole } from "@/types/auth";
 
 const apps: {
@@ -77,11 +78,27 @@ const apps: {
 ];
 
 export default function HubPage() {
-  const { hasModule, role } = useAuth();
+  const { hasModule, role, email } = useAuth();
+  const navigate = useNavigate();
   const visibleApps = apps.filter(app => {
     if (app.roles) return !!role && app.roles.includes(role);
     return app.module ? hasModule(app.module) : true;
   });
+
+  // Ao ir para o ProdControl, repassa o token/email da sessão do MegaHub
+  // (projeto rlpmwuaaosmxlrqtruol) via localStorage para tentativa de SSO.
+  const handleCardClick = async (e: React.MouseEvent, to: string) => {
+    if (to !== '/prodcontrol') return;
+    e.preventDefault();
+    try {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) localStorage.setItem('megahub_token', token);
+      if (email) localStorage.setItem('megahub_email', email);
+    } catch { /* ignora */ }
+    navigate('/prodcontrol');
+  };
+
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
@@ -126,6 +143,7 @@ export default function HubPage() {
             >
               <Link
                 to={app.to}
+                onClick={(e) => handleCardClick(e, app.to)}
                 className="group relative flex flex-col h-full rounded-2xl overflow-hidden card-shadow-elevated hover:scale-[1.02] transition-transform duration-200"
               >
                 {/* Gradient background */}

@@ -37,6 +37,47 @@ export default function LoginPage() {
     fetchObras();
   }, []);
 
+  // SSO vindo do MegaHub: se houver megahub_token/megahub_email no localStorage,
+  // pré-preenche o e-mail e tenta login automático. Se o e-mail existir no
+  // Supabase do ProdControl e o token for válido, autentica direto; senão,
+  // mostra o formulário (com o e-mail já preenchido).
+  useEffect(() => {
+    const mhEmail = localStorage.getItem("megahub_email");
+    const mhToken = localStorage.getItem("megahub_token");
+    if (!mhEmail) return;
+    setEmail(mhEmail);
+    if (!mhToken) return;
+
+    (async () => {
+      try {
+        // Verifica se o e-mail tem perfil no ProdControl
+        const { data: prof } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("email", mhEmail)
+          .maybeSingle();
+
+        if (prof) {
+          // Tenta estabelecer a sessão com o token do MegaHub (só funciona se
+          // for o mesmo projeto Supabase; caso contrário cai no formulário).
+          const { data, error } = await supabase.auth.setSession({
+            access_token: mhToken,
+            refresh_token: mhToken,
+          });
+          if (!error && data.session?.user) {
+            // login automático bem-sucedido — o AuthProvider detecta e entra
+            return;
+          }
+        }
+      } catch {
+        /* token de outro projeto / falha → formulário com e-mail pré-preenchido */
+      } finally {
+        // token de uso único: remove para não retentar em loop
+        localStorage.removeItem("megahub_token");
+      }
+    })();
+  }, []);
+
   // If user is logged in but pending/rejected, show status screen
   if (user && userStatus && userStatus !== "aprovado") {
     return (
