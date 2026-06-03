@@ -2,8 +2,14 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_PRODCONTROL_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_PRODCONTROL_SUPABASE_PUBLISHABLE_KEY;
+// Projeto Supabase do ProdControl (Lovable): adpwboqltejtfzcvrvon.
+// Usa env var se existir e não estiver vazia; senão, valor fixo (Vercel pode
+// ter a env vazia, então o fallback garante a conexão).
+const SUPABASE_URL =
+  import.meta.env.VITE_PRODCONTROL_SUPABASE_URL || 'https://adpwboqltejtfzcvrvon.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_PRODCONTROL_SUPABASE_PUBLISHABLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkcHdib3FsdGVqdGZ6Y3Zydm9uIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzMTcwODUsImV4cCI6MjA4Njg5MzA4NX0.dgtNbEl2o4oVC0VOC-VevRkv4qap90Z7qsH2AdCFgic';
 
 // Import the supabase client like this:
 // import { supabase } from "@prodcontrol/integrations/supabase/client";

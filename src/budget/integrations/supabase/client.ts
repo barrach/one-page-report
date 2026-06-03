@@ -2,8 +2,13 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_BUDGET_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_BUDGET_SUPABASE_PUBLISHABLE_KEY;
+// Projeto Supabase do Budget/MegaPricing: kwijinuhslczxfkgtokf.
+// Env var se existir e não vazia; senão valor fixo (fallback p/ Vercel).
+const SUPABASE_URL =
+  import.meta.env.VITE_BUDGET_SUPABASE_URL || 'https://kwijinuhslczxfkgtokf.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY =
+  import.meta.env.VITE_BUDGET_SUPABASE_PUBLISHABLE_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt3aWppbnVoc2xjenhma2d0b2tmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU1NjczNTEsImV4cCI6MjA5MTE0MzM1MX0.W63l_lPz1qfqE3y_g9G-N6KM_Oh2egULgo5BfU8scBw';
 
 // Import the supabase client like this:
 // import { supabase } from "@budget/integrations/supabase/client";
