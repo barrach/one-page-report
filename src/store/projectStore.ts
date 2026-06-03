@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import { supabase } from '@/integrations/supabase/client';
+// DADOS do OPR vêm do projeto original bxmvz (FRIGO, NTS, OXICORTE, GUAXE...).
+// A autenticação fica no client principal (rlpmw); aqui é só leitura/escrita de dados.
+import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
