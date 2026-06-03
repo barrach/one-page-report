@@ -238,6 +238,20 @@ const seedProject: Project = {
   scheduleData: [{ id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
 };
 
+// ── localStorage (fallback/backup quando a tabela 'projects' não está acessível) ──
+const LS_PROJECTS_KEY = 'opr_projects';
+const loadProjectsLS = (): Project[] | null => {
+  try {
+    const raw = localStorage.getItem(LS_PROJECTS_KEY);
+    if (!raw) return null;
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? (arr as Project[]) : null;
+  } catch { return null; }
+};
+const saveProjectsLS = (projects: Project[]) => {
+  try { localStorage.setItem(LS_PROJECTS_KEY, JSON.stringify(projects)); } catch { /* quota/ignore */ }
+};
+
 // DB helpers
 const dbToProject = (row: { id: string; name: string; data: Record<string, unknown> }): Project => {
   const d = row.data as Partial<Project>;
@@ -342,22 +356,32 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
 
   loadProjects: async () => {
     set({ loading: true });
-    const { data, error } = await supabase
-      .from('projects')
-      .select('id, name, data')
-      .order('created_at', { ascending: true });
+    // 1. Tenta carregar do Supabase (tabela 'projects'). Pode falhar se a tabela
+    //    não existir no projeto atual — nesse caso usamos o localStorage.
+    let projects: Project[] | null = null;
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, name, data')
+        .order('created_at', { ascending: true });
+      if (!error && data && data.length > 0) {
+        projects = (data as Array<{ id: string; name: string; data: Record<string, unknown> }>).map(dbToProject);
+      }
+    } catch { /* tabela ausente / sem acesso → fallback */ }
 
-    if (error || !data || data.length === 0) {
-      // Seed the default project if DB is empty
-      await supabase.from('projects').upsert([projectToDb(seedProject)], { onConflict: 'id' });
-      set({ projects: [seedProject], selectedProjectId: 'guaxe', loading: false });
-      return;
+    // 2. Fallback: localStorage
+    if (!projects) {
+      const ls = loadProjectsLS();
+      if (ls && ls.length > 0) projects = ls;
     }
 
-    const projects = (data as Array<{ id: string; name: string; data: Record<string, unknown> }>).map(dbToProject);
+    // 3. Último recurso: projeto seed
+    if (!projects || projects.length === 0) projects = [seedProject];
+
     const currentId = get().selectedProjectId;
     const validId = projects.find(p => p.id === currentId) ? currentId : projects[0].id;
     set({ projects, selectedProjectId: validId, loading: false });
+    saveProjectsLS(projects);
   },
 
   selectProject: (id) => set({ selectedProjectId: id }),
@@ -615,6 +639,10 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     return { projects: updated };
   }),
 }));
+
+// Espelha os projetos no localStorage a cada mudança → backup/persistência
+// resiliente do OPR mesmo sem a tabela 'projects' no Supabase.
+useProjectStore.subscribe((state) => saveProjectsLS(state.projects));
 
 export const useCurrentProject = () => {
   const projects = useProjectStore(s => s.projects);

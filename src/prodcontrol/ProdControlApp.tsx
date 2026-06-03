@@ -15,14 +15,14 @@ import AprovacoesPage from "@prodcontrol/pages/AprovacoesPage";
 import RelatorioIA from "@prodcontrol/pages/RelatorioIA";
 import RelatoriosPage from "@prodcontrol/pages/RelatoriosPage";
 import RelatoriosSalvosPage from "@prodcontrol/pages/RelatoriosSalvosPage";
+import LoginPage from "@prodcontrol/pages/LoginPage";
 import NotFound from "@prodcontrol/pages/NotFound";
 
 function ProdControlRoutes() {
   useOfflineSync();
-  // Auth UNIFICADA: o acesso (login + módulo 'prodcontrol') já é garantido pelo
-  // ProtectedRoute do MegaHub. Aqui só aguardamos a sessão compartilhada carregar
-  // para ter user.id disponível nas páginas internas — sem tela de login própria.
-  const { loading } = useAuth();
+  // Auth ISOLADA do ProdControl: identifica o usuário pelo Supabase próprio
+  // (adpwboqltejtfzcvrvon), independente do MegaHub. Sem sessão própria → LoginPage.
+  const { user, loading, isApproved } = useAuth();
 
   if (loading) {
     return (
@@ -30,6 +30,10 @@ function ProdControlRoutes() {
         <div className="text-muted-foreground text-sm">Carregando...</div>
       </div>
     );
+  }
+
+  if (!user || !isApproved) {
+    return <LoginPage />;
   }
 
   return (
