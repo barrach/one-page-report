@@ -38,9 +38,12 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     reset(); setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     setSubmitting(false);
-    if (error) { setError('E-mail ou senha inválidos.'); return; }
+    if (error) {
+      setError('E-mail ou senha inválidos. Primeiro acesso? Clique em "Criar conta" para definir sua senha.');
+      return;
+    }
     navigate(redirectTo, { replace: true });
   };
 
@@ -98,7 +101,7 @@ export default function Login() {
     });
     setSubmitting(false);
     if (error) { setError('Não foi possível enviar o e-mail de recuperação.'); return; }
-    setInfo('E-mail de recuperação enviado. Verifique sua caixa de entrada.');
+    setInfo('Se já existe uma conta com este e-mail, o link de recuperação foi enviado. Se for seu primeiro acesso, use "Criar conta" para definir a senha.');
   };
 
   const title = mode === 'signup' ? 'Criar conta' : mode === 'forgot' ? 'Recuperar senha' : 'MegaHub';

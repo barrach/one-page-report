@@ -146,12 +146,17 @@ export default function UserManagement() {
                       </td>
                       <td className="py-2.5 px-3">
                         <div className="flex flex-wrap gap-1">
-                          {r.modules.length === 0 ? <span className="text-xs text-muted-foreground">—</span>
-                            : r.modules.map(m => (
-                              <span key={m} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-foreground">
-                                {ALL_MODULES.find(x => x.id === m)?.label ?? m}
-                              </span>
-                            ))}
+                          {(() => {
+                            // Só exibe módulos válidos/existentes (ignora legados como 'megawork').
+                            const mods = r.modules.filter(m => ALL_MODULES.some(x => x.id === m));
+                            return mods.length === 0
+                              ? <span className="text-xs text-muted-foreground">—</span>
+                              : mods.map(m => (
+                                <span key={m} className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-foreground">
+                                  {ALL_MODULES.find(x => x.id === m)?.label ?? m}
+                                </span>
+                              ));
+                          })()}
                         </div>
                       </td>
                       <td className="py-2.5 px-4">
