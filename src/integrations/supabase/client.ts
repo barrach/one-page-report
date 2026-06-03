@@ -2,8 +2,10 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+// VALORES FIXOS TEMPORÁRIOS — projeto rlpmwuaaosmxlrqtruol.
+// (Não depende das env vars do Vercel.)
+const SUPABASE_URL = 'https://rlpmwuaaosmxlrqtruol.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJscG13dWFhb3NteGxycXRydW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzODg5OTUsImV4cCI6MjA5NTk2NDk5NX0.Es55o3SOH2jYZkKTe3wA_ZkL1qaefJw0oEZrB7lh25w';
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
