@@ -1,4 +1,5 @@
 import { Routes, Route } from "react-router-dom";
+import { Toaster } from "@prodcontrol/components/ui/toaster";
 import { useOfflineSync } from "@prodcontrol/hooks/useOfflineSync";
 import { AuthProvider, useAuth } from "@prodcontrol/contexts/AuthContext";
 import Dashboard from "@prodcontrol/pages/Dashboard";
@@ -61,6 +62,7 @@ export default function ProdControlApp() {
   return (
     <AuthProvider>
       <ProdControlRoutes />
+      <Toaster />
     </AuthProvider>
   );
 }
