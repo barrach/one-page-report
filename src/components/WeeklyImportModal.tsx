@@ -2579,8 +2579,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
-        if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
-        if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
+        if (fdInfo.prevAcumLB != null && fdInfo.prevAcumLB > 0) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
+        if (fdInfo.realAcum != null && fdInfo.realAcum > 0) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
         if (fdInfo.prevSemanal != null) infoPatch.prevSemana = fdInfo.prevSemanal;
         if (fdInfo.realSemanal != null) infoPatch.realSemana = fdInfo.realSemanal;
         if (fdInfo.desvioSemanal != null) infoPatch.desvioSemana = fdInfo.desvioSemanal;
