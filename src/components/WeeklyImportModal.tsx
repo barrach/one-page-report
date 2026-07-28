@@ -1732,7 +1732,7 @@ const findFormatEHistSheet = (allSheets: SheetRef[]): SheetRef | null => {
 const extractFormatEInfo = (curveRef: SheetRef, colShift = 0): FormatEInfo => {
   const g = curveRef.grid;
   // Original openpyxl cells are 1-based; ajusta pelo shift do SheetJS.
-  const cell = (r1: number, c1: number) => (g[r1 - 1] as unknown[] | undefined)?.[c1 - 1 - colShift];
+  const cell = (r1: number, c1: number) => (g[r1 - 1] as unknown[] | undefined)?.[c1 - 1 + colShift];
   const str = (v: unknown) => { const s = String(v ?? '').trim(); return s || undefined; };
   const num = (v: unknown): number | undefined =>
     typeof v === 'number' && isFinite(v) ? v : undefined;
