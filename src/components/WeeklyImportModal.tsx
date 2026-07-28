@@ -2580,6 +2580,23 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           const m = fdInfo.escopo.match(/PROJETO\s+(.+)$/i);
           infoPatch.projeto = (m ? m[1] : fdInfo.escopo).trim();
         }
+        // Source of truth for KPI %: rows "Evento (Cronograma)" + "Semanal" +
+        // "REALIZADO GERAL (ACUMULADO)" aligned to the status date. The RESUMO
+        // sheet is often stale, so curve-derived values take precedence.
+        const fdCurve = result?.curve && !('error' in result.curve) ? result.curve : null;
+        if (fdCurve && fdCurve.cols.length) {
+          const idx = fdCurve.ultimaReal >= 0 ? fdCurve.ultimaReal : fdCurve.cols.length - 1;
+          const col = fdCurve.cols[idx];
+          const next = fdCurve.cols[idx + 1];
+          const pct = (v: number) => Math.abs(v) <= 1.5 ? v * 100 : v;
+          if (col.prevAcu != null) { const p = pct(col.prevAcu); infoPatch.avancoPrev = p; infoPatch.prevAcumulado = p; }
+          if (col.realAcu != null) { const r = pct(col.realAcu); infoPatch.avancoReal = r; infoPatch.realAcumulado = r; }
+          if (col.prevSem != null) infoPatch.prevSemana = pct(col.prevSem);
+          if (col.realSem != null) infoPatch.realSemana = pct(col.realSem);
+          if (col.prevAcu != null && col.realAcu != null) infoPatch.desvioAcumulado = pct(col.realAcu - col.prevAcu);
+          if (col.prevSem != null && col.realSem != null) infoPatch.desvioSemana = pct(col.realSem - col.prevSem);
+          if (next && next.prevSem != null) infoPatch.previstoProxSemana = pct(next.prevSem);
+        }
       }
     }
 
