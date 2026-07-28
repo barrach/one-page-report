@@ -1952,8 +1952,12 @@ const detectFormatE = (allSheets: SheetRef[]): FormatEBundle | null => {
   const curveRef = findFormatECurveSheet(allSheets);
   if (!curveRef) return null;
   const histRef = findFormatEHistSheet(allSheets);
-  const info = extractFormatEInfo(curveRef);
-  console.log('[FORMATO E] detectado', { curve: curveRef.sheetName, hist: histRef?.sheetName, info });
+  // Descobre shift do SheetJS: label "Métrica" originalmente em col B (1). Se
+  // SheetJS derrubou a col A vazia, apareceria em col 0 → shift = -1.
+  const found = detectLabelCol(curveRef.grid, 'métrica');
+  const colShift = found ? (found.labelCol - 1) : 0;
+  const info = extractFormatEInfo(curveRef, colShift);
+  console.log('[FORMATO E] detectado', { curve: curveRef.sheetName, hist: histRef?.sheetName, colShift, info });
   return { curveRef, histRef, info };
 };
 
