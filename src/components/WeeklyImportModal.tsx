@@ -1653,7 +1653,12 @@ const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
   if (!curveRef) {
     console.warn('[FORMATO D] Aba "01-CURVA S- PROJETO" não encontrada');
     return null;
-}
+  }
+  const histRef = allSheets.find(s => norm(s.sheetName) === 'histograma') || null;
+  const info = extractFormatDInfo(resumo);
+  console.log('[FORMATO D] detectado', { resumo: resumo.sheetName, curve: curveRef.sheetName, hist: histRef?.sheetName, info });
+  return { resumoRef: resumo, curveRef, histRef, info };
+};
 
 
 // ═══════════════════════════════════════════════════════════════════
