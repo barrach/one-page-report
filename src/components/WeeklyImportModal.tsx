@@ -1653,7 +1653,286 @@ const detectFormatD = (allSheets: SheetRef[]): FormatDBundle | null => {
   if (!curveRef) {
     console.warn('[FORMATO D] Aba "01-CURVA S- PROJETO" não encontrada');
     return null;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// FORMATO E — "Curva S - Geral Projeto" (Curva_S_Modelo_25.xlsx)
+// Aba curva:  linha "Métrica" (col B) + datas em col C+; abaixo:
+//   "Prev. Acum. %" | "Real Acum. %" | "Tendência %"  (valores 0-1)
+// Aba hist:   linha "data" (col Y=25) + datas em col Z+; abaixo:
+//   "TOTAL PREVISTO" | "TOTAL REAL"   (valores diários de headcount)
+// Info do projeto: R7 (data corte E7, início G7, término I7), R4/R8.
+// ═══════════════════════════════════════════════════════════════════
+
+interface FormatEInfo {
+  dataStatus?: Date;
+  inicio?: Date;
+  terminoLB?: Date;
+  terminoPrev?: Date;
+  atividade?: string;
+  escopo?: string;
+  gestorCliente?: string;
+  prazoTotal?: number;
+}
+
+interface FormatEBundle {
+  curveRef: SheetRef;
+  histRef: SheetRef | null;
+  info: FormatEInfo;
+}
+
+const findFormatECurveSheet = (allSheets: SheetRef[]): SheetRef | null => {
+  // Aba curva: nome contém "curva s" + "geral projeto"; valida linha "Métrica" em col B
+  const cand = allSheets.find(s => {
+    const n = norm(s.sheetName);
+    return n.includes('curva s') && n.includes('geral projeto');
+  });
+  if (!cand) return null;
+  const hasMetrica = cand.grid.some(row => {
+    const b = row?.[1];
+    return b != null && norm(b) === 'métrica';
+  });
+  return hasMetrica ? cand : null;
+};
+
+const findFormatEHistSheet = (allSheets: SheetRef[]): SheetRef | null => {
+  const cand = allSheets.find(s => norm(s.sheetName) === 'histograma');
+  if (!cand) return null;
+  const hasDataLabel = cand.grid.some(row => {
+    // Row 14 tem "data" na col Y (index 24). Também aceita variações vizinhas.
+    for (let c = 20; c < Math.min(row?.length ?? 0, 30); c++) {
+      if (norm((row as unknown[])[c]) === 'data') return true;
+    }
+    return false;
+  });
+  return hasDataLabel ? cand : null;
+};
+
+const extractFormatEInfo = (curveRef: SheetRef): FormatEInfo => {
+  const g = curveRef.grid;
+  const cell = (r1: number, c1: number) => (g[r1 - 1] as unknown[] | undefined)?.[c1 - 1];
+  const str = (v: unknown) => { const s = String(v ?? '').trim(); return s || undefined; };
+  const num = (v: unknown): number | undefined =>
+    typeof v === 'number' && isFinite(v) ? v : undefined;
+  return {
+    dataStatus:    toDate(cell(7, 5))  || undefined,   // E7
+    inicio:        toDate(cell(7, 7))  || undefined,   // G7
+    terminoLB:     toDate(cell(7, 9))  || undefined,   // I7
+    terminoPrev:   toDate(cell(7, 14)) || undefined,   // N7
+    prazoTotal:    num(cell(7, 11)),                   // K7
+    atividade:     str(cell(4, 9)),                    // I4
+    escopo:        str(cell(8, 2)),                    // B8
+    gestorCliente: str(cell(4, 16)),                   // P4 (aprox)
+  };
+};
+
+const extractFormatECurve = (curveRef: SheetRef, statusDate?: Date): CurveExtract | { error: string } => {
+  const g = curveRef.grid;
+  // Localiza linha "Métrica" em col B
+  let rMet = -1;
+  g.forEach((row, i) => { if (rMet < 0 && norm(row?.[1]) === 'métrica') rMet = i; });
+  if (rMet < 0) return { error: 'Aba "Curva S - Geral Projeto": linha "Métrica" não encontrada' };
+
+  // Procura Prev / Real / Tendência nas próximas 6 linhas
+  let rPrev = -1, rReal = -1, rTend = -1;
+  for (let i = rMet + 1; i < Math.min(rMet + 8, g.length); i++) {
+    const lbl = norm(g[i]?.[1]);
+    if (rPrev < 0 && lbl.includes('prev') && lbl.includes('acum')) rPrev = i;
+    if (rReal < 0 && lbl.includes('real') && lbl.includes('acum')) rReal = i;
+    if (rTend < 0 && lbl.includes('tend')) rTend = i;
   }
+  if (rPrev < 0 || rReal < 0) return { error: 'Linhas "Prev. Acum. %" / "Real Acum. %" não encontradas' };
+
+  const rowDates = g[rMet] || [];
+  const rowPrev = g[rPrev] || [];
+  const rowReal = g[rReal] || [];
+  const rowTend = rTend >= 0 ? (g[rTend] || []) : [];
+
+  type Row = { date: Date; prevAcu: number | null; realAcu: number | null; tendAcu: number | null };
+  const raw: Row[] = [];
+  for (let c = 2; c < rowDates.length; c++) {
+    const d = toDate(rowDates[c]);
+    if (!d) continue;
+    const num = (v: unknown): number | null =>
+      typeof v === 'number' && isFinite(v) ? v : null;
+    raw.push({ date: d, prevAcu: num(rowPrev[c]), realAcu: num(rowReal[c]), tendAcu: num(rowTend[c]) });
+  }
+  if (!raw.length) return { error: 'Aba Curva S: nenhuma data válida encontrada' };
+
+  // Agrega diário → semanal (bucket de 7 dias a partir do primeiro dia)
+  const t0 = raw[0].date.getTime();
+  const dayMs = 86400 * 1000;
+  const buckets = new Map<number, Row[]>();
+  raw.forEach(r => {
+    const wk = Math.floor((r.date.getTime() - t0) / (7 * dayMs));
+    if (!buckets.has(wk)) buckets.set(wk, []);
+    buckets.get(wk)!.push(r);
+  });
+  const weeks: Row[] = [...buckets.keys()].sort((a,b)=>a-b).map(k => {
+    const arr = buckets.get(k)!;
+    // Último ponto com prev definido (acumulado é monotônico não-decrescente)
+    const withPrev = arr.filter(r => r.prevAcu != null);
+    const withReal = arr.filter(r => r.realAcu != null);
+    const withTend = arr.filter(r => r.tendAcu != null);
+    const last = arr[arr.length - 1];
+    return {
+      date: last.date,
+      prevAcu: withPrev.length ? withPrev[withPrev.length - 1].prevAcu : null,
+      realAcu: withReal.length ? withReal[withReal.length - 1].realAcu : null,
+      tendAcu: withTend.length ? withTend[withTend.length - 1].tendAcu : null,
+    };
+  });
+
+  // Semanal (delta) por diferença dos acumulados
+  const withDelta = weeks.map((w, i) => {
+    const prev = i > 0 ? weeks[i - 1] : null;
+    const prevSem = w.prevAcu != null && prev?.prevAcu != null ? Math.max(0, w.prevAcu - prev.prevAcu) : (w.prevAcu ?? 0);
+    const realSem = w.realAcu != null && prev?.realAcu != null ? Math.max(0, w.realAcu - prev.realAcu) : (w.realAcu ?? 0);
+    return { ...w, prevSem, realSem };
+  });
+
+  // ultimaReal: última semana com real definido e > 0
+  let ultimaReal = -1;
+  withDelta.forEach((w, i) => { if (w.realAcu != null && w.realAcu > 0) ultimaReal = i; });
+  if (ultimaReal < 0) ultimaReal = withDelta.length - 1;
+  if (statusDate) {
+    let bestIdx = -1, bestDiff = Infinity;
+    withDelta.forEach((r, i) => {
+      const diff = Math.abs(r.date.getTime() - statusDate.getTime());
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    });
+    if (bestIdx >= 0) ultimaReal = bestIdx;
+  }
+
+  const hasTend = withDelta.some(w => w.tendAcu != null && w.tendAcu > 0);
+  const toPct = (v: number | null | undefined) => v == null ? 0 : round2(v * 100);
+
+  const sCurve = withDelta.map((w, i) => ({
+    date: fmtDDmmm(w.date),
+    previsto: toPct(w.prevAcu),
+    real: i <= ultimaReal && w.realAcu != null ? toPct(w.realAcu) : (null as unknown as number),
+    tendencia: hasTend && w.tendAcu != null && w.tendAcu > 0 ? toPct(w.tendAcu) : (null as unknown as number),
+  }));
+
+  let wStart = ultimaReal - 2, wEnd = ultimaReal + 3;
+  if (wStart < 0) { wEnd -= wStart; wStart = 0; }
+  if (wEnd > withDelta.length) { wStart -= (wEnd - withDelta.length); wEnd = withDelta.length; wStart = Math.max(0, wStart); }
+  const weekly = withDelta.slice(wStart, wEnd).map(w => ({
+    date: fmtDDmmm(w.date),
+    previsto: round2(w.prevSem * 100),
+    real: round2(w.realSem * 100),
+  }));
+
+  const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
+  withDelta.slice(0, ultimaReal + 1).forEach(w => {
+    const key = `${w.date.getFullYear()}-${String(w.date.getMonth()).padStart(2, '0')}`;
+    monthMap.set(key, { date: w.date, prevAcu: toPct(w.prevAcu), realAcu: toPct(w.realAcu) });
+  });
+  const monthly = [...monthMap.values()]
+    .filter(m => m.prevAcu > 0)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .slice(-4)
+    .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.prevAcu, real: m.realAcu }));
+
+  const cols: CurveExtract['cols'] = withDelta.map(w => ({
+    date: w.date,
+    prevSem: w.prevSem, prevAcu: w.prevAcu ?? 0,
+    realSem: w.realSem, realAcu: w.realAcu ?? 0,
+    tendSem: 0, tendAcu: w.tendAcu ?? 0,
+    replanjSem: 0, replanjAcu: 0,
+  }));
+
+  const last = withDelta[ultimaReal];
+  return {
+    block: null as never,
+    cols, ultimaReal,
+    statusDate: statusDate || last.date,
+    realAcuLast: toPct(last.realAcu),
+    prevAcuLast: toPct(last.prevAcu),
+    hasReplanejado: false,
+    sCurve, weekly, monthly,
+  };
+};
+
+const extractFormatEHist = (histRef: SheetRef): HistExtract | { error: string } => {
+  const g = histRef.grid;
+  // Localiza linha com "data" (col Y ~24)
+  let rData = -1, cDataStart = -1;
+  for (let i = 0; i < g.length; i++) {
+    const row = g[i] || [];
+    for (let c = 20; c < Math.min(row.length, 30); c++) {
+      if (norm(row[c]) === 'data') { rData = i; cDataStart = c + 1; break; }
+    }
+    if (rData >= 0) break;
+  }
+  if (rData < 0) return { error: 'Aba Histograma: linha "data" não encontrada' };
+
+  // Encontra TOTAL PREVISTO / TOTAL REAL nas próximas 4 linhas
+  let rPrev = -1, rReal = -1;
+  for (let i = rData + 1; i < Math.min(rData + 6, g.length); i++) {
+    const row = g[i] || [];
+    for (let c = cDataStart - 3; c < cDataStart; c++) {
+      const n = norm(row[c]);
+      if (rPrev < 0 && n.includes('total') && n.includes('prev')) rPrev = i;
+      if (rReal < 0 && n.includes('total') && n.includes('real')) rReal = i;
+    }
+  }
+  if (rPrev < 0 || rReal < 0) return { error: 'Aba Histograma: TOTAL PREVISTO/REAL não encontrados' };
+
+  const rowDates = g[rData] || [];
+  const rowPrev = g[rPrev] || [];
+  const rowReal = g[rReal] || [];
+
+  type P = { date: Date; prev: number; real: number };
+  const raw: P[] = [];
+  for (let c = cDataStart; c < rowDates.length; c++) {
+    const d = toDate(rowDates[c]);
+    if (!d) continue;
+    const p = typeof rowPrev[c] === 'number' ? (rowPrev[c] as number) : 0;
+    const r = typeof rowReal[c] === 'number' ? (rowReal[c] as number) : 0;
+    raw.push({ date: d, prev: p, real: r });
+  }
+  if (!raw.length) return { error: 'Aba Histograma: sem dados diários' };
+
+  // Agrega diário → semanal (7 dias a partir do primeiro), pegando o MAX
+  const t0 = raw[0].date.getTime();
+  const dayMs = 86400 * 1000;
+  const buckets = new Map<number, P[]>();
+  raw.forEach(p => {
+    const wk = Math.floor((p.date.getTime() - t0) / (7 * dayMs));
+    if (!buckets.has(wk)) buckets.set(wk, []);
+    buckets.get(wk)!.push(p);
+  });
+  const histogram = [...buckets.keys()].sort((a,b)=>a-b).map(k => {
+    const arr = buckets.get(k)!;
+    const monday = arr[0].date;
+    const previsto = arr.reduce((m, x) => Math.max(m, x.prev), 0);
+    const real = arr.reduce((m, x) => Math.max(m, x.real), 0);
+    const label = fmtDDmmm(monday);
+    return { date: label, semana: label, previsto: Math.round(previsto), real: Math.round(real) };
+  });
+
+  let ultimaReal = -1;
+  histogram.forEach((h, i) => { if (h.real > 0) ultimaReal = i; });
+  if (ultimaReal < 0) ultimaReal = histogram.length - 1;
+
+  return {
+    block: { ref: histRef } as unknown as HistBlock,
+    total: histogram.length,
+    ultimaReal,
+    histogram,
+  };
+};
+
+const detectFormatE = (allSheets: SheetRef[]): FormatEBundle | null => {
+  const curveRef = findFormatECurveSheet(allSheets);
+  if (!curveRef) return null;
+  const histRef = findFormatEHistSheet(allSheets);
+  const info = extractFormatEInfo(curveRef);
+  console.log('[FORMATO E] detectado', { curve: curveRef.sheetName, hist: histRef?.sheetName, info });
+  return { curveRef, histRef, info };
+};
   const histRef = allSheets.find(s => norm(s.sheetName) === 'histograma') || null;
   const info = extractFormatDInfo(resumo);
   console.log('[FORMATO D] detectado', { resumo: resumo.sheetName, curve: curveRef.sheetName, hist: histRef?.sheetName, info });
