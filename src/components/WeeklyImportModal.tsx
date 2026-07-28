@@ -1956,11 +1956,6 @@ const detectFormatE = (allSheets: SheetRef[]): FormatEBundle | null => {
   console.log('[FORMATO E] detectado', { curve: curveRef.sheetName, hist: histRef?.sheetName, info });
   return { curveRef, histRef, info };
 };
-  const histRef = allSheets.find(s => norm(s.sheetName) === 'histograma') || null;
-  const info = extractFormatDInfo(resumo);
-  console.log('[FORMATO D] detectado', { resumo: resumo.sheetName, curve: curveRef.sheetName, hist: histRef?.sheetName, info });
-  return { resumoRef: resumo, curveRef, histRef, info };
-};
 
 
 interface FileScan {
