@@ -1769,7 +1769,7 @@ const extractFormatECurve = (curveRef: SheetRef, statusDate?: Date): CurveExtrac
 
   type Row = { date: Date; prevAcu: number | null; realAcu: number | null; tendAcu: number | null };
   const raw: Row[] = [];
-  for (let c = 2; c < rowDates.length; c++) {
+  for (let c = dataStartCol; c < rowDates.length; c++) {
     const d = toDate(rowDates[c]);
     if (!d) continue;
     const num = (v: unknown): number | null =>
