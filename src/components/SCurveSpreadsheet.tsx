@@ -17,12 +17,9 @@ const SCurveSpreadsheet = () => {
   const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const hasReplanejadoData     = sCurveData.some(p => (p.replanejado ?? 0) > 0);
-  const hasRealReplanejadoData = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
+  const hasReplanejadoData = sCurveData.some(p => (p.replanejado ?? 0) > 0);
   const [showReplanejadoManual, setShowReplanejadoManual] = useState(false);
-  // Mostra as linhas de replanejado se houver dados OU se o toggle manual estiver ativo
-  const showReplanejado    = hasReplanejadoData    || showReplanejadoManual;
-  const showRealReplanejado = hasRealReplanejadoData || showReplanejadoManual;
+  const showReplanejado = hasReplanejadoData || showReplanejadoManual;
   const setShowReplanejado = setShowReplanejadoManual;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -145,17 +142,6 @@ const SCurveSpreadsheet = () => {
             <ClearDataButton sectionName="Dados da Curva S" onConfirm={() => setSCurveData([])} />
           )}
         </div>
-        <button
-          onClick={() => setShowReplanejado(v => !v)}
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
-            showReplanejadoManual
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground border-border hover:text-foreground'
-          }`}
-          title="Mostrar/ocultar linhas de Replanejado"
-        >
-          {showReplanejadoManual ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
-        </button>
       </div>
 
       {showPaste && (
@@ -192,17 +178,16 @@ const SCurveSpreadsheet = () => {
               ))}
             </tr>
             {[
-              { label: 'Linha base %',        field: 'previsto'         as const, always: true  },
-              { label: 'Real Acum. %',        field: 'real'             as const, always: true  },
-              { label: 'Prev. Replanejado %', field: 'replanejado'      as const, always: false, show: showReplanejado },
-              { label: 'Real Replanejado %',  field: 'realReplanejado'  as const, always: false, show: showRealReplanejado },
-              { label: 'Tendência %',         field: 'tendencia'        as const, always: true  },
-            ].filter(r => r.always || r.show).map(({ label, field }) => (
+              { label: 'Linha base %', field: 'previsto' as const },
+              { label: 'Real Acum. %', field: 'real' as const },
+              { label: 'Tendência %', field: 'tendencia' as const },
+              ...(showReplanejado ? [{ label: 'Replanejado %', field: 'replanejado' as const }] : []),
+            ].map(({ label, field }) => (
               <tr key={field}>
                 <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
                 {sCurveData.map((point, i) => (
                   <td key={i} className="border border-border px-1 py-1">
-                    <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(point[field] ?? 0) || ''} onChange={(e) => updateCell(i, field, e.target.value)} />
+                    <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={point[field] ?? ''} onChange={(e) => updateCell(i, field, e.target.value)} />
                   </td>
                 ))}
               </tr>

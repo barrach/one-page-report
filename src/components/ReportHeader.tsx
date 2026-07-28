@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort, getWeekOfYear } from '@/lib/dateUtils';
 
@@ -85,21 +85,21 @@ const ExecutiveSummaryStrip = ({ idp, text }: { idp: number; text: string }) => 
 };
 
 const ReportHeader = () => {
-  const { info, sCurveData, weeklyData, programacaoSemanal } = useCurrentProject();
+  const { info, sCurveData, weeklyData } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
-  // ULTIMA_SEMANA = last index where Real > 0 OR Real Replanejado > 0
+  // ULTIMA_SEMANA = last index where Real Acum. % > 0
   const ultIdx = (() => {
     for (let i = sCurveData.length - 1; i >= 0; i--) {
-      if ((sCurveData[i]?.real ?? 0) > 0 || (sCurveData[i]?.realReplanejado ?? 0) > 0) return i;
+      if ((sCurveData[i]?.real ?? 0) > 0) return i;
     }
     return -1;
   })();
-  // PENULTIMA_SEMANA = previous index with real data
+  // PENULTIMA_SEMANA = previous index with Real > 0
   const penIdx = (() => {
     for (let i = ultIdx - 1; i >= 0; i--) {
-      if ((sCurveData[i]?.real ?? 0) > 0 || (sCurveData[i]?.realReplanejado ?? 0) > 0) return i;
+      if ((sCurveData[i]?.real ?? 0) > 0) return i;
     }
     return -1;
   })();
@@ -107,32 +107,32 @@ const ReportHeader = () => {
   const ultPoint = ultIdx >= 0 ? sCurveData[ultIdx] : null;
   const penPoint = penIdx >= 0 ? sCurveData[penIdx] : null;
 
-  const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
+  const hasReplanejado = sCurveData.some(p => (p as any).replanejado != null && (p as any).replanejado !== 0);
   const refLabel = hasReplanejado ? 'replanj.' : 'LB';
 
-  // Real: use realReplanejado (Format C) when available, else real (other formats)
-  const getRealAt = (p: typeof ultPoint) =>
-    p == null ? 0 : (p.realReplanejado ?? 0) > 0 ? (p.realReplanejado ?? 0) : (p.real ?? 0);
-  // Prev: use replanejado (Format C) when available, else previsto
-  const getPrevAt = (p: typeof ultPoint) =>
-    p == null ? 0 : (p.replanejado ?? 0) > 0 ? (p.replanejado ?? 0) : (p.previsto ?? 0);
-
   // Prefer authoritative values from import (FORMATO D), fallback to S-Curve derivation
-  const avancoReal = info.realAcumulado ?? getRealAt(ultPoint);
-  const refPrev    = info.prevAcumulado ?? getPrevAt(ultPoint);
-  const prevAvancoReal = getRealAt(penPoint);
-  const prevRefPrev    = getPrevAt(penPoint);
+  const avancoReal = info.realAcumulado ?? (ultPoint?.real ?? 0);
+  const refPrev = info.prevAcumulado ?? (ultPoint
+    ? (hasReplanejado && (ultPoint as any).replanejado != null
+        ? (ultPoint as any).replanejado
+        : (ultPoint.previsto ?? 0))
+    : 0);
+  const prevAvancoReal = penPoint?.real ?? 0;
+  const prevRefPrev = penPoint
+    ? (hasReplanejado && (penPoint as any).replanejado != null
+        ? (penPoint as any).replanejado
+        : (penPoint.previsto ?? 0))
+    : 0;
 
-  // Weekly Real % derived from accumulated delta.
-  // Quando há replanejamento, ignorar info.desvioSemana/desvioAcumulado (vêm do RESUMO,
-  // relativos à LB) e calcular sempre da Curva S (Real Replanejado).
-  const realSemUltCalc = ultIdx > 0 ? avancoReal - getRealAt(sCurveData[ultIdx - 1]) : avancoReal;
-  const realSemUlt = hasReplanejado ? realSemUltCalc : (info.desvioSemana ?? realSemUltCalc);
+  // Weekly Real % derived from accumulated delta
+  const realSemUlt = info.desvioSemana ?? (ultIdx > 0
+    ? avancoReal - (sCurveData[ultIdx - 1]?.real ?? 0)
+    : avancoReal);
   const realSemPen = penIdx > 0
-    ? prevAvancoReal - getRealAt(sCurveData[penIdx - 1])
+    ? prevAvancoReal - (sCurveData[penIdx - 1]?.real ?? 0)
     : prevAvancoReal;
 
-  const desvio = hasReplanejado ? (avancoReal - refPrev) : (info.desvioAcumulado ?? (avancoReal - refPrev));
+  const desvio = info.desvioAcumulado ?? (avancoReal - refPrev);
   const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
   const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
 
@@ -188,7 +188,7 @@ const ReportHeader = () => {
       <div className="gradient-primary rounded-t-xl px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
           <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
-            One Page Report — MegaHub
+            One Page Report — MEGASTEAM
           </h1>
           <p className="text-[11px] text-primary-foreground/60 mt-0.5">
             {info.projeto}
@@ -251,29 +251,23 @@ const ReportHeader = () => {
 
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-3 sm:p-4">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
-
-          {/* Card 1 — % Realizado (equal weight, compact) */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0, duration: 0.35 }}
-            className="gradient-primary rounded-xl p-3 sm:p-4 card-shadow border-0 flex flex-col gap-2 justify-between"
-          >
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-2 sm:gap-3">
+          {/* Card 1 — % Realizado */}
+          <div className="col-span-2 sm:col-span-3 lg:col-span-2 gradient-primary rounded-xl p-4 card-shadow border-0 flex flex-col gap-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
                 % Realizado
               </span>
-              <BarChart3 className="h-4 w-4 text-primary-foreground/50" />
+              <BarChart3 className="h-4 w-4 text-primary-foreground/60" />
             </div>
-            <div className="flex items-end justify-between gap-1">
-              <span className={`text-xl font-bold leading-tight ${avancoReal >= refPrev ? 'text-success' : 'text-destructive'}`}>
-                {fmtBR(avancoReal)}%
-              </span>
-              <span className="text-[11px] text-primary-foreground/60 pb-0.5">/ {fmtBR(refPrev)}% {refLabel}</span>
+            <div className="flex items-end justify-between">
+              <div className="flex items-end gap-2">
+                <span className={`text-3xl font-bold ${avancoReal >= refPrev ? 'text-success' : 'text-destructive'}`}>{fmtBR(avancoReal)}%</span>
+              </div>
+              <span className="text-sm text-primary-foreground/60 pb-1">/ {fmtBR(refPrev)}% {refLabel}</span>
             </div>
             <div className="relative">
-              <div className="h-2 bg-primary-foreground/20 rounded-full overflow-hidden">
+              <div className="h-2.5 bg-primary-foreground/20 rounded-full overflow-hidden">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min(avancoReal, 100)}%` }}
@@ -282,7 +276,7 @@ const ReportHeader = () => {
                 />
               </div>
               <div
-                className="absolute top-0 h-2 w-0.5 bg-warning rounded-full"
+                className="absolute top-0 h-2.5 w-0.5 bg-warning rounded-full"
                 style={{ left: `${Math.min(refPrev, 100)}%` }}
               />
             </div>
@@ -293,7 +287,7 @@ const ReportHeader = () => {
               </span>
               <span>100%</span>
             </div>
-          </motion.div>
+          </div>
 
           {/* Card 2 — Evolução Semanal */}
           {(() => {
@@ -353,54 +347,13 @@ const ReportHeader = () => {
             );
           })()}
 
-          {/* Card 5 — PPC Semanal */}
-          {(() => {
-            const semanas = programacaoSemanal ?? [];
-            const ultima = semanas.length > 0 ? semanas[semanas.length - 1] : null;
-            const ppc = ultima
-              ? (ultima.ppc.ppcSemana > 0 ? ultima.ppc.ppcSemana : Math.round(ultima.ppc.totalAdherencia * 100))
-              : null;
-            const ppcOk = ppc !== null && ppc >= 80;
-            const ppcColor = ppc === null
-              ? 'text-muted-foreground'
-              : ppcOk ? 'text-success' : 'text-destructive';
-            const ppcLabel = ppc !== null ? `${Math.round(ppc)}%` : '—';
-            const subInfo = ultima
-              ? `Sem. ${ultima.semana} · ${ultima.periodo}`
-              : 'Nenhuma semana importada';
-            return (
-              <motion.div
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 4 * 0.06, duration: 0.35 }}
-                className="gradient-primary rounded-xl p-3 sm:p-4 card-shadow border-0 flex flex-col gap-1 min-h-[90px] sm:min-h-0 justify-between"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-primary-foreground/70">
-                    PPC Semanal
-                  </span>
-                  <ClipboardCheck className="h-4 w-4 text-primary-foreground/50" />
-                </div>
-                <span className={`text-lg sm:text-xl font-bold leading-tight ${ppcColor}`}>
-                  {ppcLabel}
-                </span>
-                <span className="text-[11px] text-primary-foreground/60 leading-tight">
-                  {subInfo}
-                </span>
-                <span className="text-[10px] text-primary-foreground/40">
-                  Meta: 80%
-                </span>
-              </motion.div>
-            );
-          })()}
-
-          {/* Card 6 — IDP */}
+          {/* Card 5 — IDP */}
           <KpiCard
             label="IDP"
             value={`${fmtBR(idp, 1)}%`}
             subValue="índice de desempenho"
             valueColor={idp < 90 ? 'text-destructive' : idp < 100 ? 'text-warning' : 'text-success'}
-            index={5}
+            index={4}
             trend={penPoint ? { current: idp, previous: prevIdp } : undefined}
           />
 

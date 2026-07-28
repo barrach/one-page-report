@@ -5,10 +5,9 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "paths": {
-      "@/*": ["./src/*"],
-      "@megawork/*": ["./src/megawork/*"],
-      "@prodcontrol/*": ["./src/prodcontrol/*"],
-      "@budget/*": ["./src/budget/*"]
+      "@/*": [
+        "./src/*"
+      ]
     },
     "skipLibCheck": true,
     "strictNullChecks": false

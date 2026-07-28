@@ -2,28 +2,16 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// Lê das variáveis de ambiente (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY);
-// fallback para o projeto correto garante funcionamento mesmo se o env não
-// estiver definido no build (mesmo padrão dos demais clients do projeto).
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://rlpmwuaaosmxlrqtruol.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJscG13dWFhb3NteGxycXRydW9sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzODg5OTUsImV4cCI6MjA5NTk2NDk5NX0.Es55o3SOH2jYZkKTe3wA_ZkL1qaefJw0oEZrB7lh25w';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
   }
 });
-
-// Diagnóstico: mostra no console qual projeto Supabase o MegaHub está usando.
-// Permite confirmar (em DevTools → Console) se o código em execução está no
-// projeto correto ou se o navegador está servindo bundle antigo (cache/SW).
-if (typeof window !== 'undefined') {
-  // eslint-disable-next-line no-console
-  console.log('[MegaHub] Supabase URL em uso:', SUPABASE_URL);
-}

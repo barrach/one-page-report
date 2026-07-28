@@ -13,78 +13,58 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  build: {
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-ui": ["@radix-ui/react-dialog", "@radix-ui/react-select", "@radix-ui/react-tabs", "@radix-ui/react-dropdown-menu"],
-          "vendor-charts": ["recharts"],
-          "vendor-supabase": ["@supabase/supabase-js"],
-          "vendor-query": ["@tanstack/react-query"],
-          "vendor-motion": ["framer-motion"],
-          "vendor-xlsx": ["xlsx"],
-        },
-      },
-    },
-  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
-      includeAssets: ["favicon.ico", "apple-touch-icon.png", "offline.html"],
+      includeAssets: ["favicon.ico", "placeholder.svg"],
       workbox: {
         navigateFallbackDenylist: [/^\/~oauth/],
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB — app unificado é maior
-        navigateFallback: "index.html",
         runtimeCaching: [
           {
-            // Assets estáticos — cache first
-            urlPattern: ({ request }) => ["style", "script", "worker", "font"].includes(request.destination),
-            handler: "CacheFirst",
-            options: {
-              cacheName: "static-assets",
-              expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 30 },
-            },
-          },
-          {
-            // Supabase (auth/dados/permissões) — Network first com fallback ao cache
-            urlPattern: /^https:\/\/[a-z0-9]+\.supabase\.co\/.*/i,
-            handler: "NetworkFirst",
-            options: {
-              cacheName: "supabase-data",
-              expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 },
-              networkTimeoutSeconds: 10,
-            },
-          },
-          {
-            // Navegação/HTML — Network first
             urlPattern: ({ request }) => request.mode === "navigate",
             handler: "NetworkFirst",
-            options: { cacheName: "pages", networkTimeoutSeconds: 3 },
+            options: { cacheName: "html", networkTimeoutSeconds: 3 },
+          },
+          {
+            urlPattern: ({ request }) => ["script", "style"].includes(request.destination),
+            handler: "NetworkFirst",
+            options: { cacheName: "assets", networkTimeoutSeconds: 3 },
           },
         ],
       },
       manifest: {
-        name: "MegaHub — Plataforma Integrada MEGASTEAM",
-        short_name: "MegaHub",
-        description: "Plataforma integrada de gestão de projetos Megasteam",
-        theme_color: "#0F172A",
-        background_color: "#0F172A",
+        name: "One Page Report Mega",
+        short_name: "OPR Mega",
+        description: "Relatório de acompanhamento de projetos",
+        theme_color: "#1a1a2e",
+        background_color: "#1a1a2e",
         display: "standalone",
-        orientation: "portrait-primary",
+        orientation: "portrait",
         scope: "/",
-        start_url: "/login",
+        start_url: "/",
         icons: [
-          { src: "/pwa-192x192.png", sizes: "192x192", type: "image/png" },
-          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png" },
-          { src: "/pwa-512x512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
-          { src: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+          {
+            src: "/pwa-192x192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+          {
+            src: "/pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
+          },
         ],
       },
     }),
@@ -92,9 +72,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@prodcontrol": path.resolve(__dirname, "./src/prodcontrol"),
-      "@budget": path.resolve(__dirname, "./src/budget"),
-      "@megawork": path.resolve(__dirname, "./src/megawork"),
     },
     dedupe: ["react", "react-dom"],
   },

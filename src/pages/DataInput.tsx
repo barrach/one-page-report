@@ -1,17 +1,16 @@
-import { useProjectStore, useCurrentProject, type ProjectInfo } from '@/store/projectStore';
+import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Trash2, Plus, ClipboardPaste, Upload, Save } from 'lucide-react';
+import { Trash2, Plus, ClipboardPaste, Upload } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import SCurveSpreadsheet from '@/components/SCurveSpreadsheet';
 import HistogramSpreadsheet from '@/components/HistogramSpreadsheet';
+import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import WeeklyImportModal from '@/components/WeeklyImportModal';
 import ClearDataButton from '@/components/ClearDataButton';
-import { cn } from '@/lib/utils';
-import PpcSemanalTable from '@/components/PpcSemanalTable';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -71,86 +70,6 @@ const parseNumber = (val: string): number => {
   if (!val) return 0;
   const cleaned = val.trim().replace('%', '').replace(/\s/g, '').replace(',', '.');
   return parseFloat(cleaned) || 0;
-};
-
-const fmtSavedAt = (iso?: string): string => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} às ${p(d.getHours())}:${p(d.getMinutes())}`;
-};
-
-const INFO_FIELDS: { label: string; key: keyof ProjectInfo; type: 'text' | 'date' | 'number' }[] = [
-  { label: 'Projeto', key: 'projeto', type: 'text' },
-  { label: 'Cliente', key: 'cliente', type: 'text' },
-  { label: 'Gestor', key: 'gestor', type: 'text' },
-  { label: 'Início', key: 'inicio', type: 'date' },
-  { label: 'Término LB', key: 'terminoLB', type: 'date' },
-  { label: 'Término Prev.', key: 'terminoPrev', type: 'date' },
-  { label: 'Avanço Prev. (%)', key: 'avancoPrev', type: 'number' },
-  { label: 'Avanço Real (%)', key: 'avancoReal', type: 'number' },
-  { label: 'Atualizado em', key: 'atualizadoEm', type: 'date' },
-];
-
-const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (patch: Partial<ProjectInfo>) => void }) => {
-  const [draft, setDraft] = useState<ProjectInfo>(info);
-
-  // Ressincroniza quando o projeto muda (ex.: troca de projeto ou import)
-  useEffect(() => { setDraft(info); }, [info]);
-
-  const dirty = useMemo(
-    () => INFO_FIELDS.some(f => String(draft[f.key] ?? '') !== String(info[f.key] ?? '')),
-    [draft, info]
-  );
-
-  // Aviso de alterações não salvas (fechar/recarregar a aba)
-  useEffect(() => {
-    if (!dirty) return;
-    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [dirty]);
-
-  const onField = (key: keyof ProjectInfo, type: string, value: string) => {
-    setDraft(prev => ({ ...prev, [key]: type === 'number' ? (parseFloat(value) || 0) : value }));
-  };
-
-  const handleSave = () => {
-    const patch: Partial<ProjectInfo> = {};
-    INFO_FIELDS.forEach(f => { (patch as Record<string, unknown>)[f.key] = draft[f.key]; });
-    patch.infoSavedAt = new Date().toISOString();
-    setInfo(patch);
-  };
-
-  return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <h2 className="text-xl font-bold text-foreground mb-4">Informações do Projeto</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {INFO_FIELDS.map((field) => (
-          <div key={field.key}>
-            <label className="text-sm font-medium text-muted-foreground mb-1 block">{field.label}</label>
-            <Input
-              type={field.type}
-              value={(draft as Record<string, unknown>)[field.key] as string | number}
-              onChange={(e) => onField(field.key, field.type, e.target.value)}
-            />
-          </div>
-        ))}
-      </div>
-
-      <div className="flex items-center justify-end gap-3 mt-4 min-h-[36px]">
-        {!dirty && info.infoSavedAt && (
-          <span className="text-[11px] text-muted-foreground">Atualizado em {fmtSavedAt(info.infoSavedAt)}</span>
-        )}
-        {dirty && (
-          <Button onClick={handleSave} size="sm" className="gap-1.5 bg-success hover:bg-success/90 text-success-foreground">
-            <Save className="h-4 w-4" /> Salvar alterações
-          </Button>
-        )}
-      </div>
-    </div>
-  );
 };
 
 const DataInputPage = () => {
@@ -295,7 +214,31 @@ const DataInputPage = () => {
       <WeeklyImportModal open={importOpen} onOpenChange={setImportOpen} />
 
       {/* Project Info */}
-      <ProjectInfoEditor info={info} setInfo={setInfo} />
+      <div className="bg-card rounded-lg p-6 shadow-sm border">
+        <h2 className="text-xl font-bold text-foreground mb-4">Informações do Projeto</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            { label: 'Projeto', key: 'projeto', type: 'text' },
+            { label: 'Cliente', key: 'cliente', type: 'text' },
+            { label: 'Gestor', key: 'gestor', type: 'text' },
+            { label: 'Início', key: 'inicio', type: 'date' },
+            { label: 'Término LB', key: 'terminoLB', type: 'date' },
+            { label: 'Término Prev.', key: 'terminoPrev', type: 'date' },
+            { label: 'Avanço Prev. (%)', key: 'avancoPrev', type: 'number' },
+            { label: 'Avanço Real (%)', key: 'avancoReal', type: 'number' },
+            { label: 'Atualizado em', key: 'atualizadoEm', type: 'date' },
+          ].map((field) => (
+            <div key={field.key}>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">{field.label}</label>
+              <Input
+                type={field.type}
+                value={(info as any)[field.key]}
+                onChange={(e) => setInfo({ [field.key]: field.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div>
         <SCurveSpreadsheet />
@@ -394,7 +337,7 @@ const DataInputPage = () => {
         <ImportStamp iso={lastImports?.histogram} />
       </div>
       <FinancialCurveSection />
-      <ProgSemanalSection />
+      <ScheduleSpreadsheet />
     </div>
   );
 };
@@ -451,43 +394,6 @@ const FinancialCurveSection = () => {
         </table>
       </div>
       <ImportStamp iso={lastImports?.curvaSFinanceira} />
-    </div>
-  );
-};
-
-// ─── Programação Semanal Section ─────────────────────────────────────────────
-
-const ProgSemanalSection = () => {
-  const { programacaoSemanal, lastImports, id: projectId } = useCurrentProject() as ReturnType<typeof useCurrentProject> & {
-    lastImports?: Record<string, string>;
-  };
-  const clearProgramacaoSemanal = useProjectStore(s => s.clearProgramacaoSemanal);
-
-  const weeks = programacaoSemanal ?? [];
-  if (weeks.length === 0) return null;
-
-  return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Programação Semanal — PPC</h2>
-          <ClearDataButton
-            sectionName="Programação Semanal"
-            onConfirm={() => clearProgramacaoSemanal(projectId!)}
-          />
-        </div>
-        <span className="text-xs text-muted-foreground">
-          {weeks.length} semana{weeks.length !== 1 ? 's' : ''} importada{weeks.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-
-      <PpcSemanalTable data={weeks} showPeriodo={false} />
-
-      {lastImports?.progSemanal && (
-        <p className="text-[11px] text-muted-foreground mt-2 italic">
-          Atualizado em {formatTimestamp(lastImports.progSemanal)}
-        </p>
-      )}
     </div>
   );
 };

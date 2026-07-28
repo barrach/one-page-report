@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
 import { useProjectStore, ScheduleRow, CurvaSFinanceiraPoint } from '@/store/projectStore';
 import { toast } from 'sonner';
-import { isProgramacaoSemanal, parseProgramacaoSemanal, type ProgramacaoSemanal, type AtividadeProgSemanal, type Causa6M } from '@/lib/parseProgramacaoSemanal';
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const fmtScheduleDate = (d: Date): string => {
@@ -482,8 +481,8 @@ interface CurveExtract {
   realAcuLast: number;
   prevAcuLast: number;
   hasReplanejado: boolean;
-  sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number }[];
-  weekly: { date: string; previsto: number; real: number; tendencia?: number; isStatus?: boolean }[];
+  sCurve: { date: string; previsto: number; real: number; tendencia: number; replanejado?: number }[];
+  weekly: { date: string; previsto: number; real: number }[];
   monthly: { label: string; previsto: number; real: number }[];
 }
 
@@ -839,8 +838,6 @@ const extractFormatBHist = (b: FormatBBlock): HistExtract => {
 interface FormatCCurveBlock {
   ref: SheetRef;
   rowDates: number;
-  /** Optional row with text week labels ("26-SEM02" etc.) for X-axis display */
-  rowSemanaLabels?: number;
   colStart: number;
   rowPrevAcu: number; rowPrevSem: number;
   rowRealAcu: number; rowRealSem: number;
@@ -885,26 +882,6 @@ const findRowByLabel = (labelMap: Record<string, number>, ...candidates: string[
 
 const isExcelDateSerial = (v: unknown): boolean =>
   typeof v === 'number' && v > 40000 && v < 60000;
-
-/** Returns true when a cell can be used as a week-axis tick (Date, serial, or text label like "26-SEM02"). */
-const isWeekLabel = (v: unknown): boolean => {
-  if (v instanceof Date) return !isNaN(v.getTime());
-  if (isExcelDateSerial(v)) return true;
-  if (typeof v === 'string') {
-    const s = v.trim();
-    // Accept "26-SEM02", "2026SEM03", "SEM02/26", "W02-2026", "01/2026" style labels
-    return /\d{2}[-\/\s]?SEM\d{2}|SEM\d{2}[-\/\s]?\d{2}|\d{2}[-\/]\d{4}/i.test(s);
-  }
-  return false;
-};
-
-/** Returns the display label for a week cell (formatted date string or raw text). */
-const getWeekLabelText = (v: unknown): string | null => {
-  const d = toDate(v);
-  if (d) return fmtDDmmm(d);
-  if (typeof v === 'string' && v.trim()) return v.trim();
-  return null;
-};
 
 const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
   const { grid } = ref;
@@ -951,12 +928,12 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
 
   if (rowDates < 0 || rowRealAcu < 0 || rowPrevAcu < 0) return null;
 
-  // 3. COL_START dinâmico: primeira col > 0 com Date OU label de semana textual (ex: "26-SEM02")
+  // 3. COL_START dinâmico: primeira col > 0 com Date na linha de datas
   const dateRow = grid[rowDates] || [];
   let colStart = -1;
   for (let j = 1; j < dateRow.length; j++) {
     const v = dateRow[j];
-    if (v instanceof Date || toDate(v) || isWeekLabel(v)) { colStart = j; break; }
+    if (v instanceof Date || toDate(v)) { colStart = j; break; }
   }
   if (colStart < 0) return null;
 
@@ -980,18 +957,8 @@ const findFormatCCurveBlock = (ref: SheetRef): FormatCCurveBlock | null => {
     rowDates, rowPrevAcu, rowRealAcu, rowTendAcu, rowReplanjAcu, colStart, updateDate,
   });
 
-  // Optional: row with short text week labels ("26-SEM02" etc.), labelled "Semanal"
-  const rowSemanaLabels = findRowByLabel(labelMap, 'Semanal', 'SEMANAL');
-  // Validate: that row must have text week labels starting near colStart
-  const semLabelValid = rowSemanaLabels >= 0 &&
-    (grid[rowSemanaLabels] || []).slice(colStart, colStart + 3).some(v =>
-      typeof v === 'string' && /SEM/i.test(v)
-    );
-
   return {
-    ref, rowDates,
-    rowSemanaLabels: semLabelValid ? rowSemanaLabels : undefined,
-    colStart,
+    ref, rowDates, colStart,
     rowPrevAcu, rowPrevSem, rowRealAcu, rowRealSem,
     rowTendAcu, rowTendSem,
     rowReplanjAcu, rowReplanjSem,
@@ -1123,174 +1090,88 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   const rRpa = rd(b.rowReplanjAcu), rRps = rd(b.rowReplanjSem);
   const rRra = rd(b.rowRealReplanjAcu), rRrs = rd(b.rowRealReplanjSem);
 
-  // ── 1. Key column positions ───────────────────────────────────────────────
-
-  // lastLBCol: primeira col onde LB (row 10) atinge 100% — fim do período LB
-  let lastLBCol = -1;
-  for (let j = b.colStart; j < rPa.length; j++) {
-    const v = toPercentC(rPa[j]);
-    if (v > 0) { lastLBCol = j; if (v >= 99.9) break; }
+  // 1. ULTIMA_REAL = última coluna com realAcu > 0
+  let ultimaRealCol = -1;
+  for (let j = b.colStart; j < rRa.length; j++) {
+    const v = parseFloat(String(rRa[j]));
+    if (!isNaN(v) && v > 0) ultimaRealCol = j;
   }
-
-  // ultimaRRaCol: última col com Real Replanejado Acu (row 16) > 0 = DATA DE STATUS
-  let ultimaRRaCol = -1;
-  if (rRra) {
-    for (let j = b.colStart; j < rRra.length; j++) {
-      const v = parseFloat(String(rRra[j]));
-      if (!isNaN(v) && v > 0) ultimaRRaCol = j;
-    }
-  }
-
-  // firstReplanjCol: primeira col onde Replanj Previsto Acu (row 14) > 0
-  // Fallback: primeira col onde Real Replanj Acu (row 16) > 0 (quando row 14 não existe)
-  let firstReplanjCol = -1;
-  if (rRpa) {
-    for (let j = b.colStart; j < rRpa.length; j++) {
-      const v = parseFloat(String(rRpa[j]));
-      if (!isNaN(v) && v > 0) { firstReplanjCol = j; break; }
-    }
-  }
-  if (firstReplanjCol < 0 && ultimaRRaCol > 0 && rRra) {
-    // row 14 não encontrada — infere início do replanejamento a partir de row 16
-    for (let j = b.colStart; j < rRra.length; j++) {
-      const v = parseFloat(String(rRra[j]));
-      if (!isNaN(v) && v > 0) { firstReplanjCol = j; break; }
-    }
-  }
-
-  // ultimaRealCol: referência para KPIs e janela semanal
-  const ultimaRealCol = ultimaRRaCol > 0 ? ultimaRRaCol
-    : lastLBCol > 0 ? lastLBCol : (() => {
-      let c = -1;
-      for (let j = b.colStart; j < rRa.length; j++) {
-        if (parseFloat(String(rRa[j])) > 0) c = j;
-      }
-      return c;
-    })();
   if (ultimaRealCol < 0) return { error: 'Nenhuma coluna com Real Acumulado > 0 (FORMATO C)' };
 
-  // lastCol: estende até o fim das séries Replanj + Tend
+  // 1b. LAST_COL = última coluna com QUALQUER série acumulada > 0 (LB/Real/Replanj/Tend)
+  // garante que Replanejado/Tendência futuros (até 26/jun) sejam plotados
   let lastCol = ultimaRealCol;
-  for (const r of [rPa, rRpa, rRra, rTs].filter(Boolean) as unknown[][]) {
+  const accRows = [rPa, rRa, rRpa, rTa].filter(Boolean) as unknown[][];
+  for (const r of accRows) {
     for (let j = b.colStart; j < r.length; j++) {
       const v = parseFloat(String(r[j]));
       if (!isNaN(v) && v > 0 && j > lastCol) lastCol = j;
     }
   }
+  // truncar para colunas que ainda têm Date na linha de datas
+  while (lastCol > ultimaRealCol && !toDate(dateRow[lastCol])) lastCol--;
 
-  // ── 2. Construir semanas COL_START até LAST_COL ──────────────────────────
-  // Prefer text labels from "Semanal" row (e.g. "26-SEM02") over date-derived labels
-  const semLabelRow = b.rowSemanaLabels != null ? (grid[b.rowSemanaLabels] || []) : null;
-
+  // 2. Construir array de semanas COL_START até LAST_COL (valores em %)
   type Semana = {
     j: number; date: Date; label: string;
-    lb: number; ra: number; rpa: number; ta: number; ts: number;
+    lb: number; ra: number; rpa: number; ta: number;
     ps: number; rs: number; rps: number; rrps: number; rra: number;
   };
   const semanas: Semana[] = [];
   for (let j = b.colStart; j <= lastCol; j++) {
     const d = toDate(dateRow[j]);
-    const semText = semLabelRow ? (semLabelRow[j] != null ? String(semLabelRow[j]).trim() : '') : '';
-    const textLabel = semText || getWeekLabelText(dateRow[j]);
-    if (!d && !textLabel) continue;
-    const label = semText || (d ? fmtDDmmm(d) : textLabel!);
+    if (!d) continue;
     semanas.push({
-      j, date: d ?? new Date(0), label,
+      j, date: d, label: fmtDDmmm(d),
       lb:   toPercentC(rPa[j]),
       ra:   toPercentC(rRa[j]),
       rpa:  rRpa ? toPercentC(rRpa[j]) : 0,
-      ta:   rTa  ? toPercentC(rTa[j])  : 0,
-      ts:   rTs  ? toPercentC(rTs[j])  : 0,    // row 17 semanal delta
-      ps:   rPs  ? toPercentC(rPs[j])  : 0,
-      rs:   rRs  ? toPercentC(rRs[j])  : 0,
+      ta:   rTa ? toPercentC(rTa[j]) : 0,
+      ps:   rPs ? toPercentC(rPs[j]) : 0,
+      rs:   rRs ? toPercentC(rRs[j]) : 0,
       rps:  rRps ? toPercentC(rRps[j]) : 0,
       rrps: rRrs ? toPercentC(rRrs[j]) : 0,
       rra:  rRra ? toPercentC(rRra[j]) : 0,
     });
   }
-
   const ultimaRealIdx = semanas.findIndex(s => s.j === ultimaRealCol);
+  console.log('=== FORMATO C DEBUG ===');
+  console.log('Aba Curva S:', b.ref.sheetName);
+  console.log('idxMap R.DATES:', b.rowDates, 'R.RE_ACU:', b.rowRealAcu);
+  console.log('COL_START:', b.colStart);
+  console.log('ULTIMA_REAL:', ultimaRealCol,
+    'val:', toPercentC(rRa[ultimaRealCol]) + '%',
+    'data:', fmtDDmmm(toDate(dateRow[ultimaRealCol]) as Date));
+  console.log('Total semanas:', semanas.length);
+  console.log('semanas[0]:', semanas[0]);
+  console.log('semanas última:', semanas[semanas.length - 1]);
 
-  console.log('[FORMATO C]', b.ref.sheetName,
-    '| lastLBCol:', lastLBCol, `(${semLabelRow?.[lastLBCol] ?? ''})`,
-    '| firstReplanjCol:', firstReplanjCol, `(${semLabelRow?.[firstReplanjCol] ?? ''})`,
-    '| ultimaRRaCol:', ultimaRRaCol, `(${semLabelRow?.[ultimaRRaCol] ?? ''})`,
-    '| lastCol:', lastCol,
-    '| hasReplanejado:', rRpa != null, '| hasRealReplanejado:', ultimaRRaCol > 0);
+  const hasReplanejado = semanas.some(s => s.rpa > 0);
 
-  // ── 3. Tendência cumulativa: a partir do último real (row 17 deltas) ──────
-  const lastRRaValue = ultimaRRaCol > 0
-    ? toPercentC(rRra![ultimaRRaCol])
-    : (lastLBCol > 0 ? toPercentC(rRa[lastLBCol]) : 0);
+  // Tendência: se TODOS os valores > 0 forem < 10%, são deltas semanais (não acumulado).
+  // Nesse caso, ocultar a linha de tendência no gráfico.
+  const tendVals = semanas.map(s => s.ta).filter(v => v > 0);
+  const tendIsDeltas = tendVals.length > 0 && tendVals.every(v => v < 10);
+  if (tendIsDeltas) console.log('[FORMATO C] Tendência ocultada (valores são deltas semanais < 10%)');
 
-  const tendCumulative = new Map<number, number>();
-  if (lastRRaValue > 0 && rTs) {
-    let cumul = lastRRaValue;
-    for (const s of semanas) {
-      if (s.j <= ultimaRealCol) continue;
-      if (s.ts > 0) {
-        cumul = Math.min(cumul + s.ts, 100);
-        tendCumulative.set(s.j, cumul);
-      }
-    }
-  }
+  // 3. sCurve: null onde série = 0 para criar lacunas no gráfico
+  const sCurve = semanas.map(s => ({
+    date: s.label,
+    previsto: s.lb > 0 ? s.lb : null as unknown as number,
+    real: s.ra > 0 ? s.ra : null as unknown as number,
+    tendencia: !tendIsDeltas && s.ta > 0 ? s.ta : null as unknown as number,
+    ...(hasReplanejado ? { replanejado: s.rpa > 0 ? s.rpa : null as unknown as number } : {}),
+  }));
 
-  const hasReplanejado     = firstReplanjCol > 0 && rRpa != null && semanas.some(s => s.rpa > 0);
-  const hasRealReplanejado = firstReplanjCol > 0 && ultimaRRaCol > 0 && rRra != null && semanas.some(s => s.rra > 0);
-
-  console.log('[FORMATO C] hasReplanejado:', hasReplanejado,
-    '| hasRealReplanejado:', hasRealReplanejado,
-    '| firstReplanjCol:', firstReplanjCol, semLabelRow?.[firstReplanjCol],
-    '| ultimaRRaCol:', ultimaRRaCol, semLabelRow?.[ultimaRRaCol]);
-
-  // ── 4. sCurve — 5 séries explícitas ─────────────────────────────────────
-  // Usa 0 para semanas sem dado (não null), para evitar ambiguidade na store.
-  // previsto   = row 10 (LB Acu)            SEM02–SEM19
-  // real       = row 12 (Real Acu)          SEM02–SEM19
-  // replanejado= row 14 (Replanj Prev Acu)  SEM23+
-  // realReplanj= row 16 (Real Replanj Acu)  SEM23–status
-  // tendencia  = cumulativo row17           após status
-  // Gap SEM20–22: previsto=0, real=0 → não plotados no gráfico
-  const sCurve = semanas.map(s => {
-    const inGap     = firstReplanjCol > 0 && s.j > lastLBCol && s.j < firstReplanjCol;
-    const inPeriodLB    = !inGap && s.j <= lastLBCol;
-    const inPeriodRepl  = !inGap && firstReplanjCol > 0 && s.j >= firstReplanjCol;
-
-    const previsto  = inPeriodLB  && s.lb > 0 ? s.lb : 0;
-    const realVal   = inPeriodLB  && s.ra > 0 ? s.ra : 0;
-    const replanj   = inPeriodRepl && s.rpa > 0 ? s.rpa : 0;
-    const rReplanj  = inPeriodRepl && s.rra > 0 && s.j <= ultimaRRaCol ? s.rra : 0;
-    const tendencia = tendCumulative.has(s.j) ? tendCumulative.get(s.j)! : 0;
-
-    const entry: Record<string, number | string> = {
-      date: s.label,
-      previsto, real: realVal, tendencia,
-    };
-    if (hasReplanejado)     entry.replanejado     = replanj;
-    if (hasRealReplanejado) entry.realReplanejado = rReplanj;
-    return entry as unknown as { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number };
-  });
-
-  const nReplanej = sCurve.filter(p => (p.replanejado    ?? 0) > 0).length;
-  const nRealRepl = sCurve.filter(p => (p.realReplanejado ?? 0) > 0).length;
-  console.log('[FORMATO C] sCurve:', sCurve.length, 'pts | replanj>0:', nReplanej, '| realReplanj>0:', nRealRepl);
-
-  // 4. Visão 5 Semanas (FORMATO C) — janela centrada na semana de status
-  // Status = última semana com Real Replanejado Acumulado (ultimaRRaCol).
-  // Previsto  → row 13 (rps = REPLANJ SEMANAL) com fallback row 9 (ps = LB SEMANAL)
-  // Realizado → row 15 (rrps = REAL REPLANJ SEMANAL) com fallback row 11 (rs = REAL SEMANAL)
-  // Tendência → row 17 (ts = TEND GERAL SEMANAL)
-  const statusSemIdx = semanas.findIndex(s => s.j === (ultimaRRaCol > 0 ? ultimaRRaCol : lastLBCol));
-  const centerIdx = statusSemIdx >= 0 ? statusSemIdx : semanas.length - 1;
-  const winStart = Math.max(0, centerIdx - 2);
-  const windowSlice = semanas.slice(winStart, winStart + 5);
-  const weekly = windowSlice.map((s, wi) => {
-    const isStatus = (winStart + wi) === centerIdx;
-    const previsto = s.rps > 0 ? s.rps : s.ps;
-    const real     = s.rrps > 0 ? s.rrps : s.rs;
-    const tendencia = s.ts > 0 ? s.ts : undefined;
-    return { date: s.label, previsto, real, ...(tendencia != null ? { tendencia } : {}), isStatus };
-  });
+  // 4. Resultado Semanal (FORMATO C): últimas 5 semanas ATÉ ULTIMA_REAL.
+  // Usar SOMENTE PREVISTO GERAL LB (ps) e REALIZADO GERAL (rs) — NUNCA os
+  // semanais de Replanejado (rps/rrps), que contêm deltas e não avanços.
+  const upToReal = ultimaRealIdx >= 0 ? semanas.slice(0, ultimaRealIdx + 1) : semanas;
+  const weekly = upToReal.slice(-5).map(s => ({
+    date: s.label,
+    previsto: s.ps,
+    real: s.rs,
+  }));
 
 
 
@@ -1303,7 +1184,6 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
   type MesAgg = { date: Date; lb: number; rpa: number; ra: number; rra: number };
   const mesesAgg = new Map<string, MesAgg>();
   upToReal.forEach(s => {
-    if (s.date.getTime() === 0) return; // skip entries with no real date (text-label rows)
     const key = `${s.date.getFullYear()}-${String(s.date.getMonth()).padStart(2, '0')}`;
     const cur = mesesAgg.get(key) || { date: s.date, lb: 0, rpa: 0, ra: 0, rra: 0 };
     if (s.date.getTime() >= cur.date.getTime()) cur.date = s.date;
@@ -1320,20 +1200,15 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     .slice(-4)
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.previsto, real: m.real }));
 
-  // 6. KPIs — usar semana de status (ultimaRRaCol) como referência
-  const last = ultimaRealIdx >= 0 ? semanas[ultimaRealIdx] : semanas[semanas.length - 1];
-  // % Realizado = row 16 (Real Replanj Acu); fallback row 12
-  const realAcuLast = last.rra > 0 ? last.rra : last.ra;
-  // Avanço Previsto = row 14 (Replanj Previsto Acu) na semana de status; fallback row 10
-  const prevAcuLast = last.rpa > 0 ? last.rpa : last.lb;
+  // 6. KPIs — usar dados da ULTIMA_REAL (não da última projeção)
+  const last = (ultimaRealIdx >= 0 ? semanas[ultimaRealIdx] : semanas[semanas.length - 1]);
+  const prevLast = last.rpa > 0 ? last.rpa : last.lb;
 
   // 7. cols compatível com CurveExtract (valores decimais para back-compat)
   const cols: CurveExtract['cols'] = semanas.map(s => ({
     date: s.date,
-    prevSem: s.rps > 0 ? s.rps / 100 : s.ps / 100,
-    prevAcu: s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) ? s.rpa / 100 : s.lb / 100,
-    realSem: s.rrps > 0 ? s.rrps / 100 : s.rs / 100,
-    realAcu: s.j >= (firstReplanjCol > 0 ? firstReplanjCol : Infinity) ? s.rra / 100 : s.ra / 100,
+    prevSem: s.ps / 100, prevAcu: s.lb / 100,
+    realSem: s.rs / 100, realAcu: s.ra / 100,
     tendSem: 0, tendAcu: s.ta / 100,
     replanjSem: s.rps / 100, replanjAcu: s.rpa / 100,
   }));
@@ -1342,8 +1217,8 @@ const extractFormatCCurve = (b: FormatCCurveBlock): CurveExtract | { error: stri
     block: null as never,
     cols, ultimaReal: ultimaRealIdx >= 0 ? ultimaRealIdx : semanas.length - 1,
     statusDate: last.date,
-    realAcuLast,
-    prevAcuLast,
+    realAcuLast: last.ra,
+    prevAcuLast: prevLast,
     hasReplanejado, sCurve, weekly, monthly,
   };
 };
@@ -1558,28 +1433,18 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const rowDatas         = findRowByLabel(labelMap, 'Evento ( Cronograma)', 'Evento (Cronograma)', 'EVENTO');
   const rowSemanas       = findRowByLabel(labelMap, 'Semanal', 'SEMANAL');
   const rowPrevSemLB     = findRowByLabel(labelMap, 'PREVISTO GERAL LB', 'PREVISTO GERAL LB ');
-  const rowPrevAcumLB    = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)');           // row10
+  const rowPrevAcumLB    = findRowByLabel(labelMap, 'PREVISTO GERAL LB (ACUMULADO)');
   const rowPrevSemReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (SEMANAL)');
-  const rowPrevAcumReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)'); // row14
+  const rowPrevAcumReplan = findRowByLabel(labelMap, 'PREVISTO GERAL REPLANEJADO (ACUMULADO)');
   const rowRealSem       = findRowByLabel(labelMap, 'REALIZADO GERAL', 'REALIZADO GERAL ');
-  const rowRealAcum      = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');             // row12
-  const rowRealReplanAcum = findRowByLabel(labelMap, 'REALIZADO GERAL REPLANEJADO (ACUMULADO)'); // row16 — referência de status
-  const rowTendSem       = findRowByLabel(labelMap, 'TENDÊNCIA GERAL', 'TENDENCIA GERAL', 'TENDÊNCIA GERAL ', 'TENDENCIA GERAL '); // row17 (semanal)
-  const rowTend          = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)'); // row18
+  const rowRealAcum      = findRowByLabel(labelMap, 'REALIZADO GERAL (ACUMULADO)');
+  const rowTend          = findRowByLabel(labelMap, 'TENDÊNCIA GERAL (ACUMULADO)', 'TENDENCIA GERAL (ACUMULADO)');
 
-  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcumLB < 0 || rowRealAcum < 0) {
+  if (rowDatas < 0 || rowSemanas < 0 || rowPrevAcumLB < 0 || rowPrevAcumReplan < 0 || rowRealAcum < 0) {
     return { error: 'Aba "01-CURVA S- PROJETO" não contém as linhas esperadas (Evento/Semanal/Previsto/Realizado)' };
   }
 
-  // Mantém séries SEPARADAS (não mescla LB com Replanejado)
-  type Row = {
-    date: Date; semana: string;
-    prevLbSem: number | null; prevLbAcu: number | null;     // row9/10
-    prevReplanSem: number | null; prevReplanAcu: number | null; // row13/14
-    realSem: number | null; realAcu: number | null;          // row11/12
-    realReplanAcu: number | null;                            // row16
-    tendSem: number | null;                                  // row17
-  };
+  type Row = { date: Date; semana: string; prevSem: number | null; prevAcu: number | null; tendAcu: number | null; realSem: number | null; realAcu: number | null };
   const rows: Row[] = [];
   const rDatas = g[rowDatas] || [];
   const rSem = g[rowSemanas] || [];
@@ -1589,9 +1454,8 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   const rPrevAcumReplan = rowPrevAcumReplan >= 0 ? g[rowPrevAcumReplan] : [];
   const rRealSem = rowRealSem >= 0 ? g[rowRealSem] : [];
   const rRealAcum = g[rowRealAcum] || [];
-  const rRealReplanAcum = rowRealReplanAcum >= 0 ? g[rowRealReplanAcum] : [];
-  const rTendSem = rowTendSem >= 0 ? g[rowTendSem] : [];
-  const maxC = Math.max(rDatas.length, rSem.length, rPrevAcumLB.length, rPrevAcumReplan.length, rRealAcum.length, rTendSem.length);
+  const rT = rowTend >= 0 ? g[rowTend] : [];
+  const maxC = Math.max(rDatas.length, rSem.length, rPrevAcumLB.length, rPrevAcumReplan.length, rRealAcum.length, rT.length);
   for (let c = 1; c < maxC; c++) {
     const semVal = rSem[c];
     if (semVal == null || semVal === '') break;
@@ -1599,21 +1463,20 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     if (!d) continue;
     const prevLbAcu = numOrNull(rPrevAcumLB[c]);
     const prevReplanAcu = numOrNull(rPrevAcumReplan[c]);
+    const prevLbSem = numOrNull(rPrevSemLB[c]);
+    const prevReplanSem = numOrNull(rPrevSemReplan[c]);
+    const prevAcu = prevLbAcu != null && prevLbAcu > 0 ? prevLbAcu : (prevReplanAcu != null && prevReplanAcu > 0 ? prevReplanAcu : null);
+    const prevSem = prevLbSem != null && prevLbSem > 0 ? prevLbSem : (prevReplanSem != null && prevReplanSem > 0 ? prevReplanSem : null);
     const realAcu = numOrNull(rRealAcum[c]);
-    if ((prevLbAcu == null || prevLbAcu <= 0)
-        && (prevReplanAcu == null || prevReplanAcu <= 0)
-        && (realAcu == null || realAcu <= 0)) continue;
+    if ((prevAcu == null || prevAcu <= 0) && (realAcu == null || realAcu <= 0)) continue;
     rows.push({
       date: d,
       semana: String(semVal),
-      prevLbSem: numOrNull(rPrevSemLB[c]),
-      prevLbAcu,
-      prevReplanSem: numOrNull(rPrevSemReplan[c]),
-      prevReplanAcu,
+      prevSem,
+      prevAcu,
       realSem: numOrNull(rRealSem[c]),
       realAcu,
-      realReplanAcu: numOrNull(rRealReplanAcum[c]),
-      tendSem: numOrNull(rTendSem[c]),
+      tendAcu: numOrNull(rT[c]),
     });
   }
   if (!rows.length) return { error: 'Aba "01-CURVA S- PROJETO" sem dados válidos' };
@@ -1623,82 +1486,61 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     return Math.abs(v) <= 1.5 ? round2(v * 100) : round2(v);
   };
 
-  // ── Posições-chave ────────────────────────────────────────────────────────
-  // lastLBidx: último índice onde LB (row10) > 0 (fim do período LB, SEM19)
-  let lastLBidx = -1;
-  rows.forEach((r, i) => { if (r.prevLbAcu != null && r.prevLbAcu > 0) lastLBidx = i; });
-  // firstReplanIdx: primeiro índice onde Replanj Previsto (row14) > 0 (SEM23)
-  let firstReplanIdx = -1;
-  for (let i = 0; i < rows.length; i++) {
-    if (rows[i].prevReplanAcu != null && rows[i].prevReplanAcu! > 0) { firstReplanIdx = i; break; }
-  }
-  // ultimaReal (STATUS): última semana com Real Replanejado Acum (row16) > 0 = SEM26.
-  // Fallback: última semana com Real Acum (row12) > 0.
   let ultimaReal = -1;
-  rows.forEach((r, i) => { if (r.realReplanAcu != null && r.realReplanAcu > 0) ultimaReal = i; });
-  if (ultimaReal < 0) rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
+  rows.forEach((r, i) => { if (r.realAcu != null && r.realAcu > 0) ultimaReal = i; });
+  const lastRealFromCurve = ultimaReal;
+  if (statusDate) {
+    let bestIdx = -1, bestDiff = Infinity;
+    rows.forEach((r, i) => {
+      const diff = Math.abs(r.date.getTime() - statusDate.getTime());
+      if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+    });
+    if (bestIdx >= 0) ultimaReal = bestIdx;
+  }
   if (ultimaReal < 0) ultimaReal = rows.length - 1;
 
-  const hasReplanejado     = rows.some(r => r.prevReplanAcu != null && r.prevReplanAcu > 0);
-  const hasRealReplanejado = firstReplanIdx >= 0; // há período replanejado → mostra Real Replanejado (row12 completa)
+  const hasTendencia = rows.some(r => r.tendAcu != null && r.tendAcu > 0);
 
-  // ── Tendência cumulativa: do último real (row16, senão row12) + deltas row17 ──
-  const statusRow = rows[ultimaReal];
-  const lastRealVal = statusRow?.realReplanAcu != null && statusRow.realReplanAcu > 0
-    ? toPct(statusRow.realReplanAcu)
-    : (statusRow?.realAcu != null ? toPct(statusRow.realAcu) : 0);
-  const tendCumulative = new Map<number, number>();
-  if (lastRealVal > 0) {
-    let cumul = lastRealVal;
-    for (let i = ultimaReal + 1; i < rows.length; i++) {
-      const ts = toPct(rows[i].tendSem);
-      if (ts > 0) { cumul = Math.min(cumul + ts, 100); tendCumulative.set(i, cumul); }
+  // Reconcile real curve with RESUMO value: if the status week is beyond
+  // the last realAcum point in L12, interpolate linearly so the chart ends
+  // at the same % shown on the KPI cards.
+  const realAcumOverride: (number | null)[] = rows.map(r => r.realAcu);
+  if (realFromResumoPct != null && lastRealFromCurve >= 0 && ultimaReal > lastRealFromCurve) {
+    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
+    const startVal = rows[lastRealFromCurve].realAcu ?? 0;
+    const gap = targetDec - startVal;
+    const steps = ultimaReal - lastRealFromCurve;
+    if (Math.abs(gap) > 0.0001 && steps > 0) {
+      for (let k = 1; k <= steps; k++) {
+        realAcumOverride[lastRealFromCurve + k] = startVal + (gap * k) / steps;
+      }
     }
+  } else if (realFromResumoPct != null && ultimaReal >= 0) {
+    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
+    realAcumOverride[ultimaReal] = targetDec;
   }
 
-  // ── sCurve — 5 séries SEPARADAS ────────────────────────────────────────────
-  // previsto       = row10 (LB Acu)            → SEM02–SEM19
-  // real           = row12 (Real Acu)          → SEM02–SEM19 (truncado em lastLBidx)
-  // replanejado    = row14 (Replanj Prev Acu)  → SEM23+
-  // realReplanejado= row12 (Real Acu COMPLETA) → todas as semanas com valor
-  // tendencia      = cumulativo                → após status
-  const sCurve = rows.map((r, i) => {
-    const previsto        = r.prevLbAcu != null && r.prevLbAcu > 0 ? toPct(r.prevLbAcu) : 0;
-    const real            = i <= lastLBidx && r.realAcu != null && r.realAcu > 0 ? toPct(r.realAcu) : 0;
-    const replanejado     = r.prevReplanAcu != null && r.prevReplanAcu > 0 ? toPct(r.prevReplanAcu) : 0;
-    const realReplanejado = r.realAcu != null && r.realAcu > 0 ? toPct(r.realAcu) : 0;
-    const tendencia       = tendCumulative.has(i) ? tendCumulative.get(i)! : 0;
-    const entry: Record<string, number | string> = { date: r.semana, previsto, real, tendencia };
-    if (hasReplanejado)     entry.replanejado     = replanejado;
-    if (hasRealReplanejado) entry.realReplanejado = realReplanejado;
-    return entry as unknown as { date: string; previsto: number; real: number; tendencia: number; replanejado?: number; realReplanejado?: number };
-  });
+  const sCurve = rows.map((r, i) => ({
+    date: r.semana,
+    previsto: r.prevAcu != null ? toPct(r.prevAcu) : (null as unknown as number),
+    real: i <= ultimaReal && realAcumOverride[i] != null ? toPct(realAcumOverride[i] as number) : (null as unknown as number),
+    tendencia: hasTendencia && r.tendAcu != null && r.tendAcu > 0 ? toPct(r.tendAcu) : (null as unknown as number),
+  }));
 
-  console.log('[FORMATO D] sCurve | lastLBidx:', lastLBidx, rows[lastLBidx]?.semana,
-    '| firstReplanIdx:', firstReplanIdx, rows[firstReplanIdx]?.semana,
-    '| ultimaReal(status):', ultimaReal, rows[ultimaReal]?.semana,
-    '| hasReplanejado:', hasReplanejado, '| hasRealReplanejado:', hasRealReplanejado,
-    '| replanj pts:', sCurve.filter(p => (p.replanejado ?? 0) > 0).length,
-    '| realReplanj pts:', sCurve.filter(p => (p.realReplanejado ?? 0) > 0).length);
-
-  // ── Visão 5 Semanas — janela centrada no status ────────────────────────────
   let wStart = ultimaReal - 2, wEnd = ultimaReal + 3;
   if (wStart < 0) { wEnd -= wStart; wStart = 0; }
   if (wEnd > rows.length) { wStart -= (wEnd - rows.length); wEnd = rows.length; wStart = Math.max(0, wStart); }
-  const weekly = rows.slice(wStart, wEnd).map((r, wi) => ({
-    date: r.semana,
-    previsto: toPct(r.prevReplanSem != null && r.prevReplanSem > 0 ? r.prevReplanSem : r.prevLbSem),
+  const weekly = rows.slice(wStart, wEnd).map(r => ({
+    date: fmtDDmmm(r.date),
+    previsto: toPct(r.prevSem),
     real: toPct(r.realSem),
-    ...(r.tendSem != null && r.tendSem > 0 ? { tendencia: toPct(r.tendSem) } : {}),
-    isStatus: (wStart + wi) === ultimaReal,
   }));
 
-  // ── Prev × Mês ─────────────────────────────────────────────────────────────
   const monthMap = new Map<string, { date: Date; prevAcu: number; realAcu: number }>();
-  rows.slice(0, ultimaReal + 1).forEach((r) => {
+  rows.slice(0, ultimaReal + 1).forEach((r, i) => {
     const key = `${r.date.getFullYear()}-${String(r.date.getMonth()).padStart(2, '0')}`;
-    const prevV = r.prevReplanAcu != null && r.prevReplanAcu > 0 ? r.prevReplanAcu : r.prevLbAcu;
-    monthMap.set(key, { date: r.date, prevAcu: toPct(prevV), realAcu: r.realAcu != null ? toPct(r.realAcu) : 0 });
+    const realVal = realAcumOverride[i];
+    monthMap.set(key, { date: r.date, prevAcu: toPct(r.prevAcu), realAcu: realVal != null ? toPct(realVal) : 0 });
   });
   const monthly = [...monthMap.values()]
     .filter(m => m.prevAcu > 0)
@@ -1707,31 +1549,23 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
     .map(m => ({ label: fmtMmmAaaa(m.date), previsto: m.prevAcu, real: m.realAcu }));
 
   const dec = (v: number | null) => v == null ? 0 : (Math.abs(v) <= 1.5 ? v : v / 100);
-  const cols: CurveExtract['cols'] = rows.map((r) => ({
+  const cols: CurveExtract['cols'] = rows.map((r, i) => ({
     date: r.date,
-    prevSem: dec(r.prevLbSem), prevAcu: dec(r.prevLbAcu),
-    realSem: dec(r.realSem), realAcu: dec(r.realAcu),
-    tendSem: dec(r.tendSem), tendAcu: 0,
-    replanjSem: dec(r.prevReplanSem), replanjAcu: dec(r.prevReplanAcu),
+    prevSem: dec(r.prevSem), prevAcu: dec(r.prevAcu),
+    realSem: dec(r.realSem), realAcu: dec(realAcumOverride[i] ?? null),
+    tendSem: 0, tendAcu: dec(r.tendAcu),
+    replanjSem: 0, replanjAcu: 0,
   }));
 
   const last = rows[ultimaReal];
-  // KPIs na semana de status (SEM26):
-  // % Realizado = row16 (Real Replanj Acu = 89); fallback row12
-  // Avanço Prev = row14 (Replanj Previsto Acu = 87); fallback row10
-  const realAcuLast = last.realReplanAcu != null && last.realReplanAcu > 0
-    ? toPct(last.realReplanAcu)
-    : (last.realAcu != null ? toPct(last.realAcu) : 0);
-  const prevAcuLast = last.prevReplanAcu != null && last.prevReplanAcu > 0
-    ? toPct(last.prevReplanAcu)
-    : (last.prevLbAcu != null ? toPct(last.prevLbAcu) : 0);
+  const lastRealOverride = realAcumOverride[ultimaReal];
   return {
     block: null as never,
     cols, ultimaReal,
-    statusDate: last.date,
-    realAcuLast,
-    prevAcuLast,
-    hasReplanejado,
+    statusDate: statusDate || last.date,
+    realAcuLast: lastRealOverride != null ? toPct(lastRealOverride as number) : 0,
+    prevAcuLast: last.prevAcu != null ? toPct(last.prevAcu) : 0,
+    hasReplanejado: false,
     sCurve, weekly, monthly,
   };
 };
@@ -2180,29 +2014,23 @@ interface Props {
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId, addProgramacaoSemanal } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId } = useProjectStore();
   const [files, setFiles] = useState<File[]>([]);
   const [parsing, setParsing] = useState(false);
-  const [step, setStep] = useState<'upload' | 'fields' | 'justificativas'>('upload');
+  const [step, setStep] = useState<'upload' | 'fields'>('upload');
 
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [finCurve, setFinCurve] = useState<CurvaSFinanceiraPoint[] | null>(null);
   const [finCurveError, setFinCurveError] = useState<string | null>(null);
-  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; finCurve?: string; progSemanal?: string }>({});
-  const [progSemanal, setProgSemanal] = useState<ProgramacaoSemanal | null>(null);
-  const [ativJustificativas, setAtivJustificativas] = useState<AtividadeProgSemanal[]>([]);
-  const [skipJustificativas, setSkipJustificativas] = useState(false);
+  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; finCurve?: string }>({});
 
   const reset = () => {
     setFiles([]);
     setResult(null); setSchedule(null); setScheduleError(null);
     setFinCurve(null); setFinCurveError(null);
     setSourceNames({});
-    setProgSemanal(null);
-    setAtivJustificativas([]);
-    setSkipJustificativas(false);
   };
 
   const closeAll = (o: boolean) => {
@@ -2236,7 +2064,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     const xmls = files.filter(f => /\.xml$/i.test(f.name));
     const xlsxs = files.filter(f => /\.xlsx?$/i.test(f.name));
     const used = new Set<string>();
-    const srcs: { curve?: string; hist?: string; schedule?: string; finCurve?: string; progSemanal?: string } = {};
+    const srcs: { curve?: string; hist?: string; schedule?: string; finCurve?: string } = {};
 
     // 1) Curva S / Histograma (formatos A/B/C) — em todos os xlsx
     let res: ImportResult | null = null;
@@ -2260,22 +2088,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       } catch { /* not a financial sheet */ }
     }
 
-    // 2b) Programação Semanal — varre todos xlsx
-    let parsedProgSemanal: ProgramacaoSemanal | null = null;
-    let progSemanalFile: string | undefined;
-    for (const f of xlsxs) {
-      try {
-        const buf = await f.arrayBuffer();
-        const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-        if (isProgramacaoSemanal(wb)) {
-          parsedProgSemanal = parseProgramacaoSemanal(wb);
-          if (parsedProgSemanal) { used.add(f.name); progSemanalFile = f.name; break; }
-        }
-      } catch { /* not a programacao semanal */ }
-    }
-    if (progSemanalFile) srcs.progSemanal = progSemanalFile;
-    setProgSemanal(parsedProgSemanal);
-
     // 3) Cronograma — todos xml + xlsx restantes
     const schedCandidates = [...xmls, ...xlsxs.filter(f => !used.has(f.name))];
     let sched: ScheduleExtract | null = null;
@@ -2296,22 +2108,18 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     // Pré-marcar campos disponíveis
     const localC = res?.curve && !('error' in res.curve) ? (res.curve as CurveExtract) : null;
     const localH = res?.hist && !('error' in res.hist) ? (res.hist as HistExtract) : null;
-    // weeklyOk: para Formato C usa rRps/rRrs (replanejado) — checar pelo weekly já computado.
-    // Para outros formatos: checar se cols recentes têm prevSem/realSem > 0.
-    const weeklyHasData = !!localC && localC.weekly.some(w => w.previsto > 0 || w.real > 0);
-    const weeklyColsOk = !!localC && (() => {
+    const weeklyOk = !!localC && localC.weekly.length > 0 && (() => {
       const upTo = localC.cols.slice(0, localC.ultimaReal + 1).slice(-8);
       return upTo.filter(col => col.prevSem > 0.005 || col.realSem > 0.005).length >= 3;
     })();
-    const weeklyOk = weeklyHasData || weeklyColsOk;
     setSelectedFields({
       sCurve: !!(localC && localC.sCurve.length),
       weekly: weeklyOk,
       monthly: !!(localC && localC.monthly.length),
       projectInfo: !!localC,
       histogram: !!(localH && localH.histogram.length),
+      schedule: !!(sched && sched.rows.length),
       finCurve: !!(fin && fin.length),
-      progSemanal: !!parsedProgSemanal,
     });
 
     setParsing(false);
@@ -2321,15 +2129,15 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
 
   // ─── Field selection (segunda etapa) ───
-  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'finCurve' | 'projectInfo' | 'progSemanal';
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
   const FIELD_LABELS: Record<FieldKey, string> = {
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
     monthly: 'Prev × Mês (velocímetro mensal)',
     histogram: 'Histograma (barras de avanço por semana)',
+    schedule: 'Cronograma (Gantt)',
     finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
-    progSemanal: 'Programação Semanal (PPC + 6M + Pareto)',
   };
   const FIELD_SOURCE: Record<FieldKey, string | undefined> = {
     sCurve: sourceNames.curve,
@@ -2337,8 +2145,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: sourceNames.curve,
     projectInfo: sourceNames.curve,
     histogram: sourceNames.hist || sourceNames.curve,
+    schedule: sourceNames.schedule,
     finCurve: sourceNames.finCurve,
-    progSemanal: sourceNames.progSemanal,
   };
 
   const c = curveOk ? (result!.curve as CurveExtract) : null;
@@ -2354,20 +2162,14 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: !!(c && c.monthly.length),
     projectInfo: !!c,
     histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
+    schedule: !!(schedule && schedule.rows.length),
     finCurve: !!(finCurve && finCurve.length),
-    progSemanal: !!progSemanal,
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
     sCurve: false, weekly: false, monthly: false, histogram: false,
-    finCurve: false, projectInfo: false, progSemanal: false,
+    schedule: false, finCurve: false, projectInfo: false,
   });
-
-  const initJustificativas = () => {
-    if (!progSemanal) return;
-    const naoExecutadas = progSemanal.atividades.filter(a => !a.executada);
-    setAtivJustificativas(naoExecutadas.map(a => ({ ...a })));
-  };
 
   const advance = async () => {
     await analyze();
@@ -2394,18 +2196,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       const c = result!.curve as CurveExtract;
       if (c.sCurve.length && selectedFields.sCurve) {
         setSCurveData(c.sCurve);
-        // Status index = última semana com Real OU Real Replanejado (Formato C: SEM26)
         let idx = -1;
-        c.sCurve.forEach((p, i) => { if (p.real > 0 || (p.realReplanejado ?? 0) > 0) idx = i; });
+        c.sCurve.forEach((p, i) => { if (p.real > 0) idx = i; });
         if (idx >= 0) setStatusDateIndex(idx);
-        const _series = ['LB/Real'];
-        if (c.sCurve.some(p => (p.replanejado    ?? 0) > 0)) _series.push('Prev.Replanj');
-        if (c.sCurve.some(p => (p.realReplanejado ?? 0) > 0)) _series.push('Real Replanj');
-        if (c.sCurve.some(p => (p.tendencia       ?? 0) > 0)) _series.push('Tend');
-        const _nReplanj   = c.sCurve.filter(p => (p.replanejado    ?? 0) > 0).length;
-        const _nRealRepl  = c.sCurve.filter(p => (p.realReplanejado ?? 0) > 0).length;
-        console.log('[IMPORT] Curva S séries:', _series.join(' + '), '| pts:', c.sCurve.length, '| status:', c.sCurve[idx]?.date, '| replanj pts:', _nReplanj, '| realReplanj pts:', _nRealRepl);
-        toast.info(`Curva S: ${_series.join(' + ')} — ${c.sCurve.length} sem | Replanj: ${_nReplanj} | RealReplanj: ${_nRealRepl}`, { duration: 8000 });
         setLastImport('sCurve', now); count++;
       }
       if (c.weekly.length && weeklyValido && selectedFields.weekly) {
@@ -2447,18 +2240,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         if (fdInfo.gestor) infoPatch.gestor = fdInfo.gestor;
         if (fdInfo.inicio) infoPatch.inicio = toIsoDate(fdInfo.inicio);
         if (fdInfo.terminoLB) infoPatch.terminoLB = toIsoDate(fdInfo.terminoLB);
-        // Se a Curva S tem replanejado, os valores derivados da curva (status week)
-        // são autoritativos — NÃO sobrescrever com o RESUMO (que traz o LB final = 100%).
-        const curveHasReplanejado = curveOk && (result!.curve as CurveExtract).hasReplanejado;
-        if (!curveHasReplanejado) {
-          if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
-          if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
-        } else {
-          // curva replanejada: usa prevAcuLast/realAcuLast (row14/row12 na semana de status)
-          const c = result!.curve as CurveExtract;
-          infoPatch.avancoPrev = c.prevAcuLast; infoPatch.prevAcumulado = c.prevAcuLast;
-          infoPatch.avancoReal = c.realAcuLast; infoPatch.realAcumulado = c.realAcuLast;
-        }
+        if (fdInfo.prevAcumLB != null) { infoPatch.avancoPrev = fdInfo.prevAcumLB; infoPatch.prevAcumulado = fdInfo.prevAcumLB; }
+        if (fdInfo.realAcum != null) { infoPatch.avancoReal = fdInfo.realAcum; infoPatch.realAcumulado = fdInfo.realAcum; }
         if (fdInfo.prevSemanal != null) infoPatch.prevSemana = fdInfo.prevSemanal;
         if (fdInfo.realSemanal != null) infoPatch.realSemana = fdInfo.realSemanal;
         if (fdInfo.desvioSemanal != null) infoPatch.desvioSemana = fdInfo.desvioSemanal;
@@ -2474,29 +2257,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
 
     if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
+    if (schedule && schedule.rows.length && selectedFields.schedule) {
+      setScheduleData(schedule.rows.map(r => ({ ...r, bold: r.bold ?? false, criticalPath: false })));
+      count++;
+    }
     if (finCurve && finCurve.length && selectedFields.finCurve) {
       setCurvaSFinanceira(finCurve);
       setLastImport('curvaSFinanceira', now);
-      count++;
-    }
-    if (progSemanal && selectedFields.progSemanal && selectedProjectId) {
-      // Guard: block confirmation if there are unfilled activities (defensive — button should already be disabled)
-      if (!skipJustificativas && ativJustificativas.length > 0) {
-        const invalidas = ativJustificativas.filter(a => a.causas6M.length === 0);
-        if (invalidas.length > 0) {
-          const nomes = invalidas.slice(0, 2).map(a => a.descricao).join(', ');
-          const extra = invalidas.length > 2 ? ` e mais ${invalidas.length - 2}` : '';
-          toast.error(`Preencha as causas 6M para: ${nomes}${extra}`);
-          return;
-        }
-      }
-      const ativWithJust = progSemanal.atividades.map(a => {
-        const just = ativJustificativas.find(j => j.id === a.id && j.descricao === a.descricao);
-        return just ? { ...a, causas6M: just.causas6M, planoAcao: just.planoAcao } : a;
-      });
-      const finalProg: ProgramacaoSemanal = { ...progSemanal, atividades: ativWithJust };
-      addProgramacaoSemanal(selectedProjectId, finalProg);
-      setLastImport('progSemanal', now);
       count++;
     }
     toast.success(`✓ Importação concluída — ${count} seções atualizadas`);
@@ -2513,9 +2280,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
           <DialogDescription>
             {step === 'upload'
               ? 'Suba seus arquivos — o sistema identifica o conteúdo de cada um automaticamente'
-              : step === 'fields'
-              ? 'Marque os campos que deseja sobrescrever. Campos desmarcados manterão os dados atuais.'
-              : 'Informe as causas raiz (6M) para cada atividade não executada conforme previsto.'}
+              : 'Marque os campos que deseja sobrescrever. Campos desmarcados manterão os dados atuais.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -2553,34 +2318,10 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             anyFieldChecked={anyFieldChecked}
             onBack={goBack}
             onCancel={() => closeAll(false)}
-            onConfirm={() => {
-              if (selectedFields.progSemanal && progSemanal) {
-                initJustificativas();
-                setStep('justificativas');
-              } else {
-                confirm();
-              }
-            }}
-            confirmLabel={selectedFields.progSemanal && progSemanal ? 'Próximo →' : 'Confirmar Importação'}
+            onConfirm={confirm}
             result={result}
             scheduleError={scheduleError}
             finCurveError={finCurveError}
-          />
-        )}
-
-        {step === 'justificativas' && (
-          <JustificativasStep
-            atividades={ativJustificativas}
-            onUpdate={(id, descricao, patch) => {
-              setAtivJustificativas(prev =>
-                prev.map(a => a.id === id && a.descricao === descricao ? { ...a, ...patch } : a)
-              );
-            }}
-            skipJustificativas={skipJustificativas}
-            onToggleSkip={() => setSkipJustificativas(v => !v)}
-            onBack={() => setStep('fields')}
-            onCancel={() => closeAll(false)}
-            onConfirm={confirm}
           />
         )}
       </DialogContent>
@@ -2651,215 +2392,11 @@ function MultiUploadZone({
   );
 }
 
-// ─── Justificativas Step ───
-const CAUSAS_6M: Causa6M[] = ['Método', 'Máquina', 'Medida', 'Meio Ambiente', 'Mão de Obra', 'Material'];
-const CAUSA_COLORS: Record<Causa6M, { idle: string; active: string }> = {
-  'Método':       { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300',    active: 'bg-blue-500 text-white border-blue-500' },
-  'Máquina':      { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-orange-50 hover:text-orange-700 hover:border-orange-300', active: 'bg-orange-500 text-white border-orange-500' },
-  'Medida':       { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-yellow-50 hover:text-yellow-700 hover:border-yellow-300', active: 'bg-yellow-500 text-white border-yellow-500' },
-  'Meio Ambiente':{ idle: 'bg-white text-gray-500 border-gray-200 hover:bg-green-50 hover:text-green-700 hover:border-green-300',   active: 'bg-green-500 text-white border-green-500' },
-  'Mão de Obra':  { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-300',        active: 'bg-red-500 text-white border-red-500' },
-  'Material':     { idle: 'bg-white text-gray-500 border-gray-200 hover:bg-purple-50 hover:text-purple-700 hover:border-purple-300', active: 'bg-purple-500 text-white border-purple-500' },
-};
-
-function JustificativasStep({
-  atividades,
-  onUpdate,
-  skipJustificativas,
-  onToggleSkip,
-  onBack,
-  onCancel,
-  onConfirm,
-}: {
-  atividades: AtividadeProgSemanal[];
-  onUpdate: (id: string, descricao: string, patch: Partial<AtividadeProgSemanal>) => void;
-  skipJustificativas: boolean;
-  onToggleSkip: () => void;
-  onBack: () => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const pendentes = atividades.filter(a => a.causas6M.length === 0).length;
-  const allFilled = pendentes === 0;
-  const canConfirm = skipJustificativas || allFilled;
-
-  if (atividades.length === 0) {
-    return (
-      <div className="space-y-4">
-        <div className="rounded-lg border bg-muted/30 p-6 text-center space-y-2">
-          <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
-          <p className="font-semibold text-sm">✓ Todas as atividades foram executadas conforme previsto</p>
-          <p className="text-xs text-muted-foreground">Nenhuma justificativa necessária.</p>
-        </div>
-        <div className="flex justify-between gap-2 pt-2">
-          <Button variant="outline" onClick={onBack}>← Voltar</Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-            <Button onClick={onConfirm} className="gradient-primary text-primary-foreground">Confirmar Importação</Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Header with live counter */}
-      <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
-        <h3 className="font-semibold text-sm">Justificativas das Perdas — 6M</h3>
-        {skipJustificativas ? (
-          <p className="text-xs text-muted-foreground">
-            Justificativas serão puladas. Atividades sem causa não aparecerão no Pareto 6M nem nos Planos de Ação.
-          </p>
-        ) : allFilled ? (
-          <p className="text-xs font-medium text-green-600">
-            ✓ Todas as atividades preenchidas — pode confirmar
-          </p>
-        ) : (
-          <p className="text-xs font-medium text-red-600">
-            ⚠ {pendentes} de {atividades.length} atividade{pendentes > 1 ? 's' : ''} ainda sem causa informada
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
-        {atividades.map((a) => {
-          const filled = a.causas6M.length > 0;
-          return (
-            <div
-              key={`${a.id}-${a.descricao}`}
-              className="rounded-lg bg-card p-4 space-y-3 transition-colors"
-              style={{
-                border: skipJustificativas
-                  ? '1px solid hsl(var(--border))'
-                  : filled
-                  ? '2px solid #16a34a'
-                  : '2px solid #dc2626',
-              }}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-mono text-muted-foreground">{a.id}</span>
-                    <span className="text-sm font-medium">{a.descricao}</span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                    <span className="text-[10px] text-muted-foreground">{a.area}</span>
-                    <span className="text-[10px] font-semibold text-destructive">
-                      PREV {a.quantidade.prev} {a.unidade} / REAL {a.quantidade.real} {a.unidade}
-                    </span>
-                  </div>
-                </div>
-                {/* Validation badge */}
-                {!skipJustificativas && (
-                  <span
-                    className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                      filled
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {filled ? '✓ Preenchido' : '⚠ Obrigatório'}
-                  </span>
-                )}
-              </div>
-
-              {/* Observação original */}
-              {a.observacao && (
-                <div className="space-y-1">
-                  <label className="text-[11px] text-muted-foreground font-medium">Observação do arquivo</label>
-                  <div className="text-xs bg-muted/50 rounded p-2 text-muted-foreground italic">{a.observacao}</div>
-                </div>
-              )}
-
-              {/* 6M buttons */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-medium text-foreground">
-                  Causa raiz (6M) *
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {CAUSAS_6M.map(causa => {
-                    const checked = a.causas6M.includes(causa);
-                    return (
-                      <button
-                        key={causa}
-                        type="button"
-                        disabled={skipJustificativas}
-                        onClick={() => {
-                          const next = checked
-                            ? a.causas6M.filter(c => c !== causa)
-                            : [...a.causas6M, causa];
-                          onUpdate(a.id, a.descricao, { causas6M: next });
-                        }}
-                        className={`px-2.5 py-1 rounded border text-[11px] font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
-                          checked
-                            ? CAUSA_COLORS[causa].active
-                            : CAUSA_COLORS[causa].idle
-                        }`}
-                      >
-                        {causa}
-                      </button>
-                    );
-                  })}
-                </div>
-                {!skipJustificativas && a.causas6M.length === 0 && (
-                  <p className="text-[10px] text-destructive">Selecione ao menos uma causa</p>
-                )}
-              </div>
-
-              {/* Plano de ação — show as soon as there is a cause */}
-              {a.causas6M.length > 0 && !skipJustificativas && (
-                <div className="space-y-1">
-                  <label className="text-[11px] font-medium text-foreground">Plano de ação para recuperar a perda:</label>
-                  <textarea
-                    className="w-full text-xs rounded border bg-background p-2 min-h-[60px] resize-none focus:outline-none focus:ring-1 focus:ring-primary"
-                    placeholder="Descreva as ações para recuperar a perda..."
-                    value={a.planoAcao}
-                    onChange={e => onUpdate(a.id, a.descricao, { planoAcao: e.target.value })}
-                  />
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Skip option */}
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          className="h-4 w-4 accent-primary"
-          checked={skipJustificativas}
-          onChange={onToggleSkip}
-        />
-        <span className="text-xs text-muted-foreground">
-          Pular justificativas — atividades sem causa não aparecerão no Pareto 6M nem nos Planos de Ação
-        </span>
-      </label>
-
-      <div className="flex justify-between gap-2 pt-2">
-        <Button variant="outline" onClick={onBack}>← Voltar</Button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button
-            onClick={onConfirm}
-            disabled={!canConfirm}
-            className={`gradient-primary text-primary-foreground transition-opacity ${!canConfirm ? 'opacity-50 cursor-not-allowed' : ''}`}
-          >
-            Confirmar Importação
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Fields Step ───
-type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'finCurve' | 'projectInfo' | 'progSemanal';
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
-  anyFieldChecked, onBack, onCancel, onConfirm, confirmLabel,
+  anyFieldChecked, onBack, onCancel, onConfirm,
   result, scheduleError, finCurveError,
 }: {
   files: File[];
@@ -2872,7 +2409,6 @@ function FieldsStep({
   onBack: () => void;
   onCancel: () => void;
   onConfirm: () => void;
-  confirmLabel?: string;
   result: ImportResult | null;
   scheduleError: string | null;
   finCurveError: string | null;
@@ -2963,7 +2499,7 @@ function FieldsStep({
         <div className="flex gap-2">
           <Button variant="outline" onClick={onCancel}>Cancelar</Button>
           <Button onClick={onConfirm} disabled={!anyFieldChecked} className="gradient-primary text-primary-foreground">
-            {confirmLabel ?? 'Confirmar Importação'}
+            Confirmar Importação
           </Button>
         </div>
       </div>

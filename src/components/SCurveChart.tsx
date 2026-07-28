@@ -29,32 +29,21 @@ const SCurveChart = () => {
 
   const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
   const statusDate = sCurveData[cutIndex]?.date || null;
-  // Real no status: prefere Real Replanejado (row16) quando > 0, senão Real (row12).
-  // Usa checagem > 0 (não ??) porque real=0 nas semanas replanejadas.
-  const statusReal = (() => {
-    const p = sCurveData[cutIndex];
-    if (!p) return null;
-    if ((p.realReplanejado ?? 0) > 0) return p.realReplanejado!;
-    if (p.real > 0) return p.real;
-    return null;
-  })();
+  const statusReal = sCurveData[cutIndex]?.real ?? null;
   const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
-  const hasRealReplanejado = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
 
   const COLORS = {
-    previsto: 'hsl(var(--chart-previsto))', // azul escuro
-    real: '#16a34a',                        // verde médio
-    tendencia: '#f97316',                   // laranja
-    replanejado: '#60a5fa',                 // azul claro — "Prev. Replanejado"
-    realReplanejado: '#15803d',             // verde escuro — "Real Replanejado"
+    previsto: 'hsl(var(--chart-previsto))',
+    real: '#16a34a',
+    tendencia: '#f97316',
+    replanejado: '#8b5cf6',
   };
 
   const legendPayload = [
     { value: 'Linha de base', type: 'line' as const, id: 'previsto', color: COLORS.previsto },
     { value: 'Real', type: 'line' as const, id: 'real', color: COLORS.real },
-    ...(hasReplanejado ? [{ value: 'Prev. Replanejado', type: 'line' as const, id: 'replanejado', color: COLORS.replanejado }] : []),
-    ...(hasRealReplanejado ? [{ value: 'Real Replanejado', type: 'line' as const, id: 'realReplanejado', color: COLORS.realReplanejado }] : []),
     { value: 'Tendência', type: 'line' as const, id: 'tendencia', color: COLORS.tendencia },
+    ...(hasReplanejado ? [{ value: 'Replanejado', type: 'line' as const, id: 'replanejado', color: COLORS.replanejado }] : []),
   ];
 
   const chartData = useMemo(() => {
@@ -64,13 +53,12 @@ const SCurveChart = () => {
       real: point.real > 0 ? point.real : undefined,
       tendencia: point.tendencia > 0 ? point.tendencia : undefined,
       replanejado: (point.replanejado ?? 0) > 0 ? point.replanejado : undefined,
-      realReplanejado: (point.realReplanejado ?? 0) > 0 ? point.realReplanejado : undefined,
     }));
   }, [sCurveData]);
 
   // Find last index with a value for each series
   const lastIdx = useMemo(() => {
-    const find = (key: 'previsto' | 'real' | 'tendencia' | 'replanejado' | 'realReplanejado') => {
+    const find = (key: 'previsto' | 'real' | 'tendencia' | 'replanejado') => {
       for (let i = chartData.length - 1; i >= 0; i--) {
         if ((chartData[i] as any)[key] != null) return i;
       }
@@ -81,7 +69,6 @@ const SCurveChart = () => {
       real: find('real'),
       tendencia: find('tendencia'),
       replanejado: find('replanejado'),
-      realReplanejado: find('realReplanejado'),
     };
   }, [chartData]);
 
@@ -91,7 +78,7 @@ const SCurveChart = () => {
 
   // Label renderer factory
   const makeLabel = (
-    seriesKey: 'previsto' | 'real' | 'tendencia' | 'replanejado' | 'realReplanejado',
+    seriesKey: 'previsto' | 'real' | 'tendencia' | 'replanejado',
     color: string,
     position: 'top' | 'bottom',
   ) => (props: any) => {
@@ -177,40 +164,28 @@ const SCurveChart = () => {
             <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
           )}
 
-          {/* Linha de base (azul escuro, sólida) — row10 SEM02–19 */}
           <Line type="monotone" dataKey="previsto" name="Linha de base"
             stroke={COLORS.previsto} strokeWidth={2}
-            dot={false} activeDot={{ r: 5 }} connectNulls={false}
+            dot={false} activeDot={{ r: 5 }}
             label={makeLabel('previsto', COLORS.previsto, 'top')}
             isAnimationActive={false} />
-          {/* Real (verde médio, sólida) — row12 SEM02–19 */}
           <Line type="monotone" dataKey="real" name="Real"
             stroke={COLORS.real} strokeWidth={2}
             dot={false} activeDot={{ r: 5 }} connectNulls={false}
             label={makeLabel('real', COLORS.real, 'bottom')}
             isAnimationActive={false} />
-          {/* Prev. Replanejado (azul claro, tracejada) — row14 SEM23+ */}
-          {hasReplanejado && (
-            <Line type="monotone" dataKey="replanejado" name="Prev. Replanejado"
-              stroke={COLORS.replanejado} strokeWidth={2} strokeDasharray="6 4"
-              dot={false} activeDot={{ r: 5 }} connectNulls={false}
-              label={makeLabel('replanejado', COLORS.replanejado, 'top')}
-              isAnimationActive={false} />
-          )}
-          {/* Real Replanejado (verde escuro, sólida) — row12 completa */}
-          {hasRealReplanejado && (
-            <Line type="monotone" dataKey="realReplanejado" name="Real Replanejado"
-              stroke={COLORS.realReplanejado} strokeWidth={2}
-              dot={false} activeDot={{ r: 5 }} connectNulls={false}
-              label={makeLabel('realReplanejado', COLORS.realReplanejado, 'bottom')}
-              isAnimationActive={false} />
-          )}
-          {/* Tendência (laranja, tracejada) */}
           <Line type="monotone" dataKey="tendencia" name="Tendência"
             stroke={COLORS.tendencia} strokeWidth={2} strokeDasharray="6 3"
             dot={false} activeDot={{ r: 5 }} connectNulls={false}
             label={makeLabel('tendencia', COLORS.tendencia, 'bottom')}
             isAnimationActive={false} />
+          {hasReplanejado && (
+            <Line type="monotone" dataKey="replanejado" name="Replanejado"
+              stroke={COLORS.replanejado} strokeWidth={2} strokeDasharray="4 4"
+              dot={false} activeDot={{ r: 5 }} connectNulls={false}
+              label={makeLabel('replanejado', COLORS.replanejado, 'top')}
+              isAnimationActive={false} />
+          )}
         </LineChart>
       </ResponsiveContainer>
     </div>

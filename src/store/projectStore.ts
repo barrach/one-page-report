@@ -1,7 +1,5 @@
 import { create } from 'zustand';
 import { supabase } from '@/integrations/supabase/client';
-import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
-export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
 export interface ProjectInfo {
   projeto: string;
@@ -13,8 +11,6 @@ export interface ProjectInfo {
   avancoPrev: number;
   avancoReal: number;
   atualizadoEm: string;
-  /** ISO timestamp do último "Salvar alterações" das Informações do Projeto */
-  infoSavedAt?: string;
   contrato?: string;
   escopo?: string;
   // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
@@ -31,10 +27,6 @@ export interface WeekData {
   date: string;
   previsto: number;
   real: number;
-  /** Tendência semanal (Formato C) */
-  tendencia?: number;
-  /** Semana de status (centro da janela) — usada para destaque visual */
-  isStatus?: boolean;
 }
 
 export interface SCurvePoint {
@@ -43,8 +35,6 @@ export interface SCurvePoint {
   real: number;
   tendencia: number;
   replanejado?: number;
-  /** Real Replanejado (acumulado após replanejamento — série separada) */
-  realReplanejado?: number;
 }
 
 export interface SCurveSettings {
@@ -111,22 +101,6 @@ export interface ScheduleRow {
   milestone?: boolean;
 }
 
-export type DesvioCausaRaiz = 'Mão de Obra' | 'Material' | 'Equipamento' | 'Clima' | 'Escopo' | 'Projeto' | 'Outro' | '';
-export type DesvioImpactoPrazo = 'sem_impacto' | 'risco' | 'confirmado' | '';
-
-export interface DesvioAnalise {
-  /** sinal do desvio quando foi salvo: 'atraso' | 'adiantamento' — para resetar ao trocar de sinal */
-  tipo: 'atraso' | 'adiantamento' | '';
-  causaRaiz: DesvioCausaRaiz;
-  descricao: string;
-  impactoPrazo: DesvioImpactoPrazo;
-  acaoCorretiva: string;
-  prazoResposta: string;
-  responsavel: string;
-  /** ISO timestamp do último salvamento */
-  savedAt?: string;
-}
-
 export interface Project {
   id: string;
   name: string;
@@ -141,9 +115,7 @@ export interface Project {
   scheduleData: ScheduleRow[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
-  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string; progSemanal?: string };
-  programacaoSemanal?: ProgramacaoSemanal[];
-  desvioAnalise?: DesvioAnalise;
+  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -238,20 +210,6 @@ const seedProject: Project = {
   scheduleData: [{ id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
 };
 
-// ── localStorage (fallback/backup quando a tabela 'projects' não está acessível) ──
-const LS_PROJECTS_KEY = 'opr_projects';
-const loadProjectsLS = (): Project[] | null => {
-  try {
-    const raw = localStorage.getItem(LS_PROJECTS_KEY);
-    if (!raw) return null;
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? (arr as Project[]) : null;
-  } catch { return null; }
-};
-const saveProjectsLS = (projects: Project[]) => {
-  try { localStorage.setItem(LS_PROJECTS_KEY, JSON.stringify(projects)); } catch { /* quota/ignore */ }
-};
-
 // DB helpers
 const dbToProject = (row: { id: string; name: string; data: Record<string, unknown> }): Project => {
   const d = row.data as Partial<Project>;
@@ -270,8 +228,6 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
-    programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
-    desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
   };
 };
 
@@ -292,8 +248,6 @@ const projectToDb = (p: Project): any => ({
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     lastImports: p.lastImports || {},
-    programacaoSemanal: p.programacaoSemanal || [],
-    desvioAnalise: p.desvioAnalise || null,
   },
 });
 
@@ -325,7 +279,6 @@ interface ProjectStoreState {
   setWeeklyData: (data: WeekData[]) => void;
   setSCurveData: (data: SCurvePoint[]) => void;
   setMonthData: (data: MonthWeekData[]) => void;
-  setDesvioAnalise: (data: DesvioAnalise) => void;
   addWeek: () => void;
   removeWeek: (index: number) => void;
   addSCurvePoint: () => void;
@@ -345,8 +298,6 @@ interface ProjectStoreState {
   setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
   setAiInsight: (chartType: string, insight: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
-  addProgramacaoSemanal: (projectId: string, data: ProgramacaoSemanal) => void;
-  clearProgramacaoSemanal: (projectId: string) => void;
 }
 
 export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
@@ -356,32 +307,22 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
 
   loadProjects: async () => {
     set({ loading: true });
-    // 1. Tenta carregar do Supabase (tabela 'projects'). Pode falhar se a tabela
-    //    não existir no projeto atual — nesse caso usamos o localStorage.
-    let projects: Project[] | null = null;
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, name, data')
-        .order('created_at', { ascending: true });
-      if (!error && data && data.length > 0) {
-        projects = (data as Array<{ id: string; name: string; data: Record<string, unknown> }>).map(dbToProject);
-      }
-    } catch { /* tabela ausente / sem acesso → fallback */ }
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, name, data')
+      .order('created_at', { ascending: true });
 
-    // 2. Fallback: localStorage
-    if (!projects) {
-      const ls = loadProjectsLS();
-      if (ls && ls.length > 0) projects = ls;
+    if (error || !data || data.length === 0) {
+      // Seed the default project if DB is empty
+      await supabase.from('projects').upsert([projectToDb(seedProject)], { onConflict: 'id' });
+      set({ projects: [seedProject], selectedProjectId: 'guaxe', loading: false });
+      return;
     }
 
-    // 3. Último recurso: projeto seed
-    if (!projects || projects.length === 0) projects = [seedProject];
-
+    const projects = (data as Array<{ id: string; name: string; data: Record<string, unknown> }>).map(dbToProject);
     const currentId = get().selectedProjectId;
     const validId = projects.find(p => p.id === currentId) ? currentId : projects[0].id;
     set({ projects, selectedProjectId: validId, loading: false });
-    saveProjectsLS(projects);
   },
 
   selectProject: (id) => set({ selectedProjectId: id }),
@@ -440,13 +381,6 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
 
   setMonthData: (data) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ monthData: data }));
-    const proj = updated.find(p => p.id === s.selectedProjectId)!;
-    debouncedSave(proj);
-    return { projects: updated };
-  }),
-
-  setDesvioAnalise: (data) => set((s) => {
-    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ desvioAnalise: data }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
     return { projects: updated };
@@ -614,35 +548,7 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     debouncedSave(proj);
     return { projects: updated };
   }),
-
-  clearProgramacaoSemanal: (projectId) => set((s) => {
-    const updated = s.projects.map((p) =>
-      p.id !== projectId ? p : { ...p, programacaoSemanal: [] }
-    );
-    const proj = updated.find(p => p.id === projectId)!;
-    debouncedSave(proj);
-    return { projects: updated };
-  }),
-
-  addProgramacaoSemanal: (projectId, data) => set((s) => {
-    const updated = s.projects.map((p) => {
-      if (p.id !== projectId) return p;
-      const existing = p.programacaoSemanal ?? [];
-      const idx = existing.findIndex((ps) => ps.semana === data.semana);
-      const next = idx >= 0
-        ? existing.map((ps, i) => (i === idx ? data : ps))
-        : [...existing, data];
-      return { ...p, programacaoSemanal: next };
-    });
-    const proj = updated.find(p => p.id === projectId)!;
-    debouncedSave(proj);
-    return { projects: updated };
-  }),
 }));
-
-// Espelha os projetos no localStorage a cada mudança → backup/persistência
-// resiliente do OPR mesmo sem a tabela 'projects' no Supabase.
-useProjectStore.subscribe((state) => saveProjectsLS(state.projects));
 
 export const useCurrentProject = () => {
   const projects = useProjectStore(s => s.projects);
