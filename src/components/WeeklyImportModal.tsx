@@ -1690,10 +1690,25 @@ const findFormatECurveSheet = (allSheets: SheetRef[]): SheetRef | null => {
   });
   if (!cand) return null;
   const hasMetrica = cand.grid.some(row => {
-    const b = row?.[1];
-    return b != null && norm(b) === 'métrica';
+    for (let c = 0; c < Math.min(row?.length ?? 0, 4); c++) {
+      if (norm((row as unknown[])[c]) === 'métrica') return true;
+    }
+    return false;
   });
   return hasMetrica ? cand : null;
+};
+
+// Detecta em qual coluna começa o label (varia entre 0 e 1 dependendo se SheetJS
+// dropa colunas iniciais vazias). Retorna { labelCol, dataStartCol }.
+const detectLabelCol = (grid: unknown[][], labelText: string): { labelCol: number; dataStartCol: number } | null => {
+  for (const row of grid) {
+    for (let c = 0; c < Math.min(row?.length ?? 0, 5); c++) {
+      if (norm((row as unknown[])[c]) === labelText) {
+        return { labelCol: c, dataStartCol: c + 1 };
+      }
+    }
+  }
+  return null;
 };
 
 const findFormatEHistSheet = (allSheets: SheetRef[]): SheetRef | null => {
