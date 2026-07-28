@@ -2083,6 +2083,7 @@ interface ImportResult {
   formatB?: FormatBBlock | null;
   formatC?: FormatCBundle | null;
   formatD?: FormatDBundle | null;
+  formatE?: FormatEBundle | null;
   errors: string[];
 }
 
