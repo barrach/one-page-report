@@ -1505,9 +1505,16 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
   // the last realAcum point in L12, interpolate linearly so the chart ends
   // at the same % shown on the KPI cards.
   const realAcumOverride: (number | null)[] = rows.map(r => r.realAcu);
-  if (realFromResumoPct != null && lastRealFromCurve >= 0 && ultimaReal > lastRealFromCurve) {
-    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
-    const startVal = rows[lastRealFromCurve].realAcu ?? 0;
+  // Only reconcile with RESUMO if it provides a meaningful (>0) value that
+  // advances the curve. A stale/blank C20 (=0 or below last curve real) is
+  // ignored — the curve is the source of truth.
+  const startVal = lastRealFromCurve >= 0 ? (rows[lastRealFromCurve].realAcu ?? 0) : 0;
+  const resumoIsMeaningful =
+    realFromResumoPct != null &&
+    realFromResumoPct > 0 &&
+    (Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100) > startVal + 1e-6;
+  if (resumoIsMeaningful && lastRealFromCurve >= 0 && ultimaReal > lastRealFromCurve) {
+    const targetDec = Math.abs(realFromResumoPct!) <= 1.5 ? realFromResumoPct! : realFromResumoPct! / 100;
     const gap = targetDec - startVal;
     const steps = ultimaReal - lastRealFromCurve;
     if (Math.abs(gap) > 0.0001 && steps > 0) {
@@ -1515,9 +1522,13 @@ const extractFormatDCurve = (curveRef: SheetRef, statusDate?: Date, realFromResu
         realAcumOverride[lastRealFromCurve + k] = startVal + (gap * k) / steps;
       }
     }
-  } else if (realFromResumoPct != null && ultimaReal >= 0) {
-    const targetDec = Math.abs(realFromResumoPct) <= 1.5 ? realFromResumoPct : realFromResumoPct / 100;
+  } else if (resumoIsMeaningful && ultimaReal >= 0) {
+    const targetDec = Math.abs(realFromResumoPct!) <= 1.5 ? realFromResumoPct! : realFromResumoPct! / 100;
     realAcumOverride[ultimaReal] = targetDec;
+  } else if (lastRealFromCurve >= 0) {
+    // No reliable RESUMO value — anchor the reported status to the last real
+    // point in the curve, so KPI cards match the chart annotation.
+    ultimaReal = lastRealFromCurve;
   }
 
   const sCurve = rows.map((r, i) => ({
