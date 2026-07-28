@@ -2166,6 +2166,32 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
     };
   }
 
+  // Try FORMAT E ("Curva S - Geral Projeto" + "Histograma")
+  const formatE = detectFormatE(allSheets);
+  if (formatE) {
+    const curve = extractFormatECurve(formatE.curveRef, formatE.info.dataStatus);
+    const hist = formatE.histRef ? extractFormatEHist(formatE.histRef) : null;
+    const projectDates: ProjectDates = {
+      inicio: formatE.info.inicio,
+      terminoLB: formatE.info.terminoLB,
+      terminoPrev: formatE.info.terminoPrev,
+    };
+    const errors: string[] = [];
+    if ('error' in curve) errors.push(curve.error);
+    if (hist && 'error' in hist) console.warn('[FORMATO E] Histograma:', hist.error);
+    return {
+      curveBlock: null,
+      curve,
+      histBlock: hist && !('error' in hist) ? hist.block : null,
+      hist: hist && !('error' in hist) ? hist : null,
+      projectDates,
+      formatB: null,
+      formatC: null,
+      formatE,
+      errors,
+    };
+  }
+
 
   // FORMAT A — fallback
   const curveBlock: CurveBlock | null = findBestCurveBlock(allSheets);
