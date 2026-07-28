@@ -1724,9 +1724,10 @@ const findFormatEHistSheet = (allSheets: SheetRef[]): SheetRef | null => {
   return hasDataLabel ? cand : null;
 };
 
-const extractFormatEInfo = (curveRef: SheetRef): FormatEInfo => {
+const extractFormatEInfo = (curveRef: SheetRef, colShift = 0): FormatEInfo => {
   const g = curveRef.grid;
-  const cell = (r1: number, c1: number) => (g[r1 - 1] as unknown[] | undefined)?.[c1 - 1];
+  // Original openpyxl cells are 1-based; ajusta pelo shift do SheetJS.
+  const cell = (r1: number, c1: number) => (g[r1 - 1] as unknown[] | undefined)?.[c1 - 1 - colShift];
   const str = (v: unknown) => { const s = String(v ?? '').trim(); return s || undefined; };
   const num = (v: unknown): number | undefined =>
     typeof v === 'number' && isFinite(v) ? v : undefined;
@@ -1738,21 +1739,23 @@ const extractFormatEInfo = (curveRef: SheetRef): FormatEInfo => {
     prazoTotal:    num(cell(7, 11)),                   // K7
     atividade:     str(cell(4, 9)),                    // I4
     escopo:        str(cell(8, 2)),                    // B8
-    gestorCliente: str(cell(4, 16)),                   // P4 (aprox)
+    gestorCliente: str(cell(4, 16)),                   // P4
   };
 };
 
 const extractFormatECurve = (curveRef: SheetRef, statusDate?: Date): CurveExtract | { error: string } => {
   const g = curveRef.grid;
-  // Localiza linha "Métrica" em col B
+  // Localiza linha "Métrica" — coluna pode variar (0 ou 1) por causa do SheetJS
+  const found = detectLabelCol(g, 'métrica');
+  if (!found) return { error: 'Aba "Curva S - Geral Projeto": linha "Métrica" não encontrada' };
+  const { labelCol, dataStartCol } = found;
   let rMet = -1;
-  g.forEach((row, i) => { if (rMet < 0 && norm(row?.[1]) === 'métrica') rMet = i; });
-  if (rMet < 0) return { error: 'Aba "Curva S - Geral Projeto": linha "Métrica" não encontrada' };
+  g.forEach((row, i) => { if (rMet < 0 && norm(row?.[labelCol]) === 'métrica') rMet = i; });
 
-  // Procura Prev / Real / Tendência nas próximas 6 linhas
+  // Procura Prev / Real / Tendência nas próximas 6 linhas (mesma coluna de label)
   let rPrev = -1, rReal = -1, rTend = -1;
   for (let i = rMet + 1; i < Math.min(rMet + 8, g.length); i++) {
-    const lbl = norm(g[i]?.[1]);
+    const lbl = norm(g[i]?.[labelCol]);
     if (rPrev < 0 && lbl.includes('prev') && lbl.includes('acum')) rPrev = i;
     if (rReal < 0 && lbl.includes('real') && lbl.includes('acum')) rReal = i;
     if (rTend < 0 && lbl.includes('tend')) rTend = i;
