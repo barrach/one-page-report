@@ -18,15 +18,15 @@ const ContractThermometer = () => {
     }
     const ultPoint = ultIdx >= 0 ? sCurveData[ultIdx] : null;
     const hasReplanejado = sCurveData.some(
-      (p) => (p as Record<string, unknown>).replanejado != null && (p as Record<string, unknown>).replanejado !== 0
+      (p) => (p as unknown as Record<string, unknown>).replanejado != null && (p as unknown as Record<string, unknown>).replanejado !== 0
     );
 
     const real = info.realAcumulado ?? (ultPoint?.real ?? 0);
     const prev =
       info.prevAcumulado ??
       (ultPoint
-        ? hasReplanejado && (ultPoint as Record<string, unknown>).replanejado != null
-          ? Number((ultPoint as Record<string, unknown>).replanejado)
+        ? hasReplanejado && (ultPoint as unknown as Record<string, unknown>).replanejado != null
+          ? Number((ultPoint as unknown as Record<string, unknown>).replanejado)
           : ultPoint.previsto ?? 0
         : 0);
 
