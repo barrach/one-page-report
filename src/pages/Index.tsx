@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
+import ContractThermometer from '@/components/ContractThermometer';
 import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
 import MonthChart from '@/components/MonthChart';
@@ -251,7 +252,9 @@ const Index = () => {
 
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
+        <ContractThermometer />
         {showExecutive && <ExecutiveSummary />}
+
 
         {showSCurve && <SCurveChart />}
         {showHistogram && <HistogramChart />}
