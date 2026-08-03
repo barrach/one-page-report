@@ -435,6 +435,31 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     return { projects: updated };
   }),
 
+  setWeeklyPlan: (tasks) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ weeklyPlan: tasks }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  addWeeklyPlanTask: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      weeklyPlan: [...(p.weeklyPlan ?? []), { id: (p.weeklyPlan?.length ?? 0) + 1, tarefa: '', responsavel: '', concluida: false, motivo: '' }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  removeWeeklyPlanTask: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      weeklyPlan: (p.weeklyPlan ?? []).filter((_, i) => i !== index).map((t, i) => ({ ...t, id: i + 1 })),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
   setActions: (actions) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ actions }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
