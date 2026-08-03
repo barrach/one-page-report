@@ -36,8 +36,8 @@ const AppSidebar = () => {
         title={label}
         className={`${itemBase} ${collapsed ? 'justify-center px-0' : ''} ${
           active
-            ? 'bg-primary-foreground/20 text-primary-foreground font-semibold'
-            : 'text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10'
+            ? 'bg-muted text-foreground font-semibold'
+            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
         }`}
       >
         {icon}
@@ -55,17 +55,17 @@ const AppSidebar = () => {
 
   return (
     <aside
-      className={`hidden sm:flex flex-col shrink-0 gradient-primary sticky top-0 h-screen px-3 py-4 print:hidden transition-all duration-200 ${
+      className={`hidden sm:flex flex-col shrink-0 bg-background border-r border-border sticky top-0 h-screen px-3 py-4 print:hidden transition-all duration-200 ${
         collapsed ? 'w-16' : 'w-56'
       }`}
     >
       <div className={`flex items-center gap-2 pb-4 ${collapsed ? 'justify-center' : 'px-2 justify-between'}`}>
-        {!collapsed && <img src={logo.url} alt="MEGASTEAM" className="h-10 w-auto object-contain" />}
+        {!collapsed && <img src={logo.url} alt="MEGASTEAM" className="h-10 w-auto object-contain invert dark:invert-0" />}
         <button
           onClick={() => setCollapsed((c) => !c)}
           title={collapsed ? 'Expandir menu' : 'Recolher menu'}
           aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}
-          className="p-1.5 rounded-md text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10"
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
         >
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
@@ -78,11 +78,11 @@ const AppSidebar = () => {
         {isAdmin && (
           <>
             {!collapsed && (
-              <div className="mt-4 mb-1 px-3 text-[10px] uppercase tracking-widest text-primary-foreground/40">
+              <div className="mt-4 mb-1 px-3 text-[10px] uppercase tracking-widest text-muted-foreground/70">
                 Administração
               </div>
             )}
-            {collapsed && <div className="mt-4 mb-1 mx-auto w-6 border-t border-primary-foreground/20" />}
+            {collapsed && <div className="mt-4 mb-1 mx-auto w-6 border-t border-border" />}
             {link('/admin', <Shield className="h-3.5 w-3.5" />, 'Admin')}
             {showNew && !collapsed ? (
               <div className="px-1 py-1 space-y-1">
@@ -92,7 +92,7 @@ const AppSidebar = () => {
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
                   placeholder="Nome do contrato"
-                  className="h-8 text-xs bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground placeholder:text-primary-foreground/50"
+                  className="h-8 text-xs bg-card border-border text-foreground placeholder:text-muted-foreground"
                 />
                 <div className="flex gap-1">
                   <Button size="sm" variant="secondary" className="h-7 flex-1 text-xs" onClick={handleCreate}>
@@ -101,7 +101,7 @@ const AppSidebar = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-xs text-primary-foreground"
+                    className="h-7 text-xs text-foreground"
                     onClick={() => setShowNew(false)}
                   >
                     ✕
@@ -115,7 +115,7 @@ const AppSidebar = () => {
                   setShowNew(true);
                 }}
                 title="Novo contrato"
-                className={`${itemBase} ${collapsed ? 'justify-center px-0' : ''} text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10`}
+                className={`${itemBase} ${collapsed ? 'justify-center px-0' : ''} text-muted-foreground hover:text-foreground hover:bg-muted`}
               >
                 <Plus className="h-3.5 w-3.5" /> {!collapsed && 'Novo'}
               </button>
@@ -124,9 +124,9 @@ const AppSidebar = () => {
         )}
       </nav>
 
-      <div className="mt-auto pt-4 border-t border-primary-foreground/20">
+      <div className="mt-auto pt-4 border-t border-border">
         {!collapsed && (
-          <p className="px-3 text-[10px] text-primary-foreground/50 truncate">{user?.email}</p>
+          <p className="px-3 text-[10px] text-muted-foreground truncate">{user?.email}</p>
         )}
         <button
           onClick={async () => {
@@ -134,7 +134,7 @@ const AppSidebar = () => {
             navigate('/login');
           }}
           title="Sair"
-          className={`${itemBase} w-full ${collapsed ? 'justify-center px-0' : ''} text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10`}
+          className={`${itemBase} w-full ${collapsed ? 'justify-center px-0' : ''} text-muted-foreground hover:text-foreground hover:bg-muted`}
         >
           <LogOut className="h-3.5 w-3.5" /> {!collapsed && 'Sair'}
         </button>
