@@ -7,7 +7,7 @@ import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
 import MonthChart from '@/components/MonthChart';
 import ActionsTable from '@/components/ActionsTable';
-import RestrictionsChart from '@/components/RestrictionsChart';
+
 import HistogramChart from '@/components/HistogramChart';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
@@ -267,7 +267,7 @@ const Index = () => {
           </div>
         )}
 
-        <RestrictionsChart />
+        
 
 
 
