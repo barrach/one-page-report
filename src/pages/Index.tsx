@@ -11,7 +11,7 @@ import RestrictionsChart from '@/components/RestrictionsChart';
 import HistogramChart from '@/components/HistogramChart';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
-import AppNavbar from '@/components/AppNavbar';
+import AppSidebar from '@/components/AppSidebar';
 import logo from '@/assets/megasteam-logo.png.asset.json';
 import { useAuth } from '@/hooks/use-auth';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
@@ -155,13 +155,22 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className={presentationMode ? 'overflow-auto' : ''}>
+    <div className="min-h-screen bg-background flex">
+      {!presentationMode && <AppSidebar />}
+      <div className={`flex-1 min-w-0 ${presentationMode ? 'overflow-auto' : ''}`}>
+      {/* Action toolbar */}
       {!presentationMode && (
-        <AppNavbar
-          actions={
-            <>
+        <div className="px-3 sm:px-5 md:px-6 pt-3 sm:pt-5 max-w-[1440px] mx-auto w-full print:hidden">
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-border bg-card/60 backdrop-blur px-3 py-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <img src={logo.url} alt="MEGASTEAM" className="h-5 w-auto object-contain sm:hidden" />
+              <span className="hidden sm:block text-[10px] font-semibold text-muted-foreground tracking-widest uppercase">
+                Relatório
+              </span>
+              <ProjectSelector />
+            </div>
 
+            <div className="flex items-center gap-1.5">
               <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
                 <DialogTrigger asChild>
                   <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
@@ -221,11 +230,10 @@ const Index = () => {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </>
-          }
-        />
+            </div>
+          </div>
+        </div>
       )}
-
 
 
       {/* Floating exit button in presentation mode */}
