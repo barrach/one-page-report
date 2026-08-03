@@ -256,9 +256,13 @@ const Index = () => {
           <ActionsTable />
         </div>
 
-        {showSCurve && <SCurveChart />}
+        {(showSCurve || showHistogram) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+            {showSCurve && <SCurveChart />}
+            {showHistogram && <HistogramChart />}
+          </div>
+        )}
 
-        {showHistogram && <HistogramChart />}
 
         {(showFiveWeek || showMonth) && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
