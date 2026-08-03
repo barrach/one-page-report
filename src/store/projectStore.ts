@@ -228,6 +228,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
 
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
+    weeklyPlan: (d.weeklyPlan as WeeklyPlanTask[]) ?? [],
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
