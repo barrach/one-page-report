@@ -13,8 +13,12 @@ import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ScheduleTable from '@/components/ScheduleTable';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
+import AppSidebar from '@/components/AppSidebar';
+import logo from '@/assets/megasteam-logo.png.asset.json';
+import { useAuth } from '@/hooks/use-auth';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
+
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu, Tv } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
