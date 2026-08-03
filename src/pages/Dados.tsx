@@ -1,7 +1,5 @@
 import DataInputPage from '@/pages/DataInput';
-import ProjectSelector from '@/components/ProjectSelector';
 import AppNavbar from '@/components/AppNavbar';
-import logo from '@/assets/megasteam-logo.png.asset.json';
 import { useCurrentProject } from '@/store/projectStore';
 
 const DadosPage = () => {
