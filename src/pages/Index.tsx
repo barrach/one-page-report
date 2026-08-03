@@ -43,6 +43,8 @@ const Index = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const current = useCurrentProject();
+  const isAdmin = useAuth((s) => s.isAdmin);
+
 
   const hasRows = (arr: any[] | undefined, keys: string[]) =>
     Array.isArray(arr) && arr.some((r) => r && keys.some((k) => {
