@@ -164,14 +164,6 @@ const ContractThermometer = () => {
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
-        {zones.map((z) => (
-          <span key={z.label} className="flex items-center gap-1.5">
-            <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: z.color }} />
-            {z.label} ({z.from}–{z.to}%)
-          </span>
-        ))}
-      </div>
     </div>
   );
 };

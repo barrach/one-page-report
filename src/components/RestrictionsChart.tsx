@@ -78,7 +78,7 @@ const RestrictionsChart = () => {
       </div>
 
       {/* Inline chart with fixed minimum height */}
-      <div style={{ width: '100%', height: 220 }}>
+      <div style={{ width: '100%', height: 180 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={60}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />

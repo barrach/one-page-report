@@ -2469,16 +2469,14 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
   // ─── Field selection (segunda etapa) ───
   type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'schedule' | 'finCurve' | 'projectInfo';
-  const FIELD_LABELS: Record<FieldKey, string> = {
+  const FIELD_LABELS: Partial<Record<FieldKey, string>> = {
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
     monthly: 'Prev × Mês (velocímetro mensal)',
     histogram: 'Histograma (barras de avanço por semana)',
-    schedule: 'Cronograma (Gantt)',
-    finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
   };
-  const FIELD_SOURCE: Record<FieldKey, string | undefined> = {
+  const FIELD_SOURCE: Partial<Record<FieldKey, string | undefined>> = {
     sCurve: sourceNames.curve,
     weekly: sourceNames.curve,
     monthly: sourceNames.curve,
@@ -2501,8 +2499,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: !!(c && c.monthly.length),
     projectInfo: !!c,
     histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
-    schedule: !!(schedule && schedule.rows.length),
-    finCurve: !!(finCurve && finCurve.length),
+    schedule: false,
+    finCurve: false,
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
@@ -2759,7 +2757,7 @@ function FieldsStep({
   available: Record<FieldKeyT, boolean>;
   selectedFields: Record<FieldKeyT, boolean>;
   toggleField: (k: FieldKeyT) => void;
-  FIELD_LABELS: Record<FieldKeyT, string>;
+  FIELD_LABELS: Partial<Record<FieldKeyT, string>>;
   FIELD_SOURCE: Record<FieldKeyT, string | undefined>;
   anyFieldChecked: boolean;
   onBack: () => void;
@@ -2797,16 +2795,6 @@ function FieldsStep({
             <AlertCircle className="h-3.5 w-3.5" /> {e}
           </div>
         ))}
-        {scheduleError && (
-          <div className="text-xs text-destructive flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" /> Cronograma: {scheduleError}
-          </div>
-        )}
-        {finCurveError && (
-          <div className="text-xs text-destructive flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" /> Curva S Financeira: {finCurveError}
-          </div>
-        )}
 
         <div className="space-y-2 pt-1">
           {(Object.keys(FIELD_LABELS) as FieldKeyT[]).map((k) => {
