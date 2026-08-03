@@ -20,7 +20,7 @@ import {
 const fmtPct = (v: number | null | undefined) =>
   v == null ? '' : `${v.toFixed(2).replace('.', ',')}%`;
 
-const SCurveChart = () => {
+const SCurveChart = ({ fill = false }: { fill?: boolean }) => {
   const { sCurveData, statusDateIndex, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
   const isMobile = useIsMobile();
