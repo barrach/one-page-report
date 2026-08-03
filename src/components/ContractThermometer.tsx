@@ -98,7 +98,7 @@ const ContractThermometer = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] gap-4 items-center">
-        <svg viewBox="0 0 400 210" className="w-full max-w-[420px] mx-auto">
+        <svg viewBox="0 0 400 232" className="w-full max-w-[420px] mx-auto">
           {zones.map((z) => (
             <path key={z.label} d={arcPath(z.from, z.to)} fill={z.color} opacity={0.85} />
           ))}
