@@ -33,14 +33,10 @@ const RestrictionsChart = () => {
     );
   };
 
-  if (total === 0) {
-    return (
-      <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col items-center justify-center" style={{ minHeight: 300 }}>
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider mb-2">Restrições Removidas</h3>
-        <p className="text-sm text-muted-foreground">Nenhuma restrição cadastrada</p>
-      </div>
-    );
-  }
+  if (total === 0) return null;
+
+
+
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col">
@@ -82,7 +78,7 @@ const RestrictionsChart = () => {
       </div>
 
       {/* Inline chart with fixed minimum height */}
-      <div style={{ width: '100%', height: 300 }}>
+      <div style={{ width: '100%', height: 220 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={60}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />

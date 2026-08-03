@@ -140,11 +140,8 @@ const defaultProjectData: Omit<Project, 'id' | 'name'> = {
     { label: 'Sem. 4', previsto: 0, real: 0 },
     { label: 'Sem. 5', previsto: 0, real: 0 },
   ],
-  actions: [
-    { id: 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
-    { id: 2, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
-  ],
-  observations: [{ id: 1, text: '' }],
+  actions: [],
+  observations: [],
   histogramData: [{ date: '', semana: '', previsto: 0, real: 0 }],
   scheduleData: [{ id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
 };
@@ -195,17 +192,8 @@ const seedProject: Project = {
     { label: 'Sem. 4', previsto: 87.4, real: 0 },
     { label: 'Sem. 5', previsto: 0, real: 0 },
   ],
-  actions: [
-    { id: 1, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
-    { id: 2, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
-    { id: 3, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
-    { id: 4, problema: '', causa: '', impacto: '', atividade: '', responsavel: '', prazo: '', necessidade: '', status: '' as ActionStatus },
-  ],
-  observations: [
-    { id: 1, text: 'Fase 1 - com o término previsto para o dia 26/02' },
-    { id: 2, text: '' },
-    { id: 3, text: '' },
-  ],
+  actions: [],
+  observations: [],
   histogramData: [{ date: '', semana: '', previsto: 0, real: 0 }],
   scheduleData: [{ id: '', tarefa: '', previsto: 0, trabalhoConcluido: 0, desvio: 0, inicio: '', termino: '', inicioBase: '', terminoBase: '' }],
 };
@@ -221,8 +209,13 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     weeklyData: d.weeklyData ?? defaultProjectData.weeklyData,
     sCurveData: d.sCurveData ?? defaultProjectData.sCurveData,
     monthData: d.monthData ?? defaultProjectData.monthData,
-    actions: d.actions ?? defaultProjectData.actions,
-    observations: d.observations ?? defaultProjectData.observations,
+    actions: (d.actions ?? []).filter((a) =>
+      ['problema', 'causa', 'impacto', 'atividade', 'responsavel', 'prazo', 'necessidade', 'status'].some(
+        (k) => String((a as unknown as Record<string, unknown>)[k] ?? '').trim() !== ''
+      )
+    ).map((a, i) => ({ ...a, id: i + 1 })),
+    observations: d.observations ?? [],
+
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
