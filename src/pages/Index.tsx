@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
+import ContractThermometer from '@/components/ContractThermometer';
 import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
 import MonthChart from '@/components/MonthChart';
