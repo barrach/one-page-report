@@ -148,7 +148,7 @@ const HistogramChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Mão de obra prevista × real por período</p>
-      {chartContent('h-[240px]')}
+      {chartContent('h-[280px] sm:h-[320px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
     </div>
   );

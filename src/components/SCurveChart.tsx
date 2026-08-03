@@ -204,7 +204,7 @@ const SCurveChart = ({ fill = false }: { fill?: boolean }) => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {chartContent(fill ? 'flex-1 min-h-0' : 'h-[280px] sm:h-[500px]')}
+      {chartContent(fill ? 'flex-1 min-h-0' : 'h-[280px] sm:h-[320px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}
