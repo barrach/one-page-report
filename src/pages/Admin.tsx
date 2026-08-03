@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjectStore } from '@/store/projectStore';
-import AppSidebar from '@/components/AppSidebar';
+import AppNavbar from '@/components/AppNavbar';
 import logo from '@/assets/megasteam-logo.png.asset.json';
 
 import { Input } from '@/components/ui/input';

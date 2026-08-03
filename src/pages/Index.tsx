@@ -11,7 +11,7 @@ import RestrictionsChart from '@/components/RestrictionsChart';
 import HistogramChart from '@/components/HistogramChart';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
-import AppSidebar from '@/components/AppSidebar';
+import AppNavbar from '@/components/AppNavbar';
 import logo from '@/assets/megasteam-logo.png.asset.json';
 import { useAuth } from '@/hooks/use-auth';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';

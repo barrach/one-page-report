@@ -1,6 +1,6 @@
 import DataInputPage from '@/pages/DataInput';
 import ProjectSelector from '@/components/ProjectSelector';
-import AppSidebar from '@/components/AppSidebar';
+import AppNavbar from '@/components/AppNavbar';
 import logo from '@/assets/megasteam-logo.png.asset.json';
 import { useCurrentProject } from '@/store/projectStore';
 
