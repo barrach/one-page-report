@@ -249,6 +249,7 @@ const projectToDb = (p: Project): any => ({
     observations: p.observations,
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
+    weeklyPlan: p.weeklyPlan || [],
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     lastImports: p.lastImports || {},
