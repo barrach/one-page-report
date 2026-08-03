@@ -20,7 +20,7 @@ import {
 const fmtPct = (v: number | null | undefined) =>
   v == null ? '' : `${v.toFixed(2).replace('.', ',')}%`;
 
-const SCurveChart = () => {
+const SCurveChart = ({ fill = false }: { fill?: boolean }) => {
   const { sCurveData, statusDateIndex, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
   const isMobile = useIsMobile();
@@ -192,7 +192,7 @@ const SCurveChart = () => {
   );
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
+    <div className={`bg-card rounded-xl p-4 sm:p-6 card-shadow border ${fill ? 'h-full flex flex-col min-h-0' : ''}`}>
       <div className="flex items-start justify-between mb-1">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva "S"</h3>
         <ChartExpandModal
@@ -204,7 +204,7 @@ const SCurveChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {chartContent('h-[280px] sm:h-[500px]')}
+      {chartContent(fill ? 'flex-1 min-h-0' : 'h-[280px] sm:h-[500px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}

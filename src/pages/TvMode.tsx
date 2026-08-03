@@ -73,7 +73,7 @@ const TvMode = () => {
   const progress = Math.min(100, (elapsed / duration) * 100);
 
   return (
-    <div className="min-h-screen bg-background overflow-hidden">
+    <div className="h-screen overflow-hidden bg-background">
       {/* Progress bar */}
       <div className="fixed top-0 left-0 right-0 h-1.5 bg-muted z-50">
         <div
@@ -90,12 +90,19 @@ const TvMode = () => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -16 }}
           transition={{ duration: 0.4 }}
-          className="px-6 xl:px-10 py-6 max-w-[1900px] mx-auto space-y-4"
+          className="h-screen px-6 xl:px-10 pt-4 pb-16 max-w-[1900px] mx-auto flex flex-col gap-3 min-h-0"
         >
-          <ReportHeader />
-          {Array.isArray(current?.sCurveData) && current.sCurveData.length > 0 && <SCurveChart />}
+          <div className="shrink-0">
+            <ReportHeader />
+          </div>
+          {Array.isArray(current?.sCurveData) && current.sCurveData.length > 0 && (
+            <div className="flex-1 min-h-0">
+              <SCurveChart fill />
+            </div>
+          )}
         </motion.div>
       </AnimatePresence>
+
 
       {/* Controls */}
       <div
