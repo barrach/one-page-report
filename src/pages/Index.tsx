@@ -271,6 +271,9 @@ const Index = () => {
           </div>
         )}
 
+        <WeeklyPlanCard />
+
+
         
 
 
