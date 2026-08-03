@@ -101,6 +101,14 @@ export interface ScheduleRow {
   milestone?: boolean;
 }
 
+export interface WeeklyPlanTask {
+  id: number;
+  tarefa: string;
+  responsavel: string;
+  concluida: boolean;
+  motivo: string; // motivo do não cumprimento
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -113,10 +121,12 @@ export interface Project {
   observations: Observation[];
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
+  weeklyPlan?: WeeklyPlanTask[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
 }
+
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
   statusDateIndex: 0,
