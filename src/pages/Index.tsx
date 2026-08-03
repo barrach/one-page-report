@@ -19,7 +19,10 @@ import { useAuth } from '@/hooks/use-auth';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu, Tv } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu, Tv, MoreHorizontal } from 'lucide-react';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
