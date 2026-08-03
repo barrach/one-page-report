@@ -35,7 +35,9 @@ const Login = () => {
       if (err) {
         setError(err.includes('already') ? 'Este e-mail já possui uma conta.' : 'Não foi possível criar a conta.');
       } else if (needsConfirmation) {
-        setInfo('Conta criada! Confirme seu e-mail para acessar.');
+        const signInErr = await signIn(email.trim(), password);
+        if (signInErr) setInfo('Conta criada! Faça login para acessar.');
+        else navigate('/', { replace: true });
       } else {
         navigate('/', { replace: true });
       }
