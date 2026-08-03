@@ -230,10 +230,11 @@ const Index = () => {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
       )}
+
 
 
       {/* Floating exit button in presentation mode */}
