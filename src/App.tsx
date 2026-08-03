@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
 const Admin = lazy(() => import("./pages/Admin"));
 import Install from "./pages/Install";
+const TvMode = lazy(() => import("./pages/TvMode"));
 import NotFound from "./pages/NotFound";
 import { useProjectStore } from "./store/projectStore";
 
@@ -27,6 +28,11 @@ const AppContent = () => {
         <Route path="/install" element={<Install />} />
         <Route path="/" element={<Index />} />
         <Route path="/dados" element={<DadosPage />} />
+        <Route path="/tv" element={
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
+            <TvMode />
+          </Suspense>
+        } />
         <Route path="/admin" element={
           <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-background"><div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" /></div>}>
             <Admin />

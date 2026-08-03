@@ -15,7 +15,7 @@ import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu, Tv } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -175,6 +175,15 @@ const Index = () => {
 
           <div className="hidden sm:flex items-center gap-2 sm:gap-3">
             <button
+              onClick={() => navigate('/tv')}
+              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground text-xs font-semibold transition-colors"
+              title="Modo TV — rotaciona todos os contratos"
+            >
+              <Tv className="h-3.5 w-3.5" />
+              Modo TV
+            </button>
+
+            <button
               onClick={togglePresentation}
               className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
               title="Modo apresentação"
@@ -255,6 +264,9 @@ const Index = () => {
                   </Button>
                   <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); togglePresentation(); }}>
                     <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
+                  </Button>
+                  <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); navigate('/tv'); }}>
+                    <Tv className="h-4 w-4 mr-2" /> Modo TV
                   </Button>
                   <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); toggleTheme(); }}>
                     {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
