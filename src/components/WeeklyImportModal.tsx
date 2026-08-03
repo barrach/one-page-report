@@ -2758,7 +2758,7 @@ function FieldsStep({
   selectedFields: Record<FieldKeyT, boolean>;
   toggleField: (k: FieldKeyT) => void;
   FIELD_LABELS: Partial<Record<FieldKeyT, string>>;
-  FIELD_SOURCE: Record<FieldKeyT, string | undefined>;
+  FIELD_SOURCE: Partial<Record<FieldKeyT, string | undefined>>;
   anyFieldChecked: boolean;
   onBack: () => void;
   onCancel: () => void;
