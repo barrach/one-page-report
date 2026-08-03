@@ -56,7 +56,7 @@ const Index = () => {
   const showSCurve = hasRows(current?.sCurveData, ['date']);
   const showHistogram = hasRows(current?.histogramData, ['date', 'semana']);
   const showFinancial = Array.isArray(current?.curvaSFinanceira) && current.curvaSFinanceira.length > 0;
-  const showFiveWeek = hasRows(current?.weeklyData, ['date']);
+  const showFiveWeek = hasRows(current?.weeklyData, ['date']) || showSCurve;
   const showMonth = hasRows(current?.monthData, ['week', 'date']);
   const showSchedule = hasRows(current?.scheduleData, ['tarefa', 'id']);
   const showExecutive = showSCurve || showHistogram || showFinancial || showFiveWeek || showMonth || showSchedule;
