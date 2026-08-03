@@ -170,47 +170,14 @@ const Index = () => {
           </div>
 
 
-          <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => navigate('/tv')}
-              className="flex items-center gap-1.5 h-8 px-2.5 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground text-xs font-semibold transition-colors"
-              title="Modo TV — rotaciona todos os contratos"
-            >
-              <Tv className="h-3.5 w-3.5" />
-              Modo TV
-            </button>
-
-            <button
-              onClick={togglePresentation}
-              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-              title="Modo apresentação"
-            >
-              <Presentation className="h-3.5 w-3.5" />
-            </button>
-
-            {!isStandalone && (
-              <button
-                onClick={() => navigate('/install')}
-                className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-                title="Instalar no celular"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-              </button>
-            )}
-
-            <button
-              onClick={toggleTheme}
-              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-            >
-              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </button>
+          <div className="hidden sm:flex items-center gap-2">
+            <ProjectSelector showCreate />
 
             <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
                   <Download className="h-3.5 w-3.5" />
-                  Exportar PDF
+                  Exportar
                 </Button>
               </DialogTrigger>
               <DialogContent>
@@ -235,8 +202,38 @@ const Index = () => {
                 </div>
               </DialogContent>
             </Dialog>
-            <ProjectSelector showCreate />
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center justify-center h-8 w-8 rounded-lg text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
+                  title="Mais opções"
+                  aria-label="Mais opções"
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={togglePresentation}>
+                  <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/tv')}>
+                  <Tv className="h-4 w-4 mr-2" /> Modo TV
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={toggleTheme}>
+                  {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                  {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                </DropdownMenuItem>
+                {!isStandalone && (
+                  <DropdownMenuItem onClick={() => navigate('/install')}>
+                    <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
+
 
           <div className="flex sm:hidden items-center gap-2 min-w-0 flex-1 justify-end">
             <div className="min-w-0 flex-1 max-w-[180px]">
