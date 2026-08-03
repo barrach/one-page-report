@@ -328,14 +328,18 @@ const Index = () => {
             <Database className="h-5 w-5" />
             <span className="text-[10px] font-medium">Dados</span>
           </Link>
-          <Link to="/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
-            <Shield className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Admin</span>
-          </Link>
+          {isAdmin && (
+            <Link to="/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+              <Shield className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Admin</span>
+            </Link>
+          )}
         </nav>
       )}
+      </div>
     </div>
   );
+
 };
 
 export default Index;
