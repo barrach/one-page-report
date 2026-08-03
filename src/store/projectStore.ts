@@ -288,6 +288,9 @@ interface ProjectStoreState {
   removeWeek: (index: number) => void;
   addSCurvePoint: () => void;
   removeSCurvePoint: (index: number) => void;
+  setWeeklyPlan: (tasks: WeeklyPlanTask[]) => void;
+  addWeeklyPlanTask: () => void;
+  removeWeeklyPlanTask: (index: number) => void;
   setActions: (actions: ActionItem[]) => void;
   addAction: () => void;
   removeAction: (index: number) => void;
