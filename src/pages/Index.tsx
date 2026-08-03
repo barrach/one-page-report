@@ -267,7 +267,7 @@ const Index = () => {
           </div>
         )}
 
-        <RestrictionsChart />
+        
 
 
 
