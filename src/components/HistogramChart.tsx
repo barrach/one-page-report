@@ -136,7 +136,7 @@ const HistogramChart = () => {
   );
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between mb-1">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Histograma MOD</h3>
         <ChartExpandModal
@@ -148,7 +148,7 @@ const HistogramChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Mão de obra prevista × real por período</p>
-      {chartContent('h-[200px] sm:h-[300px]')}
+      {chartContent('h-[240px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
     </div>
   );

@@ -36,7 +36,7 @@ const ActionsTable = () => {
   const pendentes = actions.filter((a) => a.status !== 'CONCLUÍDO' && a.status !== 'CANCELADO').length;
 
   return (
-    <div className="bg-card rounded-xl card-shadow border overflow-hidden">
+    <div className="bg-card rounded-xl card-shadow border overflow-hidden h-full flex flex-col">
       <div className="flex items-center justify-between gap-3 px-4 sm:px-6 py-4 border-b border-border">
         <div className="min-w-0">
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
