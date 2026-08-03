@@ -313,8 +313,12 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
       .order('created_at', { ascending: true });
 
     if (error || !data || data.length === 0) {
-      // Seed the default project if DB is empty
-      await supabase.from('projects').upsert([projectToDb(seedProject)], { onConflict: 'id' });
+      // No accessible project: try seeding (only succeeds for admins/gestores)
+      const seeded = await supabase.from('projects').upsert([projectToDb(seedProject)], { onConflict: 'id' }).select('id');
+      if (seeded.error || !seeded.data || seeded.data.length === 0) {
+        set({ projects: [], selectedProjectId: '', loading: false });
+        return;
+      }
       set({ projects: [seedProject], selectedProjectId: 'guaxe', loading: false });
       return;
     }
@@ -323,6 +327,7 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     const currentId = get().selectedProjectId;
     const validId = projects.find(p => p.id === currentId) ? currentId : projects[0].id;
     set({ projects, selectedProjectId: validId, loading: false });
+
   },
 
   selectProject: (id) => set({ selectedProjectId: id }),
