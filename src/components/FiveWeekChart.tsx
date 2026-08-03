@@ -9,12 +9,37 @@ import {
 } from 'recharts';
 
 const FiveWeekChart = () => {
-  const { weeklyData: allWeeklyData, info } = useCurrentProject();
+  const { weeklyData: allWeeklyData, sCurveData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+
+  // Fallback: derive weekly increments from the S-Curve when weeklyData is empty
+  const sourceWeekly = useMemo(() => {
+    const hasWeekly = Array.isArray(allWeeklyData) && allWeeklyData.some(
+      (w: any) => w && (Number(w.previsto) > 0 || Number(w.real) > 0),
+    );
+    if (hasWeekly) return allWeeklyData;
+    if (!Array.isArray(sCurveData) || sCurveData.length === 0) return allWeeklyData;
+
+    const round = (n: number) => Math.round(n * 100) / 100;
+    return sCurveData.map((p: any, i: number) => {
+      const prev = i > 0 ? sCurveData[i - 1] : null;
+      const dPrev = Number(p.previsto ?? 0) - Number(prev?.previsto ?? 0);
+      const dReal = p.real === null || p.real === undefined
+        ? 0
+        : Number(p.real) - Number(prev?.real ?? 0);
+      return {
+        date: p.date,
+        previsto: round(Math.max(dPrev, 0)),
+        real: round(Math.max(dReal, 0)),
+      };
+    });
+  }, [allWeeklyData, sCurveData]);
+
   const weeklyData = useMemo(
-    () => centerWeeklyWindow(allWeeklyData, info?.atualizadoEm || '', 5),
-    [allWeeklyData, info?.atualizadoEm],
+    () => centerWeeklyWindow(sourceWeekly, info?.atualizadoEm || '', 5),
+    [sourceWeekly, info?.atualizadoEm],
   );
+
 
   const handleClick = (data: any) => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'fiveweek');
