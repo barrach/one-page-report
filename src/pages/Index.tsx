@@ -9,8 +9,6 @@ import MonthChart from '@/components/MonthChart';
 import ActionsTable from '@/components/ActionsTable';
 import RestrictionsChart from '@/components/RestrictionsChart';
 import HistogramChart from '@/components/HistogramChart';
-import FinancialCurveChart from '@/components/FinancialCurveChart';
-import ScheduleTable from '@/components/ScheduleTable';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import AppSidebar from '@/components/AppSidebar';
@@ -258,7 +256,6 @@ const Index = () => {
 
         {showSCurve && <SCurveChart />}
         {showHistogram && <HistogramChart />}
-        {showFinancial && <FinancialCurveChart />}
 
         {(showFiveWeek || showMonth) && (
           <div className={`grid grid-cols-1 ${showFiveWeek && showMonth ? 'lg:grid-cols-2' : ''} gap-4`}>
@@ -267,7 +264,6 @@ const Index = () => {
           </div>
         )}
 
-        {showSchedule && <ScheduleTable />}
         <ActionsTable />
         <RestrictionsChart />
 
