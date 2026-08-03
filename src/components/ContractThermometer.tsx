@@ -39,13 +39,14 @@ const ContractThermometer = () => {
 
   const { real, prev, desvio, idp, hasReplanejado } = model;
 
-  // Gauge geometry (0% .. 120% mapped to 180deg .. 0deg)
+  // Gauge geometry (0% .. 120% mapped to 180deg .. 0deg) — mesmo padrão do "Prev. × Realizado Mês"
   const MIN = 0;
   const MAX = 120;
   const cx = 200;
-  const cy = 170;
-  const outerR = 140;
-  const innerR = 96;
+  const cy = 180;
+  const outerR = 150;
+  const innerR = 80;
+  const labelR = outerR + 20;
 
   const valueToAngle = (v: number) => {
     const t = Math.min(1, Math.max(0, (v - MIN) / (MAX - MIN)));
@@ -66,30 +67,30 @@ const ContractThermometer = () => {
   };
 
   const zones = [
-    { from: 0, to: 80, color: 'hsl(var(--destructive))', label: 'Atrasado' },
-    { from: 80, to: 95, color: 'hsl(var(--warning))', label: 'Em risco' },
-    { from: 95, to: 120, color: 'hsl(var(--success))', label: 'No prazo' },
+    { from: 0, to: 80, color: 'hsl(3, 80%, 52%)', label: 'Atrasado' },
+    { from: 80, to: 95, color: 'hsl(50, 95%, 55%)', label: 'Em risco' },
+    { from: 95, to: 120, color: 'hsl(145, 63%, 42%)', label: 'No prazo' },
   ];
 
   const status =
     idp >= 95
-      ? { label: 'No Prazo', tone: 'text-success', chip: 'bg-success/15 text-success border-success/30' }
+      ? { label: 'No Prazo', chip: 'bg-success/15 text-success border-success/30' }
       : idp >= 80
-      ? { label: 'Em Risco', tone: 'text-warning', chip: 'bg-warning/15 text-warning border-warning/30' }
-      : { label: 'Atrasado', tone: 'text-destructive', chip: 'bg-destructive/15 text-destructive border-destructive/30' };
+      ? { label: 'Em Risco', chip: 'bg-warning/15 text-warning border-warning/30' }
+      : { label: 'Atrasado', chip: 'bg-destructive/15 text-destructive border-destructive/30' };
 
   const needleAngle = valueToAngle(idp);
-  const needleLen = outerR - 16;
+  const needleLen = outerR - 15;
   const nx = cx + needleLen * Math.cos(needleAngle);
   const ny = cy - needleLen * Math.sin(needleAngle);
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
-      <div className="flex items-start justify-between gap-3 mb-2">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
+      <div className="flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Termômetro do Contrato</h3>
-          <p className="text-xs text-muted-foreground">
-            Índice de desempenho (IDP) · realizado × {hasReplanejado ? 'replanejado' : 'previsto'} acumulado
+          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Termômetro do Contrato</h3>
+          <p className="text-xs text-muted-foreground mb-4">
+            IDP · realizado × {hasReplanejado ? 'replanejado' : 'previsto'} acumulado
           </p>
         </div>
         <span className={`shrink-0 text-[11px] font-semibold px-2.5 py-1 rounded-full border ${status.chip}`}>
@@ -97,75 +98,61 @@ const ContractThermometer = () => {
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_240px] gap-4 items-center">
-        <svg viewBox="0 0 400 232" className="w-full max-w-[420px] mx-auto">
-          {zones.map((z) => (
-            <path key={z.label} d={arcPath(z.from, z.to)} fill={z.color} opacity={0.85} />
-          ))}
+      <svg viewBox="0 0 400 240" className="w-full max-w-[360px] mx-auto">
+        {zones.map((z) => (
+          <g key={z.label}>
+            <path d={arcPath(z.from, z.to)} fill={z.color} stroke="hsl(var(--card))" strokeWidth="3" />
+            <text
+              x={cx + labelR * Math.cos(valueToAngle((z.from + z.to) / 2))}
+              y={cy - labelR * Math.sin(valueToAngle((z.from + z.to) / 2))}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fill="hsl(var(--muted-foreground))"
+              fontSize="10"
+              fontWeight="600"
+            >
+              {z.label}
+            </text>
+          </g>
+        ))}
 
-          {[0, 20, 40, 60, 80, 100, 120].map((tick) => {
-            const a = valueToAngle(tick);
-            const r1 = outerR + 4;
-            const r2 = outerR + 12;
-            return (
-              <g key={tick}>
-                <line
-                  x1={cx + r1 * Math.cos(a)}
-                  y1={cy - r1 * Math.sin(a)}
-                  x2={cx + r2 * Math.cos(a)}
-                  y2={cy - r2 * Math.sin(a)}
-                  stroke="hsl(var(--border))"
-                  strokeWidth="2"
-                />
-                <text
-                  x={cx + (r2 + 10) * Math.cos(a)}
-                  y={cy - (r2 + 10) * Math.sin(a)}
-                  textAnchor="middle"
-                  dominantBaseline="central"
-                  fontSize="10"
-                  fill="hsl(var(--muted-foreground))"
-                >
-                  {tick}
-                </text>
-              </g>
-            );
-          })}
+        <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="hsl(var(--foreground))" strokeWidth="3" strokeLinecap="round" />
+        <circle cx={cx} cy={cy} r="7" fill="hsl(var(--foreground))" />
+        <circle cx={cx} cy={cy} r="4" fill="hsl(var(--card))" />
 
-          <line x1={cx} y1={cy} x2={nx} y2={ny} stroke="hsl(var(--foreground))" strokeWidth="4" strokeLinecap="round" />
-          <circle cx={cx} cy={cy} r="8" fill="hsl(var(--foreground))" />
-          <circle cx={cx} cy={cy} r="4" fill="hsl(var(--card))" />
+        <text x={cx} y={cy + 26} textAnchor="middle" fill="hsl(var(--foreground))" fontSize="22" fontWeight="bold">
+          {fmtBR(idp, 1)}%
+        </text>
+        <text x={cx} y={cy + 42} textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="10">
+          IDP · DESEMPENHO DE PRAZO
+        </text>
+      </svg>
 
-          <text x={cx} y={cy + 30} textAnchor="middle" fontSize="26" fontWeight="700" fill="hsl(var(--foreground))">
-            {fmtBR(idp, 1)}%
-          </text>
-          <text x={cx} y={cy + 46} textAnchor="middle" fontSize="10" fill="hsl(var(--muted-foreground))">
-            IDP · DESEMPENHO DE PRAZO
-          </text>
-        </svg>
-
-        <div className="grid grid-cols-3 md:grid-cols-1 gap-2">
-          <div className="rounded-lg border border-border px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Realizado</p>
-            <p className="text-base font-bold text-success">{fmtBR(real)}%</p>
-          </div>
-          <div className="rounded-lg border border-border px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
-              {hasReplanejado ? 'Replanejado' : 'Previsto'}
-            </p>
-            <p className="text-base font-bold text-primary">{fmtBR(prev)}%</p>
-          </div>
-          <div className="rounded-lg border border-border px-3 py-2">
-            <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Desvio</p>
-            <p className={`text-base font-bold ${desvio < 0 ? 'text-destructive' : 'text-success'}`}>
-              {desvio >= 0 ? '+' : ''}
-              {fmtBR(desvio)} pp
-            </p>
-          </div>
-        </div>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-table-header text-table-header-foreground">
+              <th className="px-3 py-1.5 text-left rounded-tl-lg"></th>
+              <th className="px-3 py-1.5 text-center">Realizado</th>
+              <th className="px-3 py-1.5 text-center">{hasReplanejado ? 'Replanejado' : 'Previsto'}</th>
+              <th className="px-3 py-1.5 text-center rounded-tr-lg">Desvio</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td className="px-3 py-1.5 font-semibold text-muted-foreground">ACUM.</td>
+              <td className="px-3 py-1.5 text-center font-bold text-success">{fmtBR(real)}%</td>
+              <td className="px-3 py-1.5 text-center font-bold text-primary">{fmtBR(prev)}%</td>
+              <td className={`px-3 py-1.5 text-center font-bold ${desvio < 0 ? 'text-destructive' : 'text-success'}`}>
+                {desvio >= 0 ? '+' : ''}{fmtBR(desvio)} pp
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
-
     </div>
   );
 };
+
 
 export default ContractThermometer;
