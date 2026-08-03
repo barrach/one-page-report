@@ -39,7 +39,7 @@ const RestrictionsChart = () => {
 
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-center justify-between mb-1">
         <div>
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Restrições Removidas</h3>
