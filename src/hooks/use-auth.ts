@@ -4,9 +4,15 @@ import type { User } from '@supabase/supabase-js';
 
 export type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
 
+export const ADMIN_EMAILS = [
+  'pedro.melecardi@megasteam.com.br',
+  'michel.zabalia@megasteam.com.br',
+];
+
 interface AuthState {
   user: User | null;
   role: AppRole | null;
+  isAdmin: boolean;
   loading: boolean;
   initialized: boolean;
   init: () => void;
@@ -14,9 +20,13 @@ interface AuthState {
   signOut: () => Promise<void>;
 }
 
+const computeAdmin = (user: User | null, role: AppRole | null) =>
+  !!user && (role === 'admin' || ADMIN_EMAILS.includes((user.email || '').toLowerCase()));
+
 export const useAuth = create<AuthState>()((set, get) => ({
   user: null,
   role: null,
+  isAdmin: false,
   loading: true,
   initialized: false,
 
@@ -24,33 +34,35 @@ export const useAuth = create<AuthState>()((set, get) => ({
     if (get().initialized) return;
     set({ initialized: true });
 
-    // Store remember-me preference in localStorage for persistence across sessions
-    window.addEventListener('beforeunload', () => {
-      if (localStorage.getItem('megasteam_remember_me') !== 'true') {
-        localStorage.removeItem('sb-bxmvzxtbjxlicjaewvfg-auth-token');
+    const apply = async (user: User | null) => {
+      if (!user) {
+        set({ user: null, role: null, isAdmin: false, loading: false });
+        return;
       }
-    });
+      const { data } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      const role = (data?.role as AppRole) ?? null;
+      set({ user, role, isAdmin: computeAdmin(user, role), loading: false });
+    };
 
     // Listen first
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    supabase.auth.onAuthStateChange((_event, session) => {
       const user = session?.user ?? null;
-      if (user) {
-        const { data } = await supabase.from('user_roles').select('role').eq('user_id', user.id).limit(1).single();
-        set({ user, role: (data?.role as AppRole) ?? null, loading: false });
-      } else {
-        set({ user: null, role: null, loading: false });
+      if (!user) {
+        set({ user: null, role: null, isAdmin: false, loading: false });
+        return;
       }
+      set({ user, isAdmin: computeAdmin(user, get().role), loading: false });
+      setTimeout(() => { void apply(user); }, 0);
     });
 
     // Then get current session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      const user = session?.user ?? null;
-      if (user) {
-        const { data } = await supabase.from('user_roles').select('role').eq('user_id', user.id).limit(1).single();
-        set({ user, role: (data?.role as AppRole) ?? null, loading: false });
-      } else {
-        set({ user: null, role: null, loading: false });
-      }
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      void apply(session?.user ?? null);
     });
   },
 
@@ -61,6 +73,6 @@ export const useAuth = create<AuthState>()((set, get) => ({
 
   signOut: async () => {
     await supabase.auth.signOut();
-    set({ user: null, role: null });
+    set({ user: null, role: null, isAdmin: false });
   },
 }));

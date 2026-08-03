@@ -4,12 +4,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/hooks/use-auth';
 
 interface Props {
   showCreate?: boolean;
 }
 
 const ProjectSelector = ({ showCreate = false }: Props) => {
+  const isAdmin = useAuth((s) => s.isAdmin);
+  const canManage = showCreate && isAdmin;
   const { projects, selectedProjectId, selectProject, addProject, deleteProject } = useProjectStore();
   const [newName, setNewName] = useState('');
   const [showNew, setShowNew] = useState(false);
@@ -34,7 +37,7 @@ const ProjectSelector = ({ showCreate = false }: Props) => {
         </SelectContent>
       </Select>
 
-      {showCreate && (
+      {canManage && (
         <>
           {showNew ? (
             <div className="flex items-center gap-1">
