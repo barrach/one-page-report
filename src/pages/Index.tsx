@@ -258,13 +258,12 @@ const Index = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-          <ActionsTable />
+          {showFiveWeek && <FiveWeekChart />}
           {showHistogram && <HistogramChart />}
         </div>
 
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-          {showFiveWeek && <FiveWeekChart />}
+          <ActionsTable />
           <WeeklyPlanCard />
         </div>
 
