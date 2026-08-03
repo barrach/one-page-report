@@ -254,15 +254,13 @@ const Index = () => {
         {showExecutive && <ExecutiveSummary />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
           <ContractThermometer />
-          <ActionsTable />
+          {showSCurve && <SCurveChart />}
         </div>
 
-        {(showSCurve || showHistogram) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-            {showSCurve && <SCurveChart />}
-            {showHistogram && <HistogramChart />}
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          <ActionsTable />
+          {showHistogram && <HistogramChart />}
+        </div>
 
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
