@@ -265,14 +265,16 @@ const Index = () => {
         )}
 
 
-        {(showFiveWeek || showMonth) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+          {showFiveWeek && <FiveWeekChart />}
+          <WeeklyPlanCard />
+        </div>
+
+        {showMonth && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
-            {showFiveWeek && <FiveWeekChart />}
-            {showMonth && <MonthChart />}
+            <MonthChart />
           </div>
         )}
-
-        <WeeklyPlanCard />
 
 
         
