@@ -9,6 +9,7 @@ import MonthChart from '@/components/MonthChart';
 import ActionsTable from '@/components/ActionsTable';
 
 import HistogramChart from '@/components/HistogramChart';
+import WeeklyPlanCard from '@/components/WeeklyPlanCard';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import AppSidebar from '@/components/AppSidebar';
@@ -270,6 +271,9 @@ const Index = () => {
             {showMonth && <MonthChart />}
           </div>
         )}
+
+        <WeeklyPlanCard />
+
 
         
 

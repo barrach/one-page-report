@@ -101,6 +101,14 @@ export interface ScheduleRow {
   milestone?: boolean;
 }
 
+export interface WeeklyPlanTask {
+  id: number;
+  tarefa: string;
+  responsavel: string;
+  concluida: boolean;
+  motivo: string; // motivo do não cumprimento
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -113,10 +121,12 @@ export interface Project {
   observations: Observation[];
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
+  weeklyPlan?: WeeklyPlanTask[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string };
 }
+
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
   statusDateIndex: 0,
@@ -218,6 +228,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
 
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
+    weeklyPlan: (d.weeklyPlan as WeeklyPlanTask[]) ?? [],
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
@@ -238,6 +249,7 @@ const projectToDb = (p: Project): any => ({
     observations: p.observations,
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
+    weeklyPlan: p.weeklyPlan || [],
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     lastImports: p.lastImports || {},
@@ -276,6 +288,9 @@ interface ProjectStoreState {
   removeWeek: (index: number) => void;
   addSCurvePoint: () => void;
   removeSCurvePoint: (index: number) => void;
+  setWeeklyPlan: (tasks: WeeklyPlanTask[]) => void;
+  addWeeklyPlanTask: () => void;
+  removeWeeklyPlanTask: (index: number) => void;
   setActions: (actions: ActionItem[]) => void;
   addAction: () => void;
   removeAction: (index: number) => void;
@@ -414,6 +429,31 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   removeSCurvePoint: (index) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       sCurveData: p.sCurveData.filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setWeeklyPlan: (tasks) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ weeklyPlan: tasks }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  addWeeklyPlanTask: () => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      weeklyPlan: [...(p.weeklyPlan ?? []), { id: (p.weeklyPlan?.length ?? 0) + 1, tarefa: '', responsavel: '', concluida: false, motivo: '' }],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  removeWeeklyPlanTask: (index) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      weeklyPlan: (p.weeklyPlan ?? []).filter((_, i) => i !== index).map((t, i) => ({ ...t, id: i + 1 })),
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
