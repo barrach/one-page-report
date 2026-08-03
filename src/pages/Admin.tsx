@@ -116,29 +116,21 @@ const Admin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background flex">
+      <AppSidebar />
+      <div className="flex-1 min-w-0">
       {/* Nav */}
       <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50 card-shadow-elevated">
-        <div className="flex items-center gap-3 sm:gap-5">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MEGASTEAM</h1>
-          </div>
-          <nav className="flex gap-1">
-            <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <FileText className="h-3.5 w-3.5" /> Relatório
-            </Link>
-            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <Database className="h-3.5 w-3.5" /> Dados
-            </Link>
-            <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
-              <Shield className="h-3.5 w-3.5" /> Admin
-            </Link>
-          </nav>
+        <div className="flex items-center gap-3">
+          <img src={logo.url} alt="MEGASTEAM" className="h-6 w-auto object-contain sm:hidden" />
+          <span className="text-xs font-semibold text-primary-foreground/70 tracking-widest uppercase">
+            Administração de usuários
+          </span>
         </div>
       </div>
 
       <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
+
         {/* Create user */}
         <div className="bg-card rounded-xl p-6 border card-shadow">
           <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
