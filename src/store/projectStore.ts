@@ -209,8 +209,13 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     weeklyData: d.weeklyData ?? defaultProjectData.weeklyData,
     sCurveData: d.sCurveData ?? defaultProjectData.sCurveData,
     monthData: d.monthData ?? defaultProjectData.monthData,
-    actions: d.actions ?? defaultProjectData.actions,
-    observations: d.observations ?? defaultProjectData.observations,
+    actions: (d.actions ?? []).filter((a) =>
+      ['problema', 'causa', 'impacto', 'atividade', 'responsavel', 'prazo', 'necessidade', 'status'].some(
+        (k) => String((a as unknown as Record<string, unknown>)[k] ?? '').trim() !== ''
+      )
+    ).map((a, i) => ({ ...a, id: i + 1 })),
+    observations: d.observations ?? [],
+
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
