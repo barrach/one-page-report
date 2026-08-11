@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, Database, Shield, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { FileText, Database, Shield, LogOut, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useProjectStore } from '@/store/projectStore';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 const DARK = '#0F172A';
@@ -9,7 +15,10 @@ const DARK = '#0F172A';
 export default function AppSidebar() {
   const location = useLocation();
   const { user, isAdmin, signOut } = useAuth();
+  const addProject = useProjectStore((s) => s.addProject);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('opr_sidebar_collapsed') === '1');
+  const [newOpen, setNewOpen] = useState(false);
+  const [newName, setNewName] = useState('');
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -19,11 +28,19 @@ export default function AppSidebar() {
     });
   };
 
+  const handleCreate = () => {
+    const name = newName.trim().toUpperCase();
+    if (!name) return;
+    addProject(name);
+    setNewName('');
+    setNewOpen(false);
+  };
+
   const isActive = (path: string) => location.pathname === path;
 
-  const navItemClass = (active: boolean) =>
+  const itemClass = (active = false) =>
     cn(
-      'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
+      'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors w-full',
       collapsed && 'justify-center px-0',
       active ? 'bg-white/10 text-white font-semibold' : 'text-white/60 hover:text-white hover:bg-white/5'
     );
@@ -59,11 +76,11 @@ export default function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <Link to="/" className={navItemClass(isActive('/'))} title="Relatório">
+        <Link to="/" className={itemClass(isActive('/'))} title="Relatório">
           <FileText className="h-4 w-4 shrink-0" />
           {!collapsed && 'Relatório'}
         </Link>
-        <Link to="/dados" className={navItemClass(isActive('/dados'))} title="Dados">
+        <Link to="/dados" className={itemClass(isActive('/dados'))} title="Dados">
           <Database className="h-4 w-4 shrink-0" />
           {!collapsed && 'Dados'}
         </Link>
@@ -75,12 +92,17 @@ export default function AppSidebar() {
                 Administração
               </p>
             )}
-            <Link to="/admin" className={navItemClass(isActive('/admin'))} title="Admin">
+            <Link to="/admin" className={itemClass(isActive('/admin'))} title="Admin">
               <Shield className="h-4 w-4 shrink-0" />
               {!collapsed && 'Admin'}
             </Link>
           </>
         )}
+
+        <button onClick={() => setNewOpen(true)} className={cn(itemClass(), 'mt-4')} title="Novo projeto">
+          <Plus className="h-4 w-4 shrink-0" />
+          {!collapsed && 'Novo'}
+        </button>
       </nav>
 
       {/* Footer */}
@@ -95,6 +117,28 @@ export default function AppSidebar() {
           {!collapsed && 'Sair'}
         </button>
       </div>
+
+      <Dialog open={newOpen} onOpenChange={setNewOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Novo projeto</DialogTitle>
+          </DialogHeader>
+          <Input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+            placeholder="Nome do projeto"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={!newName.trim()} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }
