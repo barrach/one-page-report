@@ -1,5 +1,25 @@
 import * as XLSX from "xlsx";
 
+/**
+ * Parser do "Template - Programação Semanal" (layout oficial).
+ *
+ * Aba "Programação Semanal":
+ *   - linha 2  → título
+ *   - linha 4  → Obra | <texto> | Período | <semana> | Atualização | <data>
+ *   - linhas 6..9 → cabeçalho da tabela (Item, ID Cronograma, OS atividade, Semana,
+ *     Atividade Detalhada, Local, Empresa, Responsável, Encarregado, Quantidade
+ *     Prevista, Und., (P)rev./(R)eal, os 6 dias da semana, Total Sem., Aderência,
+ *     Comentários) e o bloco de análise (PPC Frente da Obra, OK? (S/N),
+ *     Descrição da Causa, Observações)
+ *   - linhas 11+ → as atividades, em PARES: a linha "P" (previsto) e a "R" (realizado).
+ *     Os campos descritivos são mesclados no par, então só existem na linha "P".
+ *
+ * A aba "Calendário" mapeia número da semana → datas de início/fim e traz o contrato.
+ *
+ * As posições são descobertas pelos rótulos e pelos próprios dados (nunca fixas),
+ * para o parser não quebrar quando alguém insere uma coluna no meio.
+ */
+
 export type Causa6M =
   | "Método"
   | "Máquina"
@@ -20,6 +40,15 @@ export interface AtividadeProgSemanal {
   observacao: string;
   causas6M: Causa6M[];
   planoAcao: string;
+  /** Coluna "Descrição da Causa" (lista codificada, ex. "13 - Solicitação de modificações"). */
+  descricaoCausa?: string;
+  // ─── Colunas extra do template oficial ───
+  idCronograma?: string;
+  os?: string;
+  local?: string;
+  empresa?: string;
+  responsavel?: string;
+  encarregado?: string;
 }
 
 export type SemanaDoMes = 'S1' | 'S2' | 'S3' | 'S4';
@@ -86,12 +115,157 @@ function toStr(v: unknown): string {
   return String(v).trim();
 }
 
-function sixDays(row: unknown[], startCol: number): number[] {
-  const result: number[] = [];
-  for (let c = startCol; c < startCol + 6; c++) {
-    result.push(toNum(row[c]));
+/** Rótulo normalizado: sem acento, minúsculo, espaços colapsados. */
+const norm = (v: unknown): string =>
+  String(v ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const toDate = (v: unknown): Date | null => {
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'number' && v > 1000) {
+    const d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    return isNaN(d.getTime()) ? null : d;
   }
-  return result;
+  if (typeof v === 'string' && v.trim()) {
+    const d = new Date(v.trim());
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+};
+
+const ddmm = (d: Date) =>
+  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+type Grid = unknown[][];
+
+const gridOf = (ws: XLSX.WorkSheet): Grid =>
+  XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null, raw: true, blankrows: true });
+
+interface HeaderInfo { row: number; colOf: Record<string, number> }
+
+/**
+ * Linha de cabeçalho = a que tem "Item" e "Atividade Detalhada".
+ *
+ * Os rótulos NÃO ficam todos nessa linha: no template o cabeçalho ocupa uma faixa
+ * (linhas 6 a 9), com "Total Sem." e o bloco de análise ("OK? (S/N)", "Descrição da
+ * Causa") mais abaixo. Por isso o mapa de colunas é montado varrendo a faixa toda.
+ */
+const HEADER_BAND = 4;
+
+function findHeaderRow(grid: Grid): HeaderInfo | null {
+  for (let r = 0; r < Math.min(grid.length, 15); r++) {
+    const cells = (grid[r] || []).map(norm);
+    if (!cells.some((h) => h === 'item')) continue;
+    if (!cells.some((h) => h.includes('atividade detalhada'))) continue;
+
+    const colOf: Record<string, number> = {};
+    for (let k = r; k < Math.min(grid.length, r + HEADER_BAND); k++) {
+      (grid[k] || []).map(norm).forEach((h, c) => {
+        if (h && colOf[h] === undefined) colOf[h] = c;
+      });
+    }
+    return { row: r, colOf };
+  }
+  return null;
+}
+
+/** A aba de programação: pelo nome ou, na falta dele, pelo cabeçalho da tabela. */
+const findSheet = (wb: XLSX.WorkBook): string | null => {
+  const byName = wb.SheetNames.find((n) => norm(n).includes('programacao semanal'));
+  if (byName) return byName;
+  for (const n of wb.SheetNames) {
+    if (findHeaderRow(gridOf(wb.Sheets[n]))) return n;
+  }
+  return null;
+};
+
+/** Colunas dos 6 dias: a linha do cabeçalho (ou logo abaixo) com 4+ datas. */
+function findDayCols(grid: Grid, headerRow: number): { cols: number[]; dates: Date[] } {
+  for (let r = headerRow; r < Math.min(grid.length, headerRow + 5); r++) {
+    const row = grid[r] || [];
+    const found: { c: number; d: Date }[] = [];
+    for (let c = 0; c < row.length; c++) {
+      const d = toDate(row[c]);
+      if (d && d.getFullYear() > 1990) found.push({ c, d });
+    }
+    if (found.length >= 4) {
+      const slice = found.slice(0, 6);
+      return { cols: slice.map((f) => f.c), dates: slice.map((f) => f.d) };
+    }
+  }
+  return { cols: [], dates: [] };
+}
+
+/**
+ * Coluna do marcador (P)rev./(R)eal: aquela em que uma linha tem "P" e a
+ * seguinte tem "R". Vem dos dados, não do rótulo — que é mesclado e tem
+ * quebra de linha.
+ */
+function findMarkerCol(grid: Grid, startRow: number): number {
+  const counts = new Map<number, number>();
+  for (let r = startRow; r < grid.length - 1; r++) {
+    const row = grid[r] || [];
+    const next = grid[r + 1] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (norm(row[c]) === 'p' && norm(next[c]) === 'r') {
+        counts.set(c, (counts.get(c) || 0) + 1);
+      }
+    }
+  }
+  let best = -1;
+  let bestN = 0;
+  for (const [c, n] of counts) if (n > bestN) { best = c; bestN = n; }
+  return best;
+}
+
+/** Primeiro valor à direita de um rótulo, na mesma linha. */
+function valorAoLadoDe(grid: Grid, label: string, limitRow = 8): unknown {
+  const target = norm(label);
+  for (let r = 0; r < Math.min(grid.length, limitRow); r++) {
+    const row = grid[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (norm(row[c]) === target) {
+        for (let k = c + 1; k < row.length; k++) {
+          if (row[k] !== null && row[k] !== '') return row[k];
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/** Aba "Calendário": semana → datas, e o número do contrato. */
+function lerCalendario(wb: XLSX.WorkBook): {
+  semanas: Map<number, { inicio: Date; fim: Date }>;
+  contrato: string;
+} {
+  const semanas = new Map<number, { inicio: Date; fim: Date }>();
+  let contrato = '';
+  const name = wb.SheetNames.find((n) => norm(n).includes('calendario'));
+  if (!name) return { semanas, contrato };
+
+  const grid = gridOf(wb.Sheets[name]);
+  const c = valorAoLadoDe(grid, 'contrato:', 5);
+  if (c != null) contrato = toStr(c);
+
+  for (const row of grid) {
+    if (!row) continue;
+    // Procura o trio INÍCIO | FIM | SEMANA, que pode estar deslocado.
+    for (let i = 0; i < row.length - 2; i++) {
+      const ini = toDate(row[i]);
+      const fim = toDate(row[i + 1]);
+      const sem = row[i + 2];
+      if (ini && fim && typeof sem === 'number' && sem > 0 && Number.isInteger(sem)) {
+        if (!semanas.has(sem)) semanas.set(sem, { inicio: ini, fim });
+        break;
+      }
+    }
+  }
+  return { semanas, contrato };
 }
 
 // ---------------------------------------------------------------------------
@@ -99,20 +273,13 @@ function sixDays(row: unknown[], startCol: number): number[] {
 // ---------------------------------------------------------------------------
 
 export function isProgramacaoSemanal(workbook: XLSX.WorkBook): boolean {
-  const sheetName = workbook.SheetNames.find(
-    (n) => n.includes("MODELO 03") || n.includes("ENCARREGADO")
-  );
+  const sheetName = findSheet(workbook);
   if (!sheetName) return false;
-  const ws = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, {
-    header: 1,
-    defval: null,
-  });
-  const firstCell = rows[0]?.[0];
-  return (
-    typeof firstCell === "string" &&
-    firstCell.toUpperCase().includes("PROGRAMAÇÃO")
-  );
+  const grid = gridOf(workbook.Sheets[sheetName]);
+  const header = findHeaderRow(grid);
+  if (!header) return false;
+  // Os pares P/R são o que confirma que é a planilha de programação.
+  return findMarkerCol(grid, header.row) >= 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -122,183 +289,169 @@ export function isProgramacaoSemanal(workbook: XLSX.WorkBook): boolean {
 export function parseProgramacaoSemanal(
   workbook: XLSX.WorkBook
 ): ProgramacaoSemanal | null {
-  const sheetName = workbook.SheetNames.find(
-    (n) => n.includes("MODELO 03") || n.includes("ENCARREGADO")
-  );
+  const sheetName = findSheet(workbook);
   if (!sheetName) return null;
 
-  const ws = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, {
-    header: 1,
-    defval: null,
-  });
+  const grid = gridOf(workbook.Sheets[sheetName]);
+  const header = findHeaderRow(grid);
+  if (!header) return null;
 
-  if (!rows || rows.length < 7) return null;
+  const { row: hr, colOf } = header;
+  const exato = (label: string) => colOf[norm(label)];
+  const contendo = (needle: string) =>
+    Object.entries(colOf).find(([k]) => k.includes(needle))?.[1];
 
-  // --- Row 0: semana number ---
-  const semanaRaw = toStr(rows[0]?.[0]);
-  const semanaMatch = semanaRaw.match(/(\d+)/);
-  const semana = semanaMatch ? parseInt(semanaMatch[1], 10) : 0;
+  const markerCol = findMarkerCol(grid, hr);
+  if (markerCol < 0) return null;
 
-  // --- Rows 1-3: header fields ---
-  // Row 1: col2="CONTRATO:", col3=value; col13="RESPONSÁVEL:", col14=value
-  // Row 2: col2="REFERÊNCIA:", col3=value; col13="EQUIPE:", col14=value
-  // Row 3: col2="PERÍODO:", col3=value; col13="ENGENHEIRO/SUP:", col14=value
+  const { cols: dayCols, dates: dayDates } = findDayCols(grid, hr);
+  const qtyCol = markerCol + 1;
 
-  const row1 = rows[1] ?? [];
-  const row2 = rows[2] ?? [];
-  const row3 = rows[3] ?? [];
+  const cItem = exato('item');
+  const cIdCron = exato('id cronograma');
+  const cOs = exato('os atividade');
+  const cDesc = contendo('atividade detalhada');
+  const cLocal = exato('local');
+  const cEmpresa = exato('empresa');
+  const cResp = exato('responsavel');
+  const cEncarregado = exato('encarregado');
+  const cQtdPrev = contendo('quantidade prevista');
+  const cUnd = exato('und.') ?? exato('und') ?? exato('unidade');
+  const cTotal = contendo('total sem');
+  const cComent = contendo('comentario');
+  const cOk = contendo('ok?');
+  const cCausa = contendo('descricao da causa');
 
-  const contrato = toStr(row1[3]);
-  const responsavel = toStr(row1[14]);
-  const referencia = toStr(row2[3]);
-  const equipe = toStr(row2[14]);
-  const periodo = toStr(row3[3]);
-  const engenheiro = toStr(row3[14]);
+  const at = (row: unknown[], c: number | undefined) =>
+    c === undefined || c < 0 ? null : row[c] ?? null;
 
-  // --- Data rows (6+) ---
+  const dias = (row: unknown[]) =>
+    dayCols.length === 6 ? dayCols.map((c) => toNum(row[c])) : [0, 0, 0, 0, 0, 0];
+
+  // ── Cabeçalho do documento ──
+  const obra = toStr(valorAoLadoDe(grid, 'obra', hr));
+  const periodoRaw = valorAoLadoDe(grid, 'periodo', hr);
+  const { semanas: calendario, contrato: contratoCalendario } = lerCalendario(workbook);
+
+  // "Período" pode vir como número da semana (ex.: 23) ou como texto "20/02 a 25/02".
+  let semana = 0;
+  let periodo = '';
+  const periodoNum = typeof periodoRaw === 'number' ? periodoRaw : NaN;
+  if (Number.isFinite(periodoNum) && periodoNum > 0) {
+    semana = Math.round(periodoNum);
+    const cal = calendario.get(semana);
+    if (cal) periodo = `${ddmm(cal.inicio)} a ${ddmm(cal.fim)}`;
+  } else {
+    periodo = toStr(periodoRaw);
+    const m = periodo.match(/^\s*(\d+)\s*$/);
+    if (m) semana = parseInt(m[1], 10);
+  }
+
+  // As datas dos 6 dias são a fonte mais confiável do período.
+  if (dayDates.length) {
+    periodo = `${ddmm(dayDates[0])} a ${ddmm(dayDates[dayDates.length - 1])}`;
+    if (!semana) {
+      for (const [n, { inicio, fim }] of calendario) {
+        if (dayDates[0] >= inicio && dayDates[0] <= fim) { semana = n; break; }
+      }
+    }
+  }
+
+  // ── Atividades (pares P/R) ──
   const atividades: AtividadeProgSemanal[] = [];
-  let currentArea = "";
+  for (let r = hr + 1; r < grid.length; r++) {
+    const row = (grid[r] || []) as unknown[];
+    if (norm(row[markerCol]) !== 'p') continue;
 
-  const ppc = {
-    prev: [0, 0, 0, 0, 0, 0],
-    real: [0, 0, 0, 0, 0, 0],
-    aderencia: [0, 0, 0, 0, 0, 0],
-    totalPrevisto: 0,
-    totalRealizado: 0,
-    ppcSemana: 0,
-    totalAdherencia: 0,
-  };
+    const next = (grid[r + 1] || []) as unknown[];
+    const temReal = norm(next[markerCol]) === 'r';
 
-  let i = 6;
-  while (i < rows.length) {
-    const row = rows[i] as unknown[];
+    const item = toStr(at(row, cItem));
+    const idCron = toStr(at(row, cIdCron));
+    const descricao = toStr(at(row, cDesc));
+    if (!item && !idCron && !descricao) continue;
 
-    // PPC block detection — triggered by col[0] containing "PPC"
-    // Structure: all markers (PREV / REAL / ADER %) live at col 12 (same column)
-    const col0str = toStr(row[0]);
-    if (col0str.toUpperCase().includes("PPC")) {
-      // Row i: col[12] === "PREV" → daily prev values at cols 13-18
-      if (toStr(row[12]).toUpperCase() === "PREV") {
-        ppc.prev = sixDays(row, 13);
-      }
-      // Row i+1: col[12] === "REAL" → daily real values; col[19] = total adherence (0-1)
-      if (i + 1 < rows.length) {
-        const rowReal = rows[i + 1] as unknown[];
-        if (toStr(rowReal[12]).toUpperCase() === "REAL") {
-          ppc.real = sixDays(rowReal, 13);
-          ppc.totalAdherencia = toNum(rowReal[19]); // e.g. 0.86
-        }
-      }
-      // Row i+2: col[12] contains "ADER" → daily adherence values
-      if (i + 2 < rows.length) {
-        const rowAder = rows[i + 2] as unknown[];
-        if (toStr(rowAder[12]).toUpperCase().includes("ADER")) {
-          ppc.aderencia = sixDays(rowAder, 13);
-        }
-      }
+    const diasPrev = dias(row);
+    const diasReal = temReal ? dias(next) : [0, 0, 0, 0, 0, 0];
 
-      // Compute totals
-      // prev/real arrays are in % units (e.g. [10,10,10,10,10,0])
-      ppc.totalPrevisto = ppc.prev.reduce((s, v) => s + v, 0);
-      ppc.totalRealizado = ppc.real.reduce((s, v) => s + v, 0);
-      // ppcSemana = ratio realizado/previsto * 100; fallback to totalAdherencia*100
-      ppc.ppcSemana =
-        ppc.totalPrevisto > 0
-          ? Math.round((ppc.totalRealizado / ppc.totalPrevisto) * 1000) / 10
-          : Math.round(ppc.totalAdherencia * 1000) / 10;
+    // Quantidade: coluna ao lado do marcador; se vazia, cai no "Total Sem." e,
+    // por último, na "Quantidade Prevista".
+    const qtdPrev = toNum(at(row, qtyCol)) || toNum(at(row, cTotal)) || toNum(at(row, cQtdPrev));
+    const qtdReal = temReal ? (toNum(at(next, qtyCol)) || toNum(at(next, cTotal))) : 0;
 
-      i += 3;
-      continue;
-    }
+    const okRaw = norm(at(row, cOk)) || (temReal ? norm(at(next, cOk)) : '');
+    const executada = okRaw.startsWith('s')
+      ? true
+      : okRaw.startsWith('n')
+        ? false
+        : qtdPrev === 0 && qtdReal === 0
+          ? true
+          : qtdReal >= qtdPrev;
 
-    // Area header: col1 starts with "ÁREA:"
-    const col1str = toStr(row[1]);
-    if (col1str.toUpperCase().startsWith("ÁREA:")) {
-      currentArea = col1str.replace(/^ÁREA:\s*/i, "").trim();
-      i++;
-      continue;
-    }
+    atividades.push({
+      id: idCron || item || String(atividades.length + 1),
+      area: toStr(at(row, cLocal)),
+      descricao,
+      efetivo: 0,
+      quantidade: { prev: qtdPrev, real: qtdReal },
+      unidade: toStr(at(row, cUnd)),
+      dias: { prev: diasPrev, real: diasReal },
+      executada,
+      observacao: toStr(at(row, cComent)),
+      causas6M: [],
+      planoAcao: "",
+      descricaoCausa: toStr(at(row, cCausa)) || undefined,
+      idCronograma: idCron || undefined,
+      os: toStr(at(row, cOs)) || undefined,
+      local: toStr(at(row, cLocal)) || undefined,
+      empresa: toStr(at(row, cEmpresa)) || undefined,
+      responsavel: toStr(at(row, cResp)) || undefined,
+      encarregado: toStr(at(row, cEncarregado)) || undefined,
+    });
 
-    // PREV row
-    if (toStr(row[7]).toUpperCase() === "PREV") {
-      const id = toStr(row[0]);
-      const descricao = toStr(row[1]);
-      const efetivo = toNum(row[2]);
-      const qtdPrev = toNum(row[8]);
-      const unidade = toStr(row[9]);
-      const observacao = toStr(row[19]);
-      const daysPrev = sixDays(row, 13);
-
-      // REAL row immediately after
-      let qtdReal = 0;
-      let daysReal = [0, 0, 0, 0, 0, 0];
-      if (i + 1 < rows.length) {
-        const nextRow = rows[i + 1] as unknown[];
-        if (toStr(nextRow[7]).toUpperCase() === "REAL") {
-          qtdReal = toNum(nextRow[8]);
-          daysReal = sixDays(nextRow, 13);
-          i++; // consume the REAL row
-        }
-      }
-
-      const executada =
-        qtdPrev === 0 && qtdReal === 0 ? true : qtdReal >= qtdPrev;
-
-      atividades.push({
-        id,
-        area: currentArea,
-        descricao,
-        efetivo,
-        quantidade: { prev: qtdPrev, real: qtdReal },
-        unidade,
-        dias: { prev: daysPrev, real: daysReal },
-        executada,
-        observacao,
-        causas6M: [],
-        planoAcao: "",
-      });
-
-      i++;
-      continue;
-    }
-
-    i++;
+    if (temReal) r++; // consome a linha "R"
   }
 
-  // Derive semanaDoMes and mes from periodo + first activity date
-  const semanaDoMes = identificarSemanaDoMes(periodo);
-  let year: number | undefined;
-  for (const at of atividades) {
-    // inicio format is "2023-12-18" (ISO)
-    const m = String(at.observacao || '').match(/(\d{4})/);
-    if (m) { year = parseInt(m[1], 10); break; }
-  }
-  // Fallback: try to find year from row[11] of any PREV row (inicio date column)
-  if (!year) {
-    for (let r = 6; r < rows.length; r++) {
-      const row = rows[r] as unknown[];
-      if (toStr(row[7]).toUpperCase() === 'PREV') {
-        const raw = toStr(row[11]);
-        const ym = raw.match(/(\d{4})/);
-        if (ym) { year = parseInt(ym[1], 10); break; }
-      }
+  // ── PPC: somatório diário das atividades ──
+  const prev = [0, 0, 0, 0, 0, 0];
+  const real = [0, 0, 0, 0, 0, 0];
+  for (const a of atividades) {
+    for (let d = 0; d < 6; d++) {
+      prev[d] += a.dias.prev[d] || 0;
+      real[d] += a.dias.real[d] || 0;
     }
   }
-  const mes = extrairMes(periodo, year);
+  const aderencia = prev.map((p, d) => (p > 0 ? Math.round((real[d] / p) * 100) / 100 : 0));
+  const totalPrevisto = prev.reduce((s, v) => s + v, 0);
+  const totalRealizado = real.reduce((s, v) => s + v, 0);
+  const ppcSemana = totalPrevisto > 0
+    ? Math.round((totalRealizado / totalPrevisto) * 1000) / 10
+    : 0;
+
+  const ano = dayDates.length ? dayDates[0].getFullYear() : undefined;
 
   return {
     semana,
-    semanaDoMes,
-    mes,
+    semanaDoMes: identificarSemanaDoMes(periodo),
+    mes: extrairMes(periodo, ano),
     periodo,
-    contrato,
-    referencia,
-    responsavel,
-    equipe,
-    engenheiro,
+    contrato: contratoCalendario,
+    referencia: obra,
+    responsavel: '',
+    equipe: '',
+    engenheiro: '',
     atividades,
-    ppc,
+    ppc: {
+      prev,
+      real,
+      aderencia,
+      totalPrevisto,
+      totalRealizado,
+      ppcSemana,
+      totalAdherencia: totalPrevisto > 0
+        ? Math.round((totalRealizado / totalPrevisto) * 100) / 100
+        : 0,
+    },
     importadoEm: new Date().toISOString(),
   };
 }

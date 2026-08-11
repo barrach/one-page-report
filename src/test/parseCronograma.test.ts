@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
 import { isCronogramaTemplate, parseCronogramaWorkbook, weekLabel } from '@/lib/parseCronograma';
+import { isProgramacaoSemanal, parseProgramacaoSemanal } from '@/lib/parseProgramacaoSemanal';
 
 /** Roda contra o template de verdade que está na raiz do repo. */
 const TEMPLATE = path.resolve(__dirname, '../../Template - Cronograma.xlsx');
@@ -94,18 +95,53 @@ describe('parseProgramacaoSemanal — Template - Programação Semanal.xlsx', ()
     expect(existsSync(PROG)).toBe(true);
   });
 
-  // PENDENTE: o parser atual procura uma aba com "MODELO 03"/"ENCARREGADO" e espera o
-  // título em A1. Neste template a aba se chama "Programação Semanal" e o título está em
-  // A2, com as colunas em outras posições — ou seja, ele foi escrito para outro layout.
-  // Este teste é o alvo de quando o parser for adaptado ao template oficial.
-  it.skip('é reconhecido e lido pelo parser atual', async () => {
-    const { isProgramacaoSemanal, parseProgramacaoSemanal } = await import('@/lib/parseProgramacaoSemanal');
+  it('é reconhecido pelo parser', () => {
     const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
     expect(isProgramacaoSemanal(wb)).toBe(true);
-    const prog = parseProgramacaoSemanal(wb);
+  });
+
+  it('lê as atividades em pares P/R', () => {
+    const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
+    const prog = parseProgramacaoSemanal(wb)!;
     expect(prog).not.toBeNull();
-    expect(prog!.atividades.length).toBeGreaterThan(0);
-    expect(prog!.ppc.prev.length).toBe(6);
-    expect(prog!.ppc.real.length).toBe(6);
+    // linhas 11..53, de 2 em 2 → 22 atividades
+    expect(prog.atividades.length).toBe(22);
+    expect(prog.atividades[0].idCronograma).toBe('1.1');
+    expect(prog.atividades[0].os).toBe('1.11');
+    expect(prog.atividades[0].dias.prev).toHaveLength(6);
+    expect(prog.atividades[0].dias.real).toHaveLength(6);
+  });
+
+  it('guarda a "Descrição da Causa" preenchida no template', () => {
+    const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
+    const prog = parseProgramacaoSemanal(wb)!;
+    expect(prog.atividades[0].descricaoCausa).toContain('Solicitação de modifica');
+  });
+
+  it('deriva o período das datas dos 6 dias', () => {
+    const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
+    const prog = parseProgramacaoSemanal(wb)!;
+    // Q8:V8 = 20/02/2023 a 25/02/2023
+    expect(prog.periodo).toBe('20/02 a 25/02');
+    expect(prog.semanaDoMes).toBe('S3'); // dia 20 → S3 pela regra de faixas (<=21)
+    expect(prog.mes).toBe('fev/23');
+  });
+
+  it('pega o contrato e a obra do cabeçalho / aba Calendário', () => {
+    const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
+    const prog = parseProgramacaoSemanal(wb)!;
+    expect(prog.contrato).toBe('5500071140');
+    expect(prog.referencia).toContain('obras civis');
+  });
+
+  it('monta o PPC somando os dias das atividades', () => {
+    const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
+    const prog = parseProgramacaoSemanal(wb)!;
+    expect(prog.ppc.prev).toHaveLength(6);
+    expect(prog.ppc.real).toHaveLength(6);
+    expect(prog.ppc.aderencia).toHaveLength(6);
+    // O template vem em branco: sem quantidade diária, o PPC fica zerado.
+    expect(prog.ppc.totalPrevisto).toBe(0);
+    expect(prog.ppc.ppcSemana).toBe(0);
   });
 });
