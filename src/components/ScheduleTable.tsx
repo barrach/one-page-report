@@ -89,7 +89,7 @@ const ScheduleTable = () => {
           <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
           <p className="text-xs text-muted-foreground">Status das atividades planejadas</p>
         </div>
-        <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
+        <div data-pdf-hide className="flex items-center gap-1.5 text-[11px] flex-wrap">
           <span className="text-muted-foreground">Exibir até nível:</span>
           {LEVEL_BUTTONS.map((b) => (
             <button
@@ -109,7 +109,7 @@ const ScheduleTable = () => {
       </div>
 
       {/* Search */}
-      <div className="relative mb-3 mt-3">
+      <div data-pdf-hide className="relative mb-3 mt-3">
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <input
           type="text"

@@ -4,6 +4,7 @@ import { Trash2, Plus, ClipboardList, AlertTriangle, ChevronDown, ChevronRight, 
 import { cn } from '@/lib/utils';
 import ResponsavelSelect from '@/components/ResponsavelSelect';
 import { situacaoDoPrazo, corDoPrazo, paraInputDate } from '@/lib/prazoUtils';
+import { useExportMode } from '@/hooks/use-export-mode';
 
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
@@ -92,6 +93,68 @@ const CampoLongo = ({
   </label>
 );
 
+/** Célula de leitura usada na versão de exportação. */
+const Leitura = ({ label, valor }: { label: string; valor: string }) => (
+  <div className="min-w-0">
+    <span className="block text-[8px] font-bold uppercase tracking-wider text-foreground/50">{label}</span>
+    <span className="block text-[10px] text-foreground leading-snug break-words">{valor || '—'}</span>
+  </div>
+);
+
+/**
+ * Versão de impressão: texto estático, todos os pontos abertos e compacto.
+ *
+ * Na tela os campos são editáveis, mas o html2canvas corta o valor dos inputs e
+ * não desenha o texto dos selects. Aqui tudo é texto comum, e nenhuma gaveta
+ * fica fechada — no papel não há como abrir.
+ */
+const PontosParaImpressao = ({ actions }: { actions: ReturnType<typeof useCurrentProject>['actions'] }) => (
+  <div className="bg-card rounded-xl p-4 card-shadow border">
+    <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
+    <p className="text-xs text-muted-foreground mb-3">Restrições e ações corretivas</p>
+
+    {actions.length === 0 ? (
+      <p className="text-xs text-muted-foreground py-4 text-center">Nenhum ponto de atenção registrado</p>
+    ) : (
+      <div className="space-y-1.5">
+        {actions.map((a, i) => {
+          const prazo = situacaoDoPrazo(val(a, 'prazo'), a.status);
+          return (
+            <div key={i} className="rounded border border-border overflow-hidden">
+              <div className="bg-table-header text-table-header-foreground flex items-center gap-2 px-2 py-1">
+                <span className="text-[10px] font-bold tabular-nums">{String(a.id).padStart(2, '0')}</span>
+                <span className="text-[10px] font-semibold flex-1 min-w-0 break-words">
+                  {val(a, 'problema') || 'sem descrição'}
+                </span>
+                <span className="text-[9px] font-bold whitespace-nowrap">
+                  {a.status || 'SEM STATUS'}
+                </span>
+              </div>
+              <div className="px-2 py-1.5 grid grid-cols-3 gap-x-3 gap-y-1">
+                <Leitura label="Causa raiz" valor={val(a, 'causa')} />
+                <Leitura label="Atividade" valor={val(a, 'atividade')} />
+                <Leitura label="Impacto" valor={val(a, 'impacto')} />
+                <div className="col-span-3">
+                  <Leitura label="Ação corretiva" valor={val(a, 'necessidade')} />
+                </div>
+                <Leitura label="Responsável" valor={val(a, 'responsavel')} />
+                <Leitura
+                  label="Prazo"
+                  valor={
+                    val(a, 'prazo')
+                      ? `${val(a, 'prazo').split('-').reverse().join('/')}${prazo.situacao !== 'sem_prazo' ? ` · ${prazo.label}` : ''}`
+                      : ''
+                  }
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )}
+  </div>
+);
+
 /**
  * Pontos de Atenção — gavetas recolhíveis.
  *
@@ -105,11 +168,14 @@ const CampoLongo = ({
 const ActionsTable = () => {
   const { actions } = useCurrentProject();
   const { setActions, addAction, removeAction } = useProjectStore();
+  const { exportando } = useExportMode();
   const [aberto, setAberto] = useState<number | null>(0);
 
   const updateAction = (index: number, field: string, value: string) => {
     setActions(actions.map((a, i) => (i === index ? { ...a, [field]: value } : a)));
   };
+
+  if (exportando) return <PontosParaImpressao actions={actions} />;
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col min-h-[440px] sm:min-h-[560px]">

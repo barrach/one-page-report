@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { paginar } from '@/lib/pdfPaginacao';
+import { useExportMode } from '@/hooks/use-export-mode';
 import { toast } from 'sonner';
 
 const TV_INTERVALS = [10, 20, 30, 60] as const;
@@ -47,6 +48,7 @@ const Index = () => {
   const [isStandalone, setIsStandalone] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
   const { tvMode, setTvMode } = useTvMode();
+  const { setExportando } = useExportMode();
   const [tvPlaying, setTvPlaying] = useState(true);
   const [tvInterval, setTvInterval] = useState<number>(20);
   /** Barra de controle da TV: aparece ao interagir e se esconde sozinha. */
@@ -196,6 +198,11 @@ const Index = () => {
 
       const paraJpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.92);
 
+      // Troca os campos editáveis por texto estático antes de capturar: o
+      // html2canvas corta o valor dos inputs e não desenha o texto dos selects.
+      setExportando(true);
+      await new Promise((r) => setTimeout(r, 200));
+
       let primeiraPagina = true;
       let y = margem;
 
@@ -284,13 +291,21 @@ const Index = () => {
       }
 
       selectProject(originalId);
-      const projectName = projects.find(p => p.id === originalId)?.name || 'relatorio';
-      pdf.save(`${projectName}-relatorio.pdf`);
+      setExportando(false);
+
+      // Nome do arquivo: o do projeto quando é um só; com vários, deixa claro
+      // quantos vão no arquivo em vez de usar o nome de um deles.
+      const limpar = (t: string) => t.replace(/[\/:*?"<>|]/g, '-').trim();
+      const nome = idsToExport.length === 1
+        ? limpar(projects.find(p => p.id === idsToExport[0])?.name || 'relatorio')
+        : `One Page Report - ${idsToExport.length} projetos`;
+      pdf.save(`${nome}.pdf`);
       setShowExportDialog(false);
     } catch (err) {
       console.error('Erro ao exportar PDF:', err);
       toast.error('Não foi possível exportar o PDF. Veja o console para o detalhe.');
       reportRef.current?.classList.remove('exportando-pdf');
+      setExportando(false);
     } finally {
       setExporting(false);
     }
