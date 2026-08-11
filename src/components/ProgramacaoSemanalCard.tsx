@@ -12,8 +12,10 @@ import {
   ResponsiveContainer,
   Cell,
 } from "recharts";
-import { ClipboardList } from "lucide-react";
+import { Link } from "react-router-dom";
+import { CalendarCheck, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -245,20 +247,63 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
     { id: "planos", label: "Planos de Ação" },
   ];
 
+  // PPC da última semana importada — alimenta o indicador e a barra do topo.
+  const ultima = data.length > 0 ? data[data.length - 1] : null;
+  const totalPrevisto = ultima?.ppc.totalPrevisto ?? 0;
+  const totalRealizado = ultima?.ppc.totalRealizado ?? 0;
+  const ppcPct = ultima
+    ? (ultima.ppc.ppcSemana > 0 ? ultima.ppc.ppcSemana : Math.round((ultima.ppc.totalAdherencia ?? 0) * 100))
+    : 0;
+  const ppcColor = ppcPct >= 80 ? "text-success" : "text-destructive";
+
   return (
-    <div className="rounded-xl border bg-card p-6 space-y-4">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ClipboardList className="h-5 w-5 text-primary" />
-          <h2 className="font-bold text-base">Programação Semanal</h2>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
+            Programação Semanal
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Tarefas programadas × concluídas (PPC)
+          </p>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {data.length} semana{data.length !== 1 ? "s" : ""} importada
-          {data.length !== 1 ? "s" : ""}
-        </span>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="text-right">
+            <div className={cn("text-xl font-bold leading-none", ppcColor)}>
+              {Math.round(ppcPct)}%
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              PPC · {totalRealizado}/{totalPrevisto}
+            </div>
+          </div>
+          <Button asChild size="sm" variant="outline" className="gap-1.5 h-8 text-xs">
+            <Link to="/dados">
+              <Plus className="h-3 w-3" />
+              Adicionar
+            </Link>
+          </Button>
+        </div>
       </div>
 
+      {/* Barra de PPC */}
+      <div className="h-2 rounded-full bg-muted overflow-hidden mt-3 mb-4">
+        <div
+          className={cn("h-full rounded-full transition-all", ppcPct >= 80 ? "bg-success" : "bg-primary")}
+          style={{ width: `${Math.min(Math.max(ppcPct, 0), 100)}%` }}
+        />
+      </div>
+
+      {data.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <CalendarCheck className="h-7 w-7 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">Nenhuma tarefa programada</p>
+          <p className="text-xs text-muted-foreground/70 max-w-[300px]">
+            Use “Adicionar” para montar a programação da semana.
+          </p>
+        </div>
+      ) : (
+      <div className="space-y-4">
       {/* Tab buttons */}
       <div className="flex gap-1 border-b">
         {tabs.map((t) => (
@@ -548,6 +593,8 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
             </div>
           )}
         </div>
+      )}
+      </div>
       )}
     </div>
   );
