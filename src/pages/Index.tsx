@@ -84,7 +84,8 @@ const Index = () => {
 
   const showSCurve = hasRows(current?.sCurveData, ['date']);
   const showHistogram = hasRows(current?.histogramData, ['date', 'semana']);
-  const showFiveWeek = hasRows(current?.weeklyData, ['date']);
+  // A visão semanal também é derivada da Curva S quando não há série semanal importada
+  const showFiveWeek = hasRows(current?.weeklyData, ['date']) || showSCurve;
   const showMonth = hasRows(current?.monthData, ['week', 'date']);
   const showProgSemanal = Array.isArray(current?.programacaoSemanal) && (current?.programacaoSemanal?.length ?? 0) > 0;
   const showExecutive = showSCurve || showHistogram || showFiveWeek || showMonth;

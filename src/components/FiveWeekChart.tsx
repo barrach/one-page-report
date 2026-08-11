@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useCurrentProject } from '@/store/projectStore';
+import { useCurrentProject, type WeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { centerWeeklyWindow } from '@/lib/dateUtils';
 import ChartInsight from '@/components/ChartInsight';
@@ -8,12 +8,47 @@ import {
   ResponsiveContainer, Cell, ReferenceLine, LabelList,
 } from 'recharts';
 
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
 const FiveWeekChart = () => {
-  const { weeklyData: allWeeklyData, info } = useCurrentProject();
+  const { weeklyData: allWeeklyData, sCurveData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+
+  // Quando o projeto não tem série semanal importada, deriva o resultado da
+  // semana a partir da Curva S (semanal = delta do acumulado).
+  const sourceWeekly = useMemo<WeekData[]>(() => {
+    const hasWeekly = (allWeeklyData ?? []).some(w => w.date && ((w.previsto ?? 0) > 0 || (w.real ?? 0) > 0));
+    if (hasWeekly) return allWeeklyData;
+
+    const getPrevAcum = (p: typeof sCurveData[number]) =>
+      (p.replanejado ?? 0) > 0 ? (p.replanejado ?? 0) : (p.previsto ?? 0);
+    const getRealAcum = (p: typeof sCurveData[number]) =>
+      (p.realReplanejado ?? 0) > 0 ? (p.realReplanejado ?? 0) : (p.real ?? 0);
+
+    const out: WeekData[] = [];
+    let lastPrev = 0;
+    let lastReal = 0;
+    for (const p of sCurveData ?? []) {
+      if (!p?.date) continue;
+      const accPrev = getPrevAcum(p);
+      const accReal = getRealAcum(p);
+      if (accPrev <= 0 && accReal <= 0) continue;
+      out.push({
+        date: p.date,
+        // max(0, …) protege a virada de linha de base → replanejado, que faz o
+        // acumulado "andar para trás" e geraria delta negativo.
+        previsto: accPrev > 0 ? r2(Math.max(0, accPrev - lastPrev)) : 0,
+        real: accReal > 0 ? r2(Math.max(0, accReal - lastReal)) : 0,
+      });
+      if (accPrev > 0) lastPrev = accPrev;
+      if (accReal > 0) lastReal = accReal;
+    }
+    return out;
+  }, [allWeeklyData, sCurveData]);
+
   const weeklyData = useMemo(
-    () => centerWeeklyWindow(allWeeklyData, info?.atualizadoEm || '', 5),
-    [allWeeklyData, info?.atualizadoEm],
+    () => centerWeeklyWindow(sourceWeekly, info?.atualizadoEm || '', 5),
+    [sourceWeekly, info?.atualizadoEm],
   );
 
   const hasTendencia = weeklyData.some(w => (w.tendencia ?? 0) > 0);
