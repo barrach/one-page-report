@@ -112,25 +112,25 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
           <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
             One Page Report
           </h1>
-          <p className="text-[11px] text-primary-foreground/60 mt-0.5">
-            {info.projeto}
-            {(info.contrato || info.cliente) && (
-              <span className="block">
-                {[info.contrato, info.cliente].filter(Boolean).join(' · ')}
-              </span>
-            )}
-          </p>
-        </div>
-        <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
-          {actions && (
+          {/* Os controles ficam logo abaixo do título: o próprio dropdown já mostra
+              qual é o contrato selecionado, então não há linha de texto repetindo o
+              nome do projeto. Contrato e cliente foram para a faixa de informações. */}
+          {actions ? (
             <div
               data-html2canvas-ignore
-              className="hidden sm:flex items-center gap-2 print:hidden border-r border-primary-foreground/15 pr-3"
+              className="hidden sm:flex items-center gap-2 mt-1.5 print:hidden"
             >
               {actions}
             </div>
+          ) : (
+            <p className="text-[11px] text-primary-foreground/60 mt-0.5">{info.projeto}</p>
           )}
-
+          {/* No mobile o dropdown vive na barra superior, então o nome continua aqui. */}
+          {actions && (
+            <p className="text-[11px] text-primary-foreground/60 mt-0.5 sm:hidden">{info.projeto}</p>
+          )}
+        </div>
+        <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
           {/* Health badge */}
           {info.avancoPrev > 0 && (
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${healthConfig.cls}`}>
@@ -157,18 +157,22 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
       </div>
 
       {/* Info strip */}
-      <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-4 divide-x divide-border">
-        {[
+      <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-border">
+        {([
+          // Cliente entra aqui, no lugar da linha que havia sob o título; o número do
+          // contrato vem como segunda linha da mesma célula.
+          { label: 'Cliente', value: info.cliente, sub: info.contrato, icon: Building2 },
           { label: 'Gestor', value: info.gestor, icon: User },
           { label: 'Início', value: formatDateBR(info.inicio), icon: Calendar },
           { label: 'Término LB', value: formatDateBR(info.terminoLB), icon: Calendar },
           { label: 'Término Prev.', value: formatDateBR(info.terminoPrev), icon: Calendar },
-        ].map(({ label, value, icon: Icon }) => (
-          <div key={label} className="flex items-center gap-2 px-4 py-2">
+        ] as { label: string; value?: string; sub?: string; icon: React.ElementType }[]).map(({ label, value, sub, icon: Icon }) => (
+          <div key={label} className="flex items-center gap-2 px-4 py-2 min-w-0">
             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <div>
+            <div className="min-w-0">
               <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
-              <div className="text-xs font-semibold text-foreground">{value || '—'}</div>
+              <div className="text-xs font-semibold text-foreground truncate">{value || '—'}</div>
+              {sub && <div className="text-[10px] text-muted-foreground truncate">{sub}</div>}
             </div>
           </div>
         ))}
