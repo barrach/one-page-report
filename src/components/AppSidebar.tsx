@@ -56,14 +56,13 @@ export default function AppSidebar() {
       {/* Brand */}
       <div className={cn('flex items-center gap-2.5 px-4 py-4 border-b border-white/10', collapsed && 'justify-center px-2')}>
         {!collapsed && (
-          <>
-            <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0 p-1 bg-white/10">
-              <img src="/megasteam-logo.png" alt="Megasteam" className="max-w-full max-h-full object-contain" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-white truncate">Megasteam</p>
-            </div>
-          </>
+          <div className="min-w-0 flex-1 flex items-center justify-center">
+            <img
+              src="/megasteam-vertical-branca.png"
+              alt="Megasteam"
+              className="h-12 w-auto max-w-full object-contain"
+            />
+          </div>
         )}
         <button
           onClick={toggleCollapsed}
