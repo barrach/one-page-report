@@ -1,17 +1,5 @@
 import { useState, Fragment } from "react";
 import { useCurrentProject } from "@/store/projectStore";
-import {
-  ComposedChart,
-  Bar,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
 import { Link } from "react-router-dom";
 import { CalendarCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +16,7 @@ import PpcSemanalTable from "@/components/PpcSemanalTable";
 import { ppcDaSemana, ultimaSemana } from "@/lib/ppc";
 import Causa6MSelect from "@/components/Causa6MSelect";
 import { useProjectStore } from "@/store/projectStore";
-import { exigeJustificativa } from "@/lib/causas6m";
+import { exigeJustificativa, COR_CAUSA as CAUSA_COLORS, CAUSAS_6M as ALL_CAUSAS } from "@/lib/causas6m";
 
 const DIAS_CURTOS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sáb"] as const;
 
@@ -46,68 +34,13 @@ interface Props {
   }[];
 }
 
-type TabId = "atividades" | "ppc" | "pareto" | "planos";
+type TabId = "atividades" | "ppc" | "planos";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const CAUSA_COLORS: Record<Causa6M, string> = {
-  Método: "#3b82f6",
-  Máquina: "#f97316",
-  Medida: "#eab308",
-  "Meio Ambiente": "#22c55e",
-  "Mão de Obra": "#ef4444",
-  Material: "#8b5cf6",
-};
 
-const ALL_CAUSAS: Causa6M[] = [
-  "Método",
-  "Máquina",
-  "Medida",
-  "Meio Ambiente",
-  "Mão de Obra",
-  "Material",
-];
-
-// ---------------------------------------------------------------------------
-// Tooltip customization
-// ---------------------------------------------------------------------------
-
-interface PpcTooltipPayload {
-  name: string;
-  value: number;
-  color: string;
-}
-
-interface PpcTooltipProps {
-  active?: boolean;
-  payload?: PpcTooltipPayload[];
-  label?: string;
-}
-
-function PpcTooltip({ active, payload, label }: PpcTooltipProps) {
-  if (!active || !payload?.length) return null;
-  // Find ppcSemana from the data point
-  const entry = payload[0] as PpcTooltipPayload & { payload?: { ppcSemana?: number; periodo?: string } };
-  const ppcSemana = entry.payload?.ppcSemana;
-  const periodo = entry.payload?.periodo;
-  return (
-    <div className="rounded-lg border bg-card p-2 text-xs shadow-md space-y-1">
-      <p className="font-semibold text-foreground">{label}{periodo ? ` · ${periodo}` : ""}</p>
-      {payload.map((p) => (
-        <p key={p.name} style={{ color: p.color }}>
-          {p.name}: <strong>{p.value}%</strong>
-        </p>
-      ))}
-      {ppcSemana !== undefined && (
-        <p className={ppcSemana >= 80 ? "text-green-500" : "text-red-500"}>
-          PPC: <strong>{ppcSemana}%</strong>
-        </p>
-      )}
-    </div>
-  );
-}
 
 interface ParetoTooltipPayload {
   name: string;
@@ -156,35 +89,6 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   // -------------------------------------------------------------------------
   // TAB A — PPC Médio Acumulado (summary badge, table rendered by PpcSemanalTable)
   // -------------------------------------------------------------------------
-
-  // -------------------------------------------------------------------------
-  // TAB B — Pareto 6M data
-  // -------------------------------------------------------------------------
-
-  const causaCount = {} as Record<Causa6M, number>;
-  for (const semana of data) {
-    for (const at of semana.atividades) {
-      if (!at.executada && at.causas6M.length > 0) {
-        for (const c of at.causas6M) {
-          causaCount[c] = (causaCount[c] || 0) + 1;
-        }
-      }
-    }
-  }
-
-  const sorted = Object.entries(causaCount).sort(
-    (a, b) => b[1] - a[1]
-  ) as [Causa6M, number][];
-  const total6M = sorted.reduce((s, [, v]) => s + v, 0);
-  let acum = 0;
-  const paretoData = sorted.map(([causa, count]) => {
-    acum += count;
-    return {
-      causa,
-      count,
-      pct: Math.round((acum / total6M) * 100),
-    };
-  });
 
   // -------------------------------------------------------------------------
   // TAB C — Planos de Ação data
@@ -250,7 +154,6 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const tabs: { id: TabId; label: string }[] = [
     { id: "atividades", label: "Atividades" },
     { id: "ppc", label: "PPC Semanal" },
-    { id: "pareto", label: "Pareto 6M" },
     { id: "planos", label: "Planos de Ação" },
   ];
 
@@ -433,99 +336,6 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
       {/* TAB A — PPC Semanal (tabela) */}
       {activeTab === "ppc" && (
         <PpcSemanalTable data={data} showPeriodo />
-      )}
-
-      {/* TAB B — Pareto 6M */}
-      {activeTab === "pareto" && (
-        <div className="space-y-3">
-          {paretoData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">
-              Nenhuma causa 6M registrada ainda.
-            </p>
-          ) : (
-            <div style={{ width: "100%", height: 300 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart
-                  data={paretoData}
-                  margin={{ top: 16, right: 40, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="hsl(var(--border))"
-                    vertical={false}
-                  />
-                  <XAxis
-                    dataKey="causa"
-                    tick={{
-                      fontSize: 10,
-                      fill: "hsl(var(--muted-foreground))",
-                    }}
-                  />
-                  <YAxis
-                    yAxisId="left"
-                    allowDecimals={false}
-                    tick={{
-                      fontSize: 11,
-                      fill: "hsl(var(--muted-foreground))",
-                    }}
-                  />
-                  <YAxis
-                    yAxisId="right"
-                    orientation="right"
-                    domain={[0, 100]}
-                    tickFormatter={(v) => `${v}%`}
-                    tick={{
-                      fontSize: 11,
-                      fill: "hsl(var(--muted-foreground))",
-                    }}
-                  />
-                  <Tooltip content={<ParetoTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="count"
-                    name="Ocorrências"
-                    radius={[4, 4, 0, 0]}
-                    barSize={32}
-                  >
-                    {paretoData.map((entry, i) => (
-                      <Cell
-                        key={i}
-                        fill={
-                          CAUSA_COLORS[entry.causa as Causa6M] ?? "#6b7280"
-                        }
-                      />
-                    ))}
-                  </Bar>
-                  <Line
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="pct"
-                    name="Acumulado %"
-                    stroke="#6b7280"
-                    strokeWidth={2}
-                    dot={{ fill: "#6b7280", r: 3 }}
-                  />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-
-          {/* Causa legend */}
-          {paretoData.length > 0 && (
-            <div className="flex flex-wrap gap-2 justify-center">
-              {ALL_CAUSAS.map((c) => (
-                <span key={c} className="flex items-center gap-1 text-xs">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: CAUSA_COLORS[c] }}
-                  />
-                  {c}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
       )}
 
       {/* TAB C — Planos de Ação */}

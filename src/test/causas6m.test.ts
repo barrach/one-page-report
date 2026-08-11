@@ -11,6 +11,7 @@ const atividade = (over: Partial<AtividadeProgSemanal>): AtividadeProgSemanal =>
   unidade: '',
   dias: { prev: [1, 0, 0, 0, 0, 0], real: [0, 0, 0, 0, 0, 0] },
   executada: false,
+  observacao: '',
   causas6M: [],
   planoAcao: '',
   ...over,
