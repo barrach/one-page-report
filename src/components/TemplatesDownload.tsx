@@ -17,11 +17,6 @@ const TEMPLATES = [
     arquivo: '/templates/template-programacao-semanal.xlsx',
     descricao: 'Atividades da semana em pares Prev./Real, com aderência e causas',
   },
-  {
-    nome: 'PPC',
-    arquivo: '/templates/template-ppc.xlsx',
-    descricao: 'PPC consolidado por semana',
-  },
 ];
 
 const TemplatesDownload = () => (
@@ -34,7 +29,7 @@ const TemplatesDownload = () => (
       </p>
     </div>
 
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {TEMPLATES.map((t) => (
         <a
           key={t.arquivo}

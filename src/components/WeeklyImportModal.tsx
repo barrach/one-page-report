@@ -2218,6 +2218,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       progSemanal: !!parsedProgSemanal,
       cronograma: !!(cron && cron.rows.length),
       sCurveCronograma: !!(cron && cron.sCurve.length),
+      semanalCronograma: !!(cron && cron.semanal.length),
+      mensalCronograma: !!(cron && cron.mensal.length),
     });
 
     setParsing(false);
@@ -2227,10 +2229,12 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
 
   // ─── Field selection (segunda etapa) ───
-  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'projectInfo' | 'progSemanal' | 'cronograma' | 'sCurveCronograma';
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'projectInfo' | 'progSemanal' | 'cronograma' | 'sCurveCronograma' | 'semanalCronograma' | 'mensalCronograma';
   const FIELD_LABELS: Record<FieldKey, string> = {
     cronograma: 'Cronograma — tarefas (15 colunas do template)',
     sCurveCronograma: 'Curva S do cronograma — Linha de Base / Real / Tendência',
+    semanalCronograma: 'Resultado Semanal do cronograma — 5 semanas na data de status',
+    mensalCronograma: 'Prev. × Realizado Mês do cronograma — soma das semanas de cada mês',
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
     monthly: 'Prev × Mês (velocímetro mensal)',
@@ -2240,6 +2244,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const FIELD_SOURCE: Record<FieldKey, string | undefined> = {
     cronograma: sourceNames.cronograma || sourceNames.schedule,
     sCurveCronograma: sourceNames.cronograma,
+    semanalCronograma: sourceNames.cronograma,
+    mensalCronograma: sourceNames.cronograma,
     sCurve: sourceNames.curve,
     weekly: sourceNames.curve,
     monthly: sourceNames.curve,
@@ -2257,6 +2263,8 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const available: Record<FieldKey, boolean> = {
     cronograma: !!(cronograma && cronograma.rows.length) || !!(schedule && schedule.rows.length),
     sCurveCronograma: !!(cronograma && cronograma.sCurve.length),
+    semanalCronograma: !!(cronograma && cronograma.semanal.length),
+    mensalCronograma: !!(cronograma && cronograma.mensal.length),
     sCurve: !!(c && c.sCurve.length),
     weekly: !!(c && c.weekly.length && weeklyValido),
     monthly: !!(c && c.monthly.length),
@@ -2268,6 +2276,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     sCurve: false, weekly: false, monthly: false,
     projectInfo: false, progSemanal: false,
     cronograma: false, sCurveCronograma: false,
+    semanalCronograma: false, mensalCronograma: false,
   });
 
   const initJustificativas = () => {
@@ -2391,6 +2400,16 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
 
     if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
+    if (cronograma && cronograma.semanal.length && selectedFields.semanalCronograma) {
+      setWeeklyData(cronograma.semanal);
+      setLastImport('weekly', now);
+      count++;
+    }
+    if (cronograma && cronograma.mensal.length && selectedFields.mensalCronograma) {
+      setMonthData(cronograma.mensal);
+      setLastImport('month', now);
+      count++;
+    }
     if (progSemanal && selectedFields.progSemanal && selectedProjectId) {
       // Guard: block confirmation if there are unfilled activities (defensive — button should already be disabled)
       if (!skipJustificativas && ativJustificativas.length > 0) {
@@ -2767,7 +2786,7 @@ function JustificativasStep({
 }
 
 // ─── Fields Step ───
-type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'projectInfo' | 'progSemanal' | 'cronograma' | 'sCurveCronograma';
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'projectInfo' | 'progSemanal' | 'cronograma' | 'sCurveCronograma' | 'semanalCronograma' | 'mensalCronograma';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
   anyFieldChecked, onBack, onCancel, onConfirm, confirmLabel,

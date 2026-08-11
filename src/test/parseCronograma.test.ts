@@ -63,6 +63,50 @@ describe('parseCronograma — Template - Cronograma.xlsx', () => {
     expect(sCurve.every((p) => p.realReplanejado === undefined)).toBe(true);
   });
 
+  it('resultado semanal: 5 semanas ancoradas na data de status (2 antes, 2 depois)', () => {
+    const { semanal } = parseCronogramaWorkbook(workbook());
+    // Último avanço real do template = 03/08/2026 → janela 20/07 … 17/08
+    expect(semanal).toHaveLength(5);
+    expect(semanal.map((w) => w.date)).toEqual([
+      weekLabel(new Date(2026, 6, 20)),
+      weekLabel(new Date(2026, 6, 27)),
+      weekLabel(new Date(2026, 7, 3)),
+      weekLabel(new Date(2026, 7, 10)),
+      weekLabel(new Date(2026, 7, 17)),
+    ]);
+    // a semana de status é a do meio
+    expect(semanal[2].isStatus).toBe(true);
+    expect(semanal.filter((w) => w.isStatus)).toHaveLength(1);
+  });
+
+  it('resultado semanal traz o avanço DA semana, não o acumulado', () => {
+    const { semanal } = parseCronogramaWorkbook(workbook());
+    // 20/07: LB 3,17% e Real 3,25% (variação do acumulado ÷ total da linha de base)
+    expect(semanal[0].previsto).toBeCloseTo(3.17, 2);
+    expect(semanal[0].real).toBeCloseTo(3.25, 2);
+    // depois da data de status não há real
+    expect(semanal[3].real).toBe(0);
+    expect(semanal[4].real).toBe(0);
+  });
+
+  it('prev × mês soma as semanas de cada mês', () => {
+    const { mensal } = parseCronogramaWorkbook(workbook());
+    const julho = mensal.find((m) => m.label === 'jul/2026');
+    expect(julho).toBeDefined();
+    // 06/jul + 13/jul + 20/jul + 27/jul
+    expect(julho!.previsto).toBeCloseTo(19.03, 1);
+    expect(julho!.real).toBeCloseTo(4.39, 1);
+  });
+
+  it('prev × mês fica ancorado no mês da data de status', () => {
+    const { mensal } = parseCronogramaWorkbook(workbook());
+    expect(mensal).toHaveLength(5);
+    // status em ago/2026 → 2 meses antes e 2 depois
+    expect(mensal.map((m) => m.label)).toEqual([
+      'jun/2026', 'jul/2026', 'ago/2026', 'set/2026', 'out/2026',
+    ]);
+  });
+
   it('lê as tarefas com as 15 colunas do template', () => {
     const { rows } = parseCronogramaWorkbook(workbook());
     expect(rows.length).toBeGreaterThan(100);

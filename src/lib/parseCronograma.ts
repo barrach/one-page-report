@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { ScheduleRow, SCurvePoint } from '@/store/projectStore';
+import type { ScheduleRow, SCurvePoint, WeekData, MonthWeekData } from '@/store/projectStore';
 
 /**
  * Parser do "Template - Cronograma" (exportação do MS Project).
@@ -44,6 +44,14 @@ export interface CronogramaExtract {
   rows: ScheduleRow[];
   /** Curva S derivada da linha 3 das três abas. */
   sCurve: SCurvePoint[];
+  /**
+   * Resultado semanal (avanço DA semana, não acumulado): janela de 5 semanas
+   * ancorada na data de status — 2 antes, a do status e 2 depois.
+   * Previsto vem da aba de linha de base, Real da aba de real.
+   */
+  semanal: WeekData[];
+  /** Prev. × Realizado por mês: soma do avanço das semanas de cada mês. */
+  mensal: MonthWeekData[];
   /** Índice, em `sCurve`, do último avanço real — a data de status. */
   statusDateIndex: number;
   /** Total da linha de base usado como 100%. */
@@ -251,6 +259,35 @@ const tarefas = (grid: Grid, headerRow: number, colOf: Record<string, number>): 
   return out;
 };
 
+/** Avanço de cada semana = variação do acumulado (o arquivo traz acumulado). */
+const avancoSemanal = (serie: SeriePonto[], total: number): { date: Date; pct: number }[] => {
+  const out: { date: Date; pct: number }[] = [];
+  let anterior = 0;
+  for (const p of serie) {
+    const delta = p.value - anterior;
+    anterior = p.value;
+    out.push({ date: p.date, pct: Math.round((Math.max(0, delta) / total) * 10000) / 100 });
+  }
+  return out;
+};
+
+const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const mesLabel = (d: Date) => `${MESES_PT[d.getMonth()]}/${d.getFullYear()}`;
+const mesKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+
+/**
+ * Janela de `tamanho` itens centrada em `idx` (2 antes + 1 + 2 depois, no padrão).
+ * Perto das pontas desloca a janela para manter a quantidade.
+ */
+const janelaCentrada = <T,>(itens: T[], idx: number, tamanho = 5): T[] => {
+  if (itens.length <= tamanho) return itens;
+  const metade = Math.floor(tamanho / 2);
+  let inicio = idx - metade;
+  if (inicio < 0) inicio = 0;
+  if (inicio + tamanho > itens.length) inicio = itens.length - tamanho;
+  return itens.slice(inicio, inicio + tamanho);
+};
+
 export const parseCronogramaWorkbook = (wb: XLSX.WorkBook): CronogramaExtract => {
   const abas: CronogramaExtract['abas'] = {};
   const series: Partial<Record<'base' | 'real' | 'tendencia', SeriePonto[]>> = {};
@@ -311,7 +348,51 @@ export const parseCronogramaWorkbook = (wb: XLSX.WorkBook): CronogramaExtract =>
   sCurve.forEach((p, i) => { if (p.real > 0) statusDateIndex = i; });
   if (statusDateIndex < 0) statusDateIndex = Math.max(0, sCurve.length - 1);
 
-  return { rows, sCurve, statusDateIndex, totalLinhaBase, abas };
+  // ── Resultado semanal: avanço da semana, casado por data ──
+  const prevSem = avancoSemanal(base, totalLinhaBase);
+  const realSem = avancoSemanal(real, totalLinhaBase);
+  const realPorData = new Map(realSem.map((p) => [isoDay(p.date), p.pct]));
+
+  const semanalCompleto: (WeekData & { _d: Date })[] = prevSem.map((p) => ({
+    _d: p.date,
+    date: weekLabel(p.date),
+    previsto: p.pct,
+    real: realPorData.get(isoDay(p.date)) ?? 0,
+  }));
+
+  // A semana de status é a última com avanço real; a janela pega 2 antes e 2 depois.
+  let idxStatus = -1;
+  semanalCompleto.forEach((w, i) => { if (w.real > 0) idxStatus = i; });
+  if (idxStatus < 0) idxStatus = Math.max(0, semanalCompleto.length - 1);
+
+  const semanal: WeekData[] = janelaCentrada(semanalCompleto, idxStatus).map(({ _d, ...w }) => ({
+    ...w,
+    isStatus: isoDay(_d) === isoDay(semanalCompleto[idxStatus]._d),
+  }));
+
+  // ── Prev. × Realizado Mês: soma o avanço das semanas de cada mês ──
+  const porMes = new Map<string, { d: Date; previsto: number; real: number }>();
+  const acumulaMes = (pontos: { date: Date; pct: number }[], campo: 'previsto' | 'real') => {
+    for (const p of pontos) {
+      const k = mesKey(p.date);
+      const cur = porMes.get(k) ?? { d: p.date, previsto: 0, real: 0 };
+      cur[campo] = Math.round((cur[campo] + p.pct) * 100) / 100;
+      porMes.set(k, cur);
+    }
+  };
+  acumulaMes(prevSem, 'previsto');
+  acumulaMes(realSem, 'real');
+
+  const mesesOrdenados = [...porMes.entries()].sort(([a], [b]) => a.localeCompare(b));
+  const mesStatus = mesKey(semanalCompleto[idxStatus]?._d ?? new Date());
+  const idxMesStatus = Math.max(0, mesesOrdenados.findIndex(([k]) => k === mesStatus));
+  const mensal: MonthWeekData[] = janelaCentrada(mesesOrdenados, idxMesStatus).map(([, v]) => ({
+    label: mesLabel(v.d),
+    previsto: v.previsto,
+    real: v.real,
+  }));
+
+  return { rows, sCurve, semanal, mensal, statusDateIndex, totalLinhaBase, abas };
 };
 
 export const parseCronogramaFile = async (file: File): Promise<CronogramaExtract> => {

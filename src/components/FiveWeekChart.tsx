@@ -48,10 +48,20 @@ const FiveWeekChart = () => {
     return out;
   }, [allWeeklyData, sCurveData]);
 
-  const weeklyData = useMemo(
-    () => centerWeeklyWindow(sourceWeekly, info?.atualizadoEm || '', 5),
-    [sourceWeekly, info?.atualizadoEm],
-  );
+  const weeklyData = useMemo(() => {
+    // Quando a série já vem marcada com a semana de status (importação do
+    // cronograma), a janela sai dela — o rótulo "26-SEM29" não é uma data
+    // parseável, então centralizar por `atualizadoEm` cairia sempre nas
+    // primeiras semanas.
+    const idx = sourceWeekly.findIndex((w) => w.isStatus);
+    if (idx >= 0) {
+      if (sourceWeekly.length <= 5) return sourceWeekly;
+      let inicio = Math.max(0, idx - 2);
+      if (inicio + 5 > sourceWeekly.length) inicio = sourceWeekly.length - 5;
+      return sourceWeekly.slice(inicio, inicio + 5);
+    }
+    return centerWeeklyWindow(sourceWeekly, info?.atualizadoEm || '', 5);
+  }, [sourceWeekly, info?.atualizadoEm]);
 
   const hasTendencia = weeklyData.some(w => (w.tendencia ?? 0) > 0);
   const statusDate = weeklyData.find(w => w.isStatus)?.date ?? null;
