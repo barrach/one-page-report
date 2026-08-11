@@ -65,7 +65,7 @@ const ExecutiveSummary = () => {
             <p className="text-xs text-muted-foreground">Análise completa de todos os indicadores do projeto</p>
           </div>
         </div>
-        <button
+        <button data-pdf-hide
           onClick={generateSummary}
           className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity"
         >
@@ -85,7 +85,7 @@ const ExecutiveSummary = () => {
         </div>
         <div className="flex items-center gap-2">
           {!loading && (
-            <button
+            <button data-pdf-hide
               onClick={generateSummary}
               className="text-muted-foreground hover:text-primary transition-colors"
               title="Regenerar"
@@ -93,7 +93,7 @@ const ExecutiveSummary = () => {
               <RefreshCw className="h-3.5 w-3.5" />
             </button>
           )}
-          <button
+          <button data-pdf-hide
             onClick={() => setExpanded((v) => !v)}
             className="text-muted-foreground hover:text-foreground transition-colors"
           >

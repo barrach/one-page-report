@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
+import { Sparkles, RefreshCw, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 import { useTvMode } from '@/hooks/use-tv-mode';
+import { useExportMode } from '@/hooks/use-export-mode';
 import { mensagemDaFunction } from '@/lib/functionError';
 
 interface ChartInsightProps {
@@ -20,6 +21,8 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recolhido, setRecolhido] = useState(false);
+  const { exportando } = useExportMode();
   const { toast } = useToast();
 
   const generateInsight = async () => {
@@ -42,6 +45,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
       }
 
       setAiInsight(chartType, result.insight);
+      setRecolhido(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao gerar observação');
     } finally {
@@ -65,10 +69,13 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
     );
   }
 
+  // No PDF a observação sai sempre visível: recolhida, ela sumiria do papel.
+  const fechado = recolhido && !exportando;
+
   return (
     <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-2 flex-1">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
           <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
           {loading ? (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -80,20 +87,41 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               {error}
             </div>
+          ) : fechado ? (
+            <button
+              onClick={() => setRecolhido(false)}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors text-left"
+            >
+              Observação da IA
+            </button>
           ) : (
             <p className="text-xs text-foreground leading-relaxed">{savedInsight}</p>
           )}
         </div>
-        {!loading && (
-          <button
-            onClick={generateInsight}
-            data-pdf-hide
-            className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
-            title="Regenerar"
-          >
-            <RefreshCw className="h-3 w-3" />
-          </button>
-        )}
+
+        <div className="flex items-center gap-1 shrink-0">
+          {!loading && (
+            <button
+              onClick={generateInsight}
+              data-pdf-hide
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title="Regenerar"
+            >
+              <RefreshCw className="h-3 w-3" />
+            </button>
+          )}
+          {/* Recolher: a observação fica guardada, só sai da frente do gráfico */}
+          {savedInsight && !loading && !error && (
+            <button
+              onClick={() => setRecolhido((v) => !v)}
+              data-pdf-hide
+              className="text-muted-foreground hover:text-primary transition-colors"
+              title={recolhido ? 'Mostrar observação' : 'Recolher observação'}
+            >
+              {recolhido ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

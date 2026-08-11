@@ -183,17 +183,15 @@ const Index = () => {
       const alturaUtil = pdf.internal.pageSize.getHeight() - margem * 2;
       const espacoEntreBlocos = 3;
 
-      // Largura de captura: casa com os 194 mm úteis dando ~4,6 px/mm, o que
-      // mantém o texto de 12 px legível depois da redução.
-      const LARGURA_CAPTURA = 900;
-
+      // Cada bloco é capturado na largura que tem na tela e desenhado em 194 mm.
+      // Mexer na largura antes de capturar fazia o recharts redesenhar e o
+      // html2canvas pegava o gráfico vazio.
       const capturar = (el: HTMLElement) =>
         html2canvas(el, {
           scale: 2,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
-          windowWidth: LARGURA_CAPTURA,
         });
 
       const paraJpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.92);
@@ -218,12 +216,9 @@ const Index = () => {
         const raiz = reportRef.current;
         if (!raiz) continue;
 
-        const larguraAntes = raiz.style.width;
-        raiz.style.width = `${LARGURA_CAPTURA}px`;
         raiz.classList.add('exportando-pdf');
-        // Os gráficos são responsivos: sem o resize ficariam na largura antiga.
-        window.dispatchEvent(new Event('resize'));
-        await new Promise((r) => setTimeout(r, 700));
+        // Folga para o layout assentar depois de esconder os controles.
+        await new Promise((r) => setTimeout(r, 400));
 
         // Blocos = filhos diretos; dentro de um grid, cada card é um bloco
         // (em uma coluna eles já estão empilhados).
@@ -286,8 +281,6 @@ const Index = () => {
         }
 
         raiz.classList.remove('exportando-pdf');
-        raiz.style.width = larguraAntes;
-        window.dispatchEvent(new Event('resize'));
       }
 
       selectProject(originalId);

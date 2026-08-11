@@ -252,14 +252,17 @@
 /* ──────────────────────────────────────────────────────────────────────────
    Modo de exportação em PDF
    A classe é aplicada ao container do relatório só durante a captura.
-   O relatório de tela é de duas colunas largas; numa folha A4 retrato isso
-   deixaria cada gráfico com metade de 194 mm. Aqui ele vira uma coluna, o que
-   dá a cada card a largura inteira da folha, e o que é interativo desaparece.
+
+   Regra de ouro daqui: NÃO mexer em largura nem em altura. Cada card é
+   capturado na largura que já tem na tela e desenhado em 194 mm, então quem é
+   meia-largura sai com texto maior no papel. Forçar uma coluna ou reduzir a
+   largura faz o recharts remedir e redesenhar, e o html2canvas fotografa o
+   gráfico no meio do redesenho — foi assim que a Curva S saiu vazia.
    ────────────────────────────────────────────────────────────────────────── */
-/* Só os grids de primeiro nível viram uma coluna. Os de dentro dos cards (faixa
-   de informações, KPIs) mantêm o arranjo — empilhar seis KPIs ficaria pior. */
-.exportando-pdf > .grid {
-  grid-template-columns: 1fr !important;
+
+/* Botões e controles não fazem sentido no papel */
+.exportando-pdf [data-pdf-hide] {
+  display: none !important;
 }
 
 /* `truncate` é overflow:hidden, e o html2canvas mede a caixa da linha com folga
@@ -272,36 +275,10 @@
   white-space: normal !important;
 }
 
-/* Mesma razão: caixas de uma linha com overflow escondido cortam descendentes */
-.exportando-pdf .whitespace-nowrap {
-  white-space: normal !important;
-}
-
-/* Botões e controles não fazem sentido no papel */
-.exportando-pdf [data-pdf-hide] {
-  display: none !important;
-}
-
-/* Tabelas largas (cronograma) precisam caber na folha em vez de rolar */
+/* Listas e tabelas que rolam na tela precisam aparecer inteiras no papel.
+   Só o overflow muda; a altura fica a cargo do conteúdo. */
 .exportando-pdf .overflow-x-auto,
 .exportando-pdf .overflow-y-auto {
   overflow: visible !important;
   max-height: none !important;
-}
-.exportando-pdf table {
-  min-width: 0 !important;
-  width: 100% !important;
-}
-.exportando-pdf table th,
-.exportando-pdf table td {
-  font-size: 8px !important;
-  padding-left: 3px !important;
-  padding-right: 3px !important;
-}
-
-/* Alturas mínimas de tela viram desnecessárias: o card fecha no conteúdo */
-.exportando-pdf .min-h-\[440px\],
-.exportando-pdf .min-h-\[560px\],
-.exportando-pdf [class*="min-h-"] {
-  min-height: 0 !important;
 }
