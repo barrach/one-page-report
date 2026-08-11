@@ -174,77 +174,61 @@ const Index = () => {
     setShowExportDialog(true);
   };
 
+  // Controles que vivem dentro da faixa do cabeçalho do relatório (desktop).
+  // No mobile eles ficam na barra superior / menu lateral.
+  const reportActions = (
+    <>
+      <ProjectSelector showDelete tone="dark" />
+
+      <Button
+        size="sm"
+        variant="outline"
+        className="gap-1.5 h-8 text-xs bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground hover:bg-primary-foreground/20 hover:text-primary-foreground"
+        onClick={openExportDialog}
+      >
+        <Download className="h-3.5 w-3.5" />
+        Exportar
+      </Button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className="flex items-center justify-center h-8 w-8 rounded-lg text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
+            title="Mais opções"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={togglePresentation}>
+            <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={toggleTvMode}>
+            <Tv className="h-4 w-4 mr-2" /> Modo TV
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={toggleTheme}>
+            {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+            {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+          </DropdownMenuItem>
+          {!isStandalone && (
+            <DropdownMenuItem onClick={() => navigate('/install')}>
+              <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
   return (
     <div className={`min-h-screen flex bg-background ${presentationMode || tvMode ? 'overflow-auto' : ''}`}>
       {!presentationMode && !tvMode && <AppSidebar />}
       <div className="flex-1 min-w-0">
-      {/* Top navigation bar */}
+      {/* Barra superior — só no mobile. No desktop os controles ficam dentro do
+          cabeçalho do relatório (ver `reportActions`). */}
       {!presentationMode && !tvMode && (
-        <div className="bg-card border-b border-border px-3 sm:px-5 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50">
-          <div className="hidden sm:flex items-center min-w-0">
-            <ProjectSelector showDelete />
-          </div>
-
-          <div className="hidden sm:flex items-center gap-2">
-            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
-              <Download className="h-3.5 w-3.5" />
-              Exportar
-            </Button>
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-foreground transition-colors"
-                  title="Mais opções"
-                >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={togglePresentation}>
-                  <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={toggleTvMode}>
-                  <Tv className="h-4 w-4 mr-2" /> Modo TV
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={toggleTheme}>
-                  {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
-                  {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-                </DropdownMenuItem>
-                {!isStandalone && (
-                  <DropdownMenuItem onClick={() => navigate('/install')}>
-                    <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
-                  </DropdownMenuItem>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Exportar Relatório em PDF</DialogTitle>
-              </DialogHeader>
-              <p className="text-sm text-muted-foreground mb-3">Selecione os projetos para exportar. Cada projeto será uma página no PDF.</p>
-              <div className="space-y-2 mb-4">
-                {projects.map((p) => (
-                  <label key={p.id} className="flex items-center gap-2 cursor-pointer">
-                    <Checkbox checked={selectedExportIds.includes(p.id)} onCheckedChange={() => toggleExportProject(p.id)} />
-                    <span className="text-sm font-medium">{p.name}</span>
-                  </label>
-                ))}
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancelar</Button>
-                <Button onClick={exportPDF} disabled={exporting || selectedExportIds.length === 0} className="gap-1.5">
-                  <Download className="h-4 w-4" />
-                  {exporting ? 'Exportando...' : `Exportar ${selectedExportIds.length} projeto(s)`}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-
-          <div className="flex sm:hidden items-center gap-2 min-w-0 flex-1 justify-between">
+        <div className="sm:hidden bg-card border-b border-border px-3 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50">
+          <div className="flex items-center gap-2 min-w-0 flex-1 justify-between">
             <div className="min-w-0 flex-1">
               <ProjectSelector />
             </div>
@@ -286,6 +270,31 @@ const Index = () => {
           </div>
         </div>
       )}
+
+      {/* Diálogo de exportação — compartilhado pelo botão do cabeçalho (desktop) e pelo menu mobile */}
+      <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar Relatório em PDF</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground mb-3">Selecione os projetos para exportar. Cada projeto será uma página no PDF.</p>
+          <div className="space-y-2 mb-4">
+            {projects.map((p) => (
+              <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                <Checkbox checked={selectedExportIds.includes(p.id)} onCheckedChange={() => toggleExportProject(p.id)} />
+                <span className="text-sm font-medium">{p.name}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancelar</Button>
+            <Button onClick={exportPDF} disabled={exporting || selectedExportIds.length === 0} className="gap-1.5">
+              <Download className="h-4 w-4" />
+              {exporting ? 'Exportando...' : `Exportar ${selectedExportIds.length} projeto(s)`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Floating exit button in presentation mode */}
       {presentationMode && (
@@ -342,7 +351,7 @@ const Index = () => {
       )}
 
       <div ref={reportRef} className="px-3 sm:px-4 py-3 sm:py-4 space-y-4 pb-20 sm:pb-6">
-        <ReportHeader />
+        <ReportHeader actions={presentationMode || tvMode ? undefined : reportActions} />
         <ExecutiveSummary />
 
         {/* O layout é fixo: os seis cards aparecem sempre, zerados quando não

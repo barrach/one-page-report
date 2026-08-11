@@ -64,7 +64,13 @@ const TrendIndicator = ({ current, previous, suffix = '%' }: { current: number; 
 
 const fmtBR = (n: number, d = 2) => n.toFixed(d).replace('.', ',');
 
-const ReportHeader = () => {
+interface ReportHeaderProps {
+  /** Controles da barra de ações (seletor de projeto, exportar, menu) exibidos dentro da faixa
+   *  do cabeçalho. Não entram no PDF nem na impressão. */
+  actions?: React.ReactNode;
+}
+
+const ReportHeader = ({ actions }: ReportHeaderProps) => {
   const { info, sCurveData, programacaoSemanal } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
@@ -101,8 +107,8 @@ const ReportHeader = () => {
       transition={{ duration: 0.4 }}
     >
       {/* Header band */}
-      <div className="gradient-primary rounded-t-xl px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-        <div>
+      <div className="gradient-primary rounded-t-xl px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="min-w-0">
           <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
             One Page Report
           </h1>
@@ -115,7 +121,16 @@ const ReportHeader = () => {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center flex-wrap justify-end gap-x-3 gap-y-2">
+          {actions && (
+            <div
+              data-html2canvas-ignore
+              className="hidden sm:flex items-center gap-2 print:hidden border-r border-primary-foreground/15 pr-3"
+            >
+              {actions}
+            </div>
+          )}
+
           {/* Health badge */}
           {info.avancoPrev > 0 && (
             <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-semibold ${healthConfig.cls}`}>
