@@ -35,7 +35,14 @@ export interface AtividadeProgSemanal {
   efetivo: number;
   quantidade: { prev: number; real: number };
   unidade: string;
+  /** 1 = programado/realizado no dia, 0 = não. Seis posições (2ª … sábado). */
   dias: { prev: number[]; real: number[] };
+  /**
+   * Aderência da atividade (0–1) = realizado ÷ previsto, a mesma conta da coluna
+   * "Aderência" do template (`IFERROR(W12/W11;"")`).
+   */
+  aderencia?: number;
+  /** Segue o "OK? (S/N)" do template, que corta em 90% de aderência. */
   executada: boolean;
   observacao: string;
   causas6M: Causa6M[];
@@ -64,13 +71,20 @@ export interface ProgramacaoSemanal {
   equipe: string;
   engenheiro: string;
   atividades: AtividadeProgSemanal[];
+  /** Datas dos 6 dias da semana (ISO), na ordem das colunas Q…V. */
+  dias?: string[];
   ppc: {
     prev: number[];          // daily planned units [seg..sab]
     real: number[];          // daily executed units
     aderencia: number[];     // daily adherence (real/prev, 0-1 or raw)
     totalPrevisto: number;   // sum of daily PREV
     totalRealizado: number;  // sum of daily REAL
-    ppcSemana: number;       // totalRealizado/totalPrevisto * 100
+    /**
+     * PPC da semana (0–100) = MÉDIA das aderências das atividades, igual à
+     * célula "Aderência" mesclada em X7:X8 do template (`AVERAGE(X11:X54)`).
+     * Não é a razão dos totais: uma atividade pesa igual à outra.
+     */
+    ppcSemana: number;
     /** @deprecated use ppcSemana */
     totalAdherencia: number;
   };
@@ -108,6 +122,13 @@ function toNum(v: unknown): number {
   if (v === null || v === undefined || v === "") return 0;
   const n = Number(v);
   return isNaN(n) ? 0 : n;
+}
+
+/** Número da célula, ou undefined quando vazia/fórmula sem valor. */
+function numOrUndef(v: unknown): number | undefined {
+  if (v === null || v === undefined || v === '') return undefined;
+  const n = Number(v);
+  return isNaN(n) ? undefined : n;
 }
 
 function toStr(v: unknown): string {
@@ -321,6 +342,7 @@ export function parseProgramacaoSemanal(
   const cComent = contendo('comentario');
   const cOk = contendo('ok?');
   const cCausa = contendo('descricao da causa');
+  const cAderencia = exato('aderencia');
 
   const at = (row: unknown[], c: number | undefined) =>
     c === undefined || c < 0 ? null : row[c] ?? null;
@@ -379,14 +401,24 @@ export function parseProgramacaoSemanal(
     const qtdPrev = toNum(at(row, qtyCol)) || toNum(at(row, cTotal)) || toNum(at(row, cQtdPrev));
     const qtdReal = temReal ? (toNum(at(next, qtyCol)) || toNum(at(next, cTotal))) : 0;
 
+    // Aderência = realizado ÷ previsto sobre os dias 1/0 — a conta da coluna X.
+    // É calculada aqui, e não lida da planilha, porque a célula guarda fórmula e o
+    // valor em cache pode vir vazio.
+    const somaPrev = diasPrev.reduce((acc, v) => acc + v, 0);
+    const somaReal = diasReal.reduce((acc, v) => acc + v, 0);
+    const aderenciaCalc = somaPrev > 0 ? somaReal / somaPrev : undefined;
+    const aderenciaCelula = numOrUndef(at(row, cAderencia)) ?? numOrUndef(temReal ? at(next, cAderencia) : null);
+    const aderencia = aderenciaCalc ?? aderenciaCelula;
+
+    // "OK? (S/N)" manda quando preenchido; senão o corte é o do template: 90%.
     const okRaw = norm(at(row, cOk)) || (temReal ? norm(at(next, cOk)) : '');
     const executada = okRaw.startsWith('s')
       ? true
       : okRaw.startsWith('n')
         ? false
-        : qtdPrev === 0 && qtdReal === 0
-          ? true
-          : qtdReal >= qtdPrev;
+        : aderencia != null
+          ? aderencia >= 0.9
+          : somaPrev === 0 && somaReal === 0;
 
     atividades.push({
       id: idCron || item || String(atividades.length + 1),
@@ -396,6 +428,7 @@ export function parseProgramacaoSemanal(
       quantidade: { prev: qtdPrev, real: qtdReal },
       unidade: toStr(at(row, cUnd)),
       dias: { prev: diasPrev, real: diasReal },
+      aderencia,
       executada,
       observacao: toStr(at(row, cComent)),
       causas6M: [],
@@ -424,8 +457,13 @@ export function parseProgramacaoSemanal(
   const aderencia = prev.map((p, d) => (p > 0 ? Math.round((real[d] / p) * 100) / 100 : 0));
   const totalPrevisto = prev.reduce((s, v) => s + v, 0);
   const totalRealizado = real.reduce((s, v) => s + v, 0);
-  const ppcSemana = totalPrevisto > 0
-    ? Math.round((totalRealizado / totalPrevisto) * 1000) / 10
+
+  // PPC = média das aderências das atividades programadas (X7 = AVERAGE(X11:X54)).
+  const comAderencia = atividades
+    .map((a) => a.aderencia)
+    .filter((v): v is number => v != null);
+  const ppcSemana = comAderencia.length
+    ? Math.round((comAderencia.reduce((s, v) => s + v, 0) / comAderencia.length) * 1000) / 10
     : 0;
 
   const ano = dayDates.length ? dayDates[0].getFullYear() : undefined;
@@ -441,6 +479,7 @@ export function parseProgramacaoSemanal(
     equipe: '',
     engenheiro: '',
     atividades,
+    dias: dayDates.map((d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`),
     ppc: {
       prev,
       real,
@@ -448,9 +487,7 @@ export function parseProgramacaoSemanal(
       totalPrevisto,
       totalRealizado,
       ppcSemana,
-      totalAdherencia: totalPrevisto > 0
-        ? Math.round((totalRealizado / totalPrevisto) * 100) / 100
-        : 0,
+      totalAdherencia: Math.round(ppcSemana) / 100,
     },
     importadoEm: new Date().toISOString(),
   };

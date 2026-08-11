@@ -178,14 +178,23 @@ describe('parseProgramacaoSemanal — Template - Programação Semanal.xlsx', ()
     expect(prog.referencia).toContain('obras civis');
   });
 
-  it('monta o PPC somando os dias das atividades', () => {
+  it('monta o PPC pela media das aderencias, como a celula X7 do template', () => {
     const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
     const prog = parseProgramacaoSemanal(wb)!;
     expect(prog.ppc.prev).toHaveLength(6);
     expect(prog.ppc.real).toHaveLength(6);
-    expect(prog.ppc.aderencia).toHaveLength(6);
-    // O template vem em branco: sem quantidade diária, o PPC fica zerado.
+    // O template vem em branco (nenhum dia marcado), então não há aderência e o
+    // PPC fica zerado em vez de dividir por zero.
+    expect(prog.atividades.every((a) => a.aderencia === undefined)).toBe(true);
     expect(prog.ppc.totalPrevisto).toBe(0);
     expect(prog.ppc.ppcSemana).toBe(0);
+  });
+
+  it('guarda as datas dos 6 dias (linha 8, colunas Q..V)', () => {
+    const wb = XLSX.read(readFileSync(PROG), { type: 'buffer', cellDates: true });
+    const prog = parseProgramacaoSemanal(wb)!;
+    expect(prog.dias).toEqual([
+      '2023-02-20', '2023-02-21', '2023-02-22', '2023-02-23', '2023-02-24', '2023-02-25',
+    ]);
   });
 });

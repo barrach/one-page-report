@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useCurrentProject } from "@/store/projectStore";
 import {
   ComposedChart,
@@ -25,9 +25,8 @@ import {
 import { cn } from "@/lib/utils";
 import type { ProgramacaoSemanal, Causa6M } from "@/lib/parseProgramacaoSemanal";
 import PpcSemanalTable from "@/components/PpcSemanalTable";
-import { useProjectStore } from "@/store/projectStore";
 import { ppcDaSemana, ultimaSemana } from "@/lib/ppc";
-import { Check } from "lucide-react";
+const DIAS_CURTOS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sáb"] as const;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,7 +42,7 @@ interface Props {
   }[];
 }
 
-type TabId = "baixa" | "ppc" | "pareto" | "planos";
+type TabId = "atividades" | "ppc" | "pareto" | "planos";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -140,8 +139,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const { info } = useCurrentProject();
   const clientName = info?.cliente?.trim() || "Cliente";
 
-  const [activeTab, setActiveTab] = useState<TabId>("baixa");
-  const { selectedProjectId, setAtividadeExecutada } = useProjectStore();
+  const [activeTab, setActiveTab] = useState<TabId>("atividades");
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [responsavelMap, setResponsavelMap] = useState<Map<string, string>>(new Map());
 
@@ -245,7 +243,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   // -------------------------------------------------------------------------
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: "baixa", label: "Baixa" },
+    { id: "atividades", label: "Atividades" },
     { id: "ppc", label: "PPC Semanal" },
     { id: "pareto", label: "Pareto 6M" },
     { id: "planos", label: "Planos de Ação" },
@@ -323,83 +321,91 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
 
       {/* Painel das abas — rola dentro do card quando o conteúdo passa da altura */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-      {/* TAB — Baixa das atividades: é daqui que sai o PPC */}
-      {activeTab === "baixa" && ultima && (
+      {/* TAB — Atividades da semana, como vieram do template de importação.
+          Colunas mapeadas: H (Atividade Detalhada), I (Local), O (P/R),
+          Q…V (1 = programado/realizado no dia) e X (Aderência). */}
+      {activeTab === "atividades" && ultima && (
         <div className="space-y-2">
           <p className="text-[11px] text-muted-foreground">
-            Semana {ultima.semana} · {ultima.periodo} — marque as atividades concluídas conforme
-            programado. Atividade parcial conta como não concluída.
+            Semana {ultima.semana} · {ultima.periodo} — 1 = dia programado/realizado, 0 = não.
+            A aderência é realizado ÷ previsto; o PPC do card é a média das aderências.
           </p>
           {ultima.atividades.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">
               Nenhuma atividade nesta semana.
             </p>
           ) : (
-            <ul className="space-y-1">
-              {ultima.atividades.map((a, i) => (
-                <li key={`${a.id}-${i}`}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      selectedProjectId &&
-                      setAtividadeExecutada(selectedProjectId, ultima.semana, i, !a.executada)
-                    }
-                    className={cn(
-                      "w-full flex items-start gap-2 text-left rounded-lg border px-2.5 py-2 transition-colors",
-                      a.executada
-                        ? "border-success/40 bg-success/5"
-                        : "border-border bg-muted/20 hover:bg-muted/40"
-                    )}
-                    aria-pressed={a.executada}
-                  >
-                    <span
-                      className={cn(
-                        "mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0",
-                        a.executada
-                          ? "bg-success border-success text-white"
-                          : "border-muted-foreground/40"
-                      )}
-                    >
-                      {a.executada && <Check className="h-3 w-3" />}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span
-                        className={cn(
-                          "block text-xs leading-snug",
-                          a.executada ? "text-muted-foreground line-through" : "text-foreground"
-                        )}
-                      >
-                        {a.descricao || a.idCronograma || `Atividade ${i + 1}`}
-                      </span>
-                      {(a.local || a.responsavel || a.quantidade.prev > 0) && (
-                        <span className="block text-[10px] text-muted-foreground mt-0.5">
-                          {[
-                            a.local,
-                            a.responsavel,
-                            a.quantidade.prev > 0
-                              ? `${a.quantidade.prev} ${a.unidade || ""}`.trim()
-                              : null,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                      )}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[10px] font-bold shrink-0 tabular-nums",
-                        a.executada ? "text-success" : "text-muted-foreground"
-                      )}
-                    >
-                      {a.executada ? "1" : "0"}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs border-collapse">
+                <thead>
+                  <tr className="bg-table-header text-table-header-foreground">
+                    <th className="px-2 py-1.5 text-left rounded-tl-lg min-w-[180px]">Atividade</th>
+                    <th className="px-2 py-1.5 text-left">Local</th>
+                    <th className="px-2 py-1.5 text-center w-8">P/R</th>
+                    {DIAS_CURTOS.map((d) => (
+                      <th key={d} className="px-1 py-1.5 text-center w-7">{d}</th>
+                    ))}
+                    <th className="px-2 py-1.5 text-center rounded-tr-lg w-20">Aderência</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ultima.atividades.map((a, i) => {
+                    const ader = a.aderencia;
+                    const ok = a.executada || (ader ?? 0) >= 0.9;
+                    return (
+                      <Fragment key={`${a.id}-${i}`}>
+                        <tr className={cn(i % 2 ? "bg-muted/20" : "")}>
+                          <td rowSpan={2} className="px-2 py-1 align-top border-b border-border font-medium text-foreground">
+                            {a.descricao || a.idCronograma || `Atividade ${i + 1}`}
+                          </td>
+                          <td rowSpan={2} className="px-2 py-1 align-top border-b border-border text-muted-foreground">
+                            {a.local || "—"}
+                          </td>
+                          <td className="px-2 py-0.5 text-center font-bold text-muted-foreground">P</td>
+                          {a.dias.prev.map((v, d) => (
+                            <td key={d} className="px-1 py-0.5 text-center tabular-nums text-muted-foreground">
+                              {v ? 1 : 0}
+                            </td>
+                          ))}
+                          <td rowSpan={2} className="px-2 py-1 text-center align-middle border-b border-border">
+                            {ader == null ? (
+                              <span className="text-muted-foreground">—</span>
+                            ) : (
+                              <span
+                                className={cn(
+                                  "inline-block px-1.5 py-0.5 rounded text-[10px] font-bold",
+                                  ok ? "bg-success/15 text-success" : "bg-destructive/15 text-destructive"
+                                )}
+                              >
+                                {Math.round(ader * 100)}%
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                        <tr className={cn(i % 2 ? "bg-muted/20" : "", "border-b border-border")}>
+                          <td className="px-2 py-0.5 text-center font-bold text-foreground">R</td>
+                          {a.dias.real.map((v, d) => (
+                            <td
+                              key={d}
+                              className={cn(
+                                "px-1 py-0.5 text-center tabular-nums font-semibold",
+                                v ? "text-success" : "text-muted-foreground"
+                              )}
+                            >
+                              {v ? 1 : 0}
+                            </td>
+                          ))}
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
+
 
       {/* TAB A — PPC Semanal (tabela) */}
       {activeTab === "ppc" && (

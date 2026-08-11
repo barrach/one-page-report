@@ -361,8 +361,6 @@ interface ProjectStoreState {
   setAiInsight: (chartType: string, insight: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
   addProgramacaoSemanal: (projectId: string, data: ProgramacaoSemanal) => void;
-  /** Dá (ou desfaz) baixa numa atividade da programação semanal — alimenta o PPC. */
-  setAtividadeExecutada: (projectId: string, semana: number, atividadeIndex: number, executada: boolean) => void;
   clearProgramacaoSemanal: (projectId: string) => void;
 }
 
@@ -656,27 +654,6 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     return { projects: updated };
   }),
 
-  setAtividadeExecutada: (projectId, semana, atividadeIndex, executada) => set((s) => {
-    const updated = s.projects.map((p) => {
-      if (p.id !== projectId) return p;
-      return {
-        ...p,
-        programacaoSemanal: (p.programacaoSemanal ?? []).map((ps) =>
-          ps.semana !== semana
-            ? ps
-            : {
-                ...ps,
-                atividades: ps.atividades.map((a, i) =>
-                  i === atividadeIndex ? { ...a, executada } : a
-                ),
-              }
-        ),
-      };
-    });
-    const proj = updated.find(p => p.id === projectId)!;
-    debouncedSave(proj);
-    return { projects: updated };
-  }),
 }));
 
 // Espelha os projetos no localStorage a cada mudança → backup/persistência
