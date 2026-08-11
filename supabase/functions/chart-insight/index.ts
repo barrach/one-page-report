@@ -5,6 +5,69 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Descobre um modelo disponível na conta, em vez de fixar o nome no código.
+ *
+ * O Google aposenta modelos: `gemini-2.5-flash-lite` passou a responder
+ * 404 "no longer available to new users". Fixar outro nome só adia o mesmo
+ * problema, então aqui a lista vem do próprio ListModels e a escolha é por
+ * preferência: para os cartões, o modelo mais leve (flash); para o resumo
+ * executivo, o mais capaz (pro), caindo para flash se não houver.
+ */
+let cacheModelos: string[] | null = null;
+
+async function modelosDisponiveis(apiKey: string): Promise<string[]> {
+  if (cacheModelos) return cacheModelos;
+
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=200`);
+  if (!r.ok) throw new Error(`ListModels respondeu ${r.status}: ${(await r.text()).slice(0, 200)}`);
+
+  const j = await r.json();
+  const nomes: string[] = (j.models ?? [])
+    .filter((m: { supportedGenerationMethods?: string[] }) =>
+      (m.supportedGenerationMethods ?? []).includes("generateContent"))
+    .map((m: { name: string }) => String(m.name).replace(/^models\//, ""))
+    // fora o que não serve para gerar texto a partir de texto
+    .filter((n: string) => !/embedding|aqa|vision|image|tts|audio|native-audio|live/.test(n));
+
+  cacheModelos = nomes;
+  console.log("Modelos disponíveis:", nomes.join(", "));
+  return nomes;
+}
+
+/**
+ * Versão numérica no nome ("gemini-2.5-flash" → 2.5), para preferir a mais nova.
+ * Os aliases "-latest" contam como a mais nova de todas de propósito: eles
+ * acompanham o modelo atual e não são aposentados, que é o que quebrou aqui.
+ */
+const versaoDoNome = (n: string): number => {
+  if (/latest/.test(n) && !/\d/.test(n)) return 99;
+  const m = n.match(/(\d+)\.(\d+)/);
+  return m ? Number(m[1]) + Number(m[2]) / 10 : 0;
+};
+
+/** Candidatos em ordem de preferência para o tipo de análise. */
+function candidatos(nomes: string[], executivo: boolean): string[] {
+  const peso = (n: string): number => {
+    let p = versaoDoNome(n) * 10;
+    if (executivo) {
+      if (/pro/.test(n)) p += 60;
+      else if (/flash/.test(n) && !/lite/.test(n)) p += 40;
+      else if (/flash/.test(n)) p += 20;
+    } else {
+      if (/flash.*lite|lite.*flash/.test(n)) p += 60;
+      else if (/flash/.test(n)) p += 40;
+      else if (/pro/.test(n)) p += 10;
+    }
+    // aliases "-latest" envelhecem melhor que nomes de versão fixa
+    if (/latest/.test(n)) p += 5;
+    // pré-lançamentos ficam para o fim
+    if (/preview|exp|experimental/.test(n)) p -= 30;
+    return p;
+  };
+  return [...nomes].sort((a, b) => peso(b) - peso(a)).slice(0, 4);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -78,21 +141,31 @@ Gere um resumo executivo completo e estruturado do projeto.`;
       throw new Error("chartType inválido");
     }
 
-    const geminiModel = chartType === "executive" ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: systemPrompt }] },
-          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-          generationConfig: {
-            maxOutputTokens: chartType === "executive" ? 800 : 200,
-          },
-        }),
-      }
-    );
+    const executivo = chartType === "executive";
+    const corpo = JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+      generationConfig: { maxOutputTokens: executivo ? 800 : 200 },
+    });
+
+    const lista = await modelosDisponiveis(GEMINI_API_KEY);
+    if (lista.length === 0) throw new Error("Nenhum modelo de texto disponível para esta chave");
+
+    // Tenta os candidatos em ordem: se um foi aposentado (404), cai para o próximo
+    // em vez de devolver erro para a tela.
+    let response!: Response;
+    let geminiModel = "";
+    for (const modelo of candidatos(lista, executivo)) {
+      geminiModel = modelo;
+      response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent?key=${GEMINI_API_KEY}`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: corpo },
+      );
+      if (response.ok) break;
+      if (response.status !== 404) break; // 400/403/429 não melhoram trocando de modelo
+      console.warn(`Modelo ${modelo} indisponível (404) — tentando o próximo`);
+      cacheModelos = null; // a lista envelheceu; recarrega na próxima chamada
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
