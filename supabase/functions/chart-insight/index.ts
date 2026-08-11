@@ -11,7 +11,12 @@ serve(async (req) => {
   try {
     const { chartType, data, projectInfo } = await req.json();
     const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
-    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
+    if (!GEMINI_API_KEY) {
+      return new Response(
+        JSON.stringify({ error: "GEMINI_API_KEY não configurada no projeto Supabase" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     let systemPrompt = "";
     let userPrompt = "";
@@ -96,16 +101,36 @@ Gere um resumo executivo completo e estruturado do projeto.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // Repassa o que o Gemini respondeu. Engolir isso num "Erro ao consultar IA"
+      // genérico deixava a tela sem nenhuma pista do que corrigir — chave inválida,
+      // modelo indisponível e cota estourada davam todos a mesma mensagem.
       const t = await response.text();
       console.error("Gemini API error:", response.status, t);
-      return new Response(JSON.stringify({ error: "Erro ao consultar IA" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      let detalhe = t.slice(0, 300);
+      try {
+        const j = JSON.parse(t);
+        detalhe = j?.error?.message || detalhe;
+      } catch { /* corpo não é JSON — usa o texto cru */ }
+      return new Response(
+        JSON.stringify({
+          error: `IA (Gemini ${geminiModel}) respondeu ${response.status}: ${detalhe}`,
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const result = await response.json();
     const insight = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    if (!insight) {
+      // Acontece quando o modelo corta por filtro de conteúdo ou estoura os tokens:
+      // 200 com candidates vazio. Sem isso, a tela mostrava um insight em branco.
+      const motivo = result.candidates?.[0]?.finishReason || result.promptFeedback?.blockReason || "sem candidatos";
+      return new Response(
+        JSON.stringify({ error: `IA não retornou texto (${motivo})` }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     return new Response(JSON.stringify({ insight }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
