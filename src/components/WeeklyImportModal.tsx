@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, X } from 'lucide-react';
-import { useProjectStore, ScheduleRow, CurvaSFinanceiraPoint } from '@/store/projectStore';
+import { useProjectStore, ScheduleRow } from '@/store/projectStore';
 import { toast } from 'sonner';
 import { isProgramacaoSemanal, parseProgramacaoSemanal, type ProgramacaoSemanal, type AtividadeProgSemanal, type Causa6M } from '@/lib/parseProgramacaoSemanal';
 
@@ -2072,115 +2072,13 @@ const runImport = async (files: File[]): Promise<ImportResult> => {
   return { curveBlock, curve, histBlock, hist, projectDates, formatB: null, formatC: null, errors };
 };
 
-// ─── Curva S Financeira (aba "02-CURVA S- FINANCEIRA") ───
-const parseFinancialCurve = async (file: File): Promise<CurvaSFinanceiraPoint[]> => {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
-
-  // STEP 1 — find sheet by strict name priority, validating A1 contains "Contratante"
-  const a1Of = (sn: string): string => {
-    const cell = (wb.Sheets[sn] as any)?.['A1'];
-    return String(cell?.v ?? '').trim();
-  };
-  const hasContratante = (sn: string) => /contratante/i.test(a1Of(sn));
-
-  const preferredNames = ['02-CURVA S- FINANCEIRA', '02-CURVA S- FINANCEIRA.', '02-CURVA S-FINANCEIRA'];
-  let sheetName: string | undefined;
-  for (const want of preferredNames) {
-    const found = wb.SheetNames.find(n => n.trim() === want);
-    if (found && hasContratante(found)) { sheetName = found; break; }
-  }
-  // STEP 3 — fallback: any sheet containing CURVA + FINANC where A1 has "Contratante"
-  if (!sheetName) {
-    sheetName = wb.SheetNames.find(n => {
-      const nn = n.toUpperCase();
-      return nn.includes('CURVA') && nn.includes('FINANC') && hasContratante(n);
-    });
-  }
-  if (!sheetName) throw new Error('Aba "02-CURVA S- FINANCEIRA" não encontrada (ou A1 não contém "Contratante")');
-
-  const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[sheetName], { header: 1, defval: null, raw: true });
-
-  // STEP 2 — find rows by column A content (case-insensitive substring)
-  let rDates = -1, rPrev = -1, rReal = -1, rPrevAcum = -1, rRealAcum = -1;
-  grid.forEach((row, i) => {
-    const a = row?.[0];
-    if (a == null) return;
-    const colA = String(a).replace(/\s+/g, ' ').trim();
-    const has = (s: string) => colA.toLowerCase().includes(s.toLowerCase());
-    if (rDates === -1 && has('Evento de Pagamento')) rDates = i;
-    if (rPrevAcum === -1 && has('Prevista Acumulada')) rPrevAcum = i;
-    if (rRealAcum === -1 && has('Real Acumulada')) rRealAcum = i;
-    if (rPrev === -1 && has('Medição Prevista') && !has('Acumulada') && !has('Replanej')) rPrev = i;
-    if (rReal === -1 && has('Medição Real') && !has('Acumulada')) rReal = i;
-  });
-
-  if (rDates === -1) throw new Error('Linha "Evento de Pagamento" não encontrada');
-
-  const dateRow = (grid[rDates] || []) as unknown[];
-  const getRow = (r: number) => (r >= 0 ? (grid[r] || []) : []) as unknown[];
-  const prevRow = getRow(rPrev);
-  const realRow = getRow(rReal);
-  const prevAcumRow = getRow(rPrevAcum);
-  const realAcumRow = getRow(rRealAcum);
-
-  // STEP 3 — extract values. Return null for empty real cells (no measurement yet).
-  const numOrNull = (v: unknown): number | null => {
-    if (v == null || v === '') return null;
-    if (typeof v === 'number') return isFinite(v) ? v : null;
-    if (typeof v === 'string') {
-      const s = v.trim();
-      if (!s || s.startsWith('#')) return null;
-      const n = parseFloat(s.replace(/\./g, '').replace(',', '.').replace(/[^\d.\-]/g, ''));
-      return isFinite(n) ? n : null;
-    }
-    return null;
-  };
-  const num = (v: unknown): number => numOrNull(v) ?? 0;
-  const isValidDateCell = (v: unknown) => {
-    if (v instanceof Date) return true;
-    if (typeof v === 'number' && v > 40000 && v < 60000) return true;
-    return false;
-  };
-  const excelSerialToDate = (serial: number) => new Date(Math.round((serial - 25569) * 86400 * 1000));
-
-  const out: CurvaSFinanceiraPoint[] = [];
-  let started = false;
-  for (let c = 1; c < dateRow.length; c++) {
-    const raw = dateRow[c];
-    if (!isValidDateCell(raw)) {
-      if (started) break;
-      continue;
-    }
-    started = true;
-    const d = typeof raw === 'number' ? excelSerialToDate(raw) : toDate(raw);
-    if (!d) continue;
-    out.push({
-      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
-      previsto: num(prevRow[c]),
-      real: numOrNull(realRow[c]),
-      prevAcum: num(prevAcumRow[c]),
-      realAcum: numOrNull(realAcumRow[c]),
-    });
-  }
-
-  // STEP 4 — debug
-  console.log('[CurvaSFinanceira]', {
-    sheet: sheetName,
-    rows: { rDates, rPrev, rReal, rPrevAcum, rRealAcum },
-    count: out.length,
-    firstThreePrevAcum: out.slice(0, 3).map(o => o.prevAcum),
-  });
-  return out;
-};
-
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
 export default function WeeklyImportModal({ open, onOpenChange }: Props) {
-  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId, addProgramacaoSemanal } = useProjectStore();
+  const { setSCurveData, setWeeklyData, setMonthData, setHistogramData, setScheduleData, setLastImport, setStatusDateIndex, setInfo, projects, selectedProjectId, addProgramacaoSemanal } = useProjectStore();
   const [files, setFiles] = useState<File[]>([]);
   const [parsing, setParsing] = useState(false);
   const [step, setStep] = useState<'upload' | 'fields' | 'justificativas'>('upload');
@@ -2188,9 +2086,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [finCurve, setFinCurve] = useState<CurvaSFinanceiraPoint[] | null>(null);
-  const [finCurveError, setFinCurveError] = useState<string | null>(null);
-  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; finCurve?: string; progSemanal?: string }>({});
+  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; progSemanal?: string }>({});
   const [progSemanal, setProgSemanal] = useState<ProgramacaoSemanal | null>(null);
   const [ativJustificativas, setAtivJustificativas] = useState<AtividadeProgSemanal[]>([]);
   const [skipJustificativas, setSkipJustificativas] = useState(false);
@@ -2198,7 +2094,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const reset = () => {
     setFiles([]);
     setResult(null); setSchedule(null); setScheduleError(null);
-    setFinCurve(null); setFinCurveError(null);
     setSourceNames({});
     setProgSemanal(null);
     setAtivJustificativas([]);
@@ -2230,13 +2125,12 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     if (!files.length) return;
     setParsing(true);
     setResult(null); setSchedule(null); setScheduleError(null);
-    setFinCurve(null); setFinCurveError(null);
     setSourceNames({});
 
     const xmls = files.filter(f => /\.xml$/i.test(f.name));
     const xlsxs = files.filter(f => /\.xlsx?$/i.test(f.name));
     const used = new Set<string>();
-    const srcs: { curve?: string; hist?: string; schedule?: string; finCurve?: string; progSemanal?: string } = {};
+    const srcs: { curve?: string; hist?: string; schedule?: string; progSemanal?: string } = {};
 
     // 1) Curva S / Histograma (formatos A/B/C) — em todos os xlsx
     let res: ImportResult | null = null;
@@ -2250,15 +2144,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
     }
 
-
-    // 2) Curva S Financeira — varre TODOS os xlsx (pode estar no mesmo arquivo da Curva S)
-    let fin: CurvaSFinanceiraPoint[] | null = null;
-    for (const f of xlsxs) {
-      try {
-        const rows = await parseFinancialCurve(f);
-        if (rows.length) { fin = rows; used.add(f.name); srcs.finCurve = f.name; break; }
-      } catch { /* not a financial sheet */ }
-    }
 
     // 2b) Programação Semanal — varre todos xlsx
     let parsedProgSemanal: ProgramacaoSemanal | null = null;
@@ -2289,7 +2174,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     if (!sched && lastErr && schedCandidates.length) setScheduleError(lastErr);
 
     setResult(res);
-    setFinCurve(fin);
     setSchedule(sched);
     setSourceNames(srcs);
 
@@ -2310,7 +2194,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       monthly: !!(localC && localC.monthly.length),
       projectInfo: !!localC,
       histogram: !!(localH && localH.histogram.length),
-      finCurve: !!(fin && fin.length),
       progSemanal: !!parsedProgSemanal,
     });
 
@@ -2321,13 +2204,12 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
 
   // ─── Field selection (segunda etapa) ───
-  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'finCurve' | 'projectInfo' | 'progSemanal';
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'projectInfo' | 'progSemanal';
   const FIELD_LABELS: Record<FieldKey, string> = {
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
     monthly: 'Prev × Mês (velocímetro mensal)',
     histogram: 'Histograma (barras de avanço por semana)',
-    finCurve: 'Curva S Financeira — Previsto / Real Acumulado',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
     progSemanal: 'Programação Semanal (PPC + 6M + Pareto)',
   };
@@ -2337,7 +2219,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: sourceNames.curve,
     projectInfo: sourceNames.curve,
     histogram: sourceNames.hist || sourceNames.curve,
-    finCurve: sourceNames.finCurve,
     progSemanal: sourceNames.progSemanal,
   };
 
@@ -2354,13 +2235,12 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     monthly: !!(c && c.monthly.length),
     projectInfo: !!c,
     histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
-    finCurve: !!(finCurve && finCurve.length),
     progSemanal: !!progSemanal,
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
     sCurve: false, weekly: false, monthly: false, histogram: false,
-    finCurve: false, projectInfo: false, progSemanal: false,
+    projectInfo: false, progSemanal: false,
   });
 
   const initJustificativas = () => {
@@ -2474,11 +2354,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
 
     if (Object.keys(infoPatch).length) { setInfo(infoPatch); if (!count) count++; }
-    if (finCurve && finCurve.length && selectedFields.finCurve) {
-      setCurvaSFinanceira(finCurve);
-      setLastImport('curvaSFinanceira', now);
-      count++;
-    }
     if (progSemanal && selectedFields.progSemanal && selectedProjectId) {
       // Guard: block confirmation if there are unfilled activities (defensive — button should already be disabled)
       if (!skipJustificativas && ativJustificativas.length > 0) {
@@ -2564,7 +2439,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             confirmLabel={selectedFields.progSemanal && progSemanal ? 'Próximo →' : 'Confirmar Importação'}
             result={result}
             scheduleError={scheduleError}
-            finCurveError={finCurveError}
           />
         )}
 
@@ -2856,11 +2730,11 @@ function JustificativasStep({
 }
 
 // ─── Fields Step ───
-type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'finCurve' | 'projectInfo' | 'progSemanal';
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'projectInfo' | 'progSemanal';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
   anyFieldChecked, onBack, onCancel, onConfirm, confirmLabel,
-  result, scheduleError, finCurveError,
+  result, scheduleError,
 }: {
   files: File[];
   available: Record<FieldKeyT, boolean>;
@@ -2875,7 +2749,6 @@ function FieldsStep({
   confirmLabel?: string;
   result: ImportResult | null;
   scheduleError: string | null;
-  finCurveError: string | null;
 }) {
 
   const allMissing = !(Object.keys(available) as FieldKeyT[]).some(k => available[k]);
@@ -2908,11 +2781,6 @@ function FieldsStep({
         {scheduleError && (
           <div className="text-xs text-destructive flex items-center gap-1">
             <AlertCircle className="h-3.5 w-3.5" /> Cronograma: {scheduleError}
-          </div>
-        )}
-        {finCurveError && (
-          <div className="text-xs text-destructive flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" /> Curva S Financeira: {finCurveError}
           </div>
         )}
 

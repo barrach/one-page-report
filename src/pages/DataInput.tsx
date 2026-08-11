@@ -155,7 +155,7 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
 
 const DataInputPage = () => {
   const { info, weeklyData, monthData, lastImports } = useCurrentProject();
-  const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData, setHistogramData, setScheduleData, setCurvaSFinanceira } = useProjectStore();
+  const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData, setHistogramData, setScheduleData } = useProjectStore();
   const [showWeeklyPaste, setShowWeeklyPaste] = useState(false);
   const [weeklyPasteText, setWeeklyPasteText] = useState('');
   const [showMonthPaste, setShowMonthPaste] = useState(false);
@@ -393,64 +393,7 @@ const DataInputPage = () => {
         <HistogramSpreadsheet />
         <ImportStamp iso={lastImports?.histogram} />
       </div>
-      <FinancialCurveSection />
       <ProgSemanalSection />
-    </div>
-  );
-};
-
-const FinancialCurveSection = () => {
-  const { curvaSFinanceira, lastImports } = useCurrentProject();
-  const { setCurvaSFinanceira } = useProjectStore();
-  if (!curvaSFinanceira || curvaSFinanceira.length === 0) return null;
-  const fmt = (v: number | null | undefined) =>
-    v == null || !isFinite(v) || v === 0 ? '—'
-      : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
-  const fmtMonth = (iso: string) => {
-    const d = new Date(iso + 'T00:00:00');
-    if (isNaN(d.getTime())) return iso;
-    return `${MONTHS_PT[d.getMonth()]}/${String(d.getFullYear()).slice(-2)}`;
-  };
-  return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Dados da Curva S Financeira</h2>
-          <ClearDataButton sectionName="Dados da Curva S Financeira" onConfirm={() => setCurvaSFinanceira([])} />
-        </div>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="border-collapse text-xs min-w-max">
-          <thead>
-            <tr>
-              <th className="sticky left-0 z-10 bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-3 py-2 text-left font-semibold border border-border min-w-[160px]">Campo</th>
-              {curvaSFinanceira.map((p, i) => (
-                <th key={i} className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-2 text-center font-semibold border border-border min-w-[100px] whitespace-nowrap">
-                  {fmtMonth(p.date)}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {[
-              { label: 'Previsto Mensal', key: 'previsto' as const },
-              { label: 'Real Mensal', key: 'real' as const },
-              { label: 'Previsto Acumulado', key: 'prevAcum' as const },
-              { label: 'Real Acumulado', key: 'realAcum' as const },
-            ].map(({ label, key }) => (
-              <tr key={key}>
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground whitespace-nowrap">{label}</td>
-                {curvaSFinanceira.map((p, i) => (
-                  <td key={i} className="border border-border px-2 py-1 text-right text-foreground whitespace-nowrap">
-                    {fmt(p[key] as number)}
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <ImportStamp iso={lastImports?.curvaSFinanceira} />
     </div>
   );
 };
