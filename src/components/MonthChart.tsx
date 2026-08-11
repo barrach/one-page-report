@@ -97,7 +97,7 @@ const GaugeChart = ({
   });
 
   return (
-    <svg viewBox="0 0 400 240" className="w-full max-w-[360px] mx-auto">
+    <svg viewBox="0 0 400 240" className="w-full h-full max-w-[460px] mx-auto">
       {arcs.map((arc, i) => {
         const isSelected = selectedIndex === null || selectedIndex === arc.originalIndex;
         return (
@@ -168,11 +168,15 @@ const MonthChart = () => {
   
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 
-      <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
+      {/* O medidor ocupa a sobra vertical do card, para acompanhar a altura do
+          gráfico vizinho em vez de deixar um vazio embaixo. */}
+      <div className="flex-1 flex items-center justify-center min-h-[200px]">
+        <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
+      </div>
 
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-xs">

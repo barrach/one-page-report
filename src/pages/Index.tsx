@@ -357,12 +357,12 @@ const Index = () => {
         {/* O layout é fixo: os seis cards aparecem sempre, zerados quando não
             houver dados importados para o projeto selecionado. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <MonthChart />
+          <FiveWeekChart />
           <SCurveChart />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <FiveWeekChart />
+          <MonthChart />
           <HistogramChart />
         </div>
 
