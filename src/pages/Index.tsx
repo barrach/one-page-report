@@ -121,9 +121,6 @@ const Index = () => {
     return () => window.removeEventListener('keydown', block);
   }, [tvMode]);
 
-  // O modo TV vive num store global; ao sair da tela do relatório ele não pode ficar ligado.
-  useEffect(() => () => setTvMode(false), [setTvMode]);
-
   const toggleFullscreenOnly = () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
     else document.exitFullscreen?.().catch(() => {});
