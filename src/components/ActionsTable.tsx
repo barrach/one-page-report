@@ -120,6 +120,7 @@ const ActionsTable = () => {
         </div>
         <button
           onClick={() => { addAction(); setAberto(actions.length); }}
+          data-pdf-hide
           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shrink-0 font-semibold"
         >
           <Plus className="h-3 w-3" />

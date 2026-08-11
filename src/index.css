@@ -248,3 +248,60 @@
     border-radius: 4px;
   }
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Modo de exportação em PDF
+   A classe é aplicada ao container do relatório só durante a captura.
+   O relatório de tela é de duas colunas largas; numa folha A4 retrato isso
+   deixaria cada gráfico com metade de 194 mm. Aqui ele vira uma coluna, o que
+   dá a cada card a largura inteira da folha, e o que é interativo desaparece.
+   ────────────────────────────────────────────────────────────────────────── */
+/* Só os grids de primeiro nível viram uma coluna. Os de dentro dos cards (faixa
+   de informações, KPIs) mantêm o arranjo — empilhar seis KPIs ficaria pior. */
+.exportando-pdf > .grid {
+  grid-template-columns: 1fr !important;
+}
+
+/* `truncate` é overflow:hidden, e o html2canvas mede a caixa da linha com folga
+   menor que o navegador: o resultado é texto com a metade de baixo cortada. No
+   papel não há por que truncar — a linha pode quebrar. */
+.exportando-pdf .truncate,
+.exportando-pdf [class*="truncate"] {
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+}
+
+/* Mesma razão: caixas de uma linha com overflow escondido cortam descendentes */
+.exportando-pdf .whitespace-nowrap {
+  white-space: normal !important;
+}
+
+/* Botões e controles não fazem sentido no papel */
+.exportando-pdf [data-pdf-hide] {
+  display: none !important;
+}
+
+/* Tabelas largas (cronograma) precisam caber na folha em vez de rolar */
+.exportando-pdf .overflow-x-auto,
+.exportando-pdf .overflow-y-auto {
+  overflow: visible !important;
+  max-height: none !important;
+}
+.exportando-pdf table {
+  min-width: 0 !important;
+  width: 100% !important;
+}
+.exportando-pdf table th,
+.exportando-pdf table td {
+  font-size: 8px !important;
+  padding-left: 3px !important;
+  padding-right: 3px !important;
+}
+
+/* Alturas mínimas de tela viram desnecessárias: o card fecha no conteúdo */
+.exportando-pdf .min-h-\[440px\],
+.exportando-pdf .min-h-\[560px\],
+.exportando-pdf [class*="min-h-"] {
+  min-height: 0 !important;
+}

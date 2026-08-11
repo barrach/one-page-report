@@ -153,11 +153,15 @@ const Index = () => {
   /**
    * Exporta o relatório em A4 retrato, com quantas páginas forem necessárias.
    *
-   * O relatório é capturado UMA vez em imagem e depois recortado em páginas. O
-   * recorte não é feito em altura fixa: os cortes acontecem em pontos de quebra
-   * (fim de cada bloco do relatório e fim de cada linha de tabela), para não
-   * partir um card nem uma linha do cronograma ao meio. Só quando um único bloco
-   * é mais alto que a página é que se corta no meio dele — não há alternativa.
+   * Captura BLOCO POR BLOCO (cada card) em vez da página inteira, e monta as
+   * folhas encaixando um bloco por vez. Assim nenhum card é partido: quando o
+   * próximo não cabe no que resta da folha, começa outra. Só um bloco mais alto
+   * que a folha inteira precisa ser fatiado — e aí o corte acontece no fim de
+   * uma linha de tabela, nunca no meio dela.
+   *
+   * Durante a captura o relatório recebe a classe `exportando-pdf`, que o coloca
+   * em UMA coluna: em duas colunas, cada gráfico ficaria com metade de 194 mm e
+   * sairia ilegível no papel.
    */
   const exportPDF = async () => {
     if (!reportRef.current) return;
@@ -169,80 +173,114 @@ const Index = () => {
       const idsToExport = selectedExportIds.length > 0 ? selectedExportIds : [selectedProjectId];
       const originalId = selectedProjectId;
 
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const margin = 8;
-      const contentWidth = pdf.internal.pageSize.getWidth() - margin * 2;
-      const contentHeight = pdf.internal.pageSize.getHeight() - margin * 2;
+      // compress: true faz o jsPDF usar Flate nas imagens; sem isso ele embute
+      // RGB cru e um relatório de 3 páginas passa de 40 MB.
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const margem = 8;
+      const larguraUtil = pdf.internal.pageSize.getWidth() - margem * 2;
+      const alturaUtil = pdf.internal.pageSize.getHeight() - margem * 2;
+      const espacoEntreBlocos = 3;
 
-      // Largura de captura: mais estreita que a tela, para o texto não sair
-      // microscópico ao ser reduzido para 194 mm.
-      const LARGURA_CAPTURA = 1000;
+      // Largura de captura: casa com os 194 mm úteis dando ~4,6 px/mm, o que
+      // mantém o texto de 12 px legível depois da redução.
+      const LARGURA_CAPTURA = 900;
 
-      let primeiraPagina = true;
-
-      for (const projectId of idsToExport) {
-        selectProject(projectId);
-        await new Promise((r) => setTimeout(r, 400));
-        const alvo = reportRef.current;
-        if (!alvo) continue;
-
-        const larguraOriginal = alvo.style.width;
-        alvo.style.width = `${LARGURA_CAPTURA}px`;
-        // Os gráficos são responsivos: sem o resize eles ficariam na largura antiga.
-        window.dispatchEvent(new Event('resize'));
-        await new Promise((r) => setTimeout(r, 600));
-
-        const canvas = await html2canvas(alvo, {
+      const capturar = (el: HTMLElement) =>
+        html2canvas(el, {
           scale: 2,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
           windowWidth: LARGURA_CAPTURA,
-          width: alvo.scrollWidth,
-          height: alvo.scrollHeight,
         });
 
-        // Pontos de quebra em pixels do canvas, medidos ANTES de devolver a largura.
-        const escala = canvas.height / alvo.scrollHeight;
-        const topo = alvo.getBoundingClientRect().top;
-        const quebras = new Set<number>();
-        const registrar = (el: Element) => {
-          const r = el.getBoundingClientRect();
-          if (r.height > 0) quebras.add(Math.round((r.bottom - topo) * escala));
-        };
-        Array.from(alvo.children).forEach(registrar);
-        alvo.querySelectorAll('tr, tbody > tr').forEach(registrar);
-        const pontos = [...quebras].filter((y) => y > 0 && y <= canvas.height).sort((a, b) => a - b);
+      const paraJpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.92);
 
-        alvo.style.width = larguraOriginal;
+      let primeiraPagina = true;
+      let y = margem;
+
+      const novaPagina = () => {
+        if (!primeiraPagina) pdf.addPage();
+        primeiraPagina = false;
+        y = margem;
+      };
+
+      for (const projectId of idsToExport) {
+        selectProject(projectId);
+        await new Promise((r) => setTimeout(r, 400));
+        const raiz = reportRef.current;
+        if (!raiz) continue;
+
+        const larguraAntes = raiz.style.width;
+        raiz.style.width = `${LARGURA_CAPTURA}px`;
+        raiz.classList.add('exportando-pdf');
+        // Os gráficos são responsivos: sem o resize ficariam na largura antiga.
         window.dispatchEvent(new Event('resize'));
+        await new Promise((r) => setTimeout(r, 700));
 
-        const alturaPagina = Math.floor((contentHeight * canvas.width) / contentWidth);
-
-        for (const { inicio: y, fim } of paginar(canvas.height, alturaPagina, pontos)) {
-          const altura = fim - y;
-          if (altura <= 0) continue;
-
-          const fatia = document.createElement('canvas');
-          fatia.width = canvas.width;
-          fatia.height = altura;
-          const ctx = fatia.getContext('2d');
-          if (!ctx) break;
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, fatia.width, fatia.height);
-          ctx.drawImage(canvas, 0, y, canvas.width, altura, 0, 0, canvas.width, altura);
-
-          if (!primeiraPagina) pdf.addPage();
-          primeiraPagina = false;
-          pdf.addImage(
-            fatia.toDataURL('image/png'),
-            'PNG',
-            margin,
-            margin,
-            contentWidth,
-            (altura * contentWidth) / canvas.width,
-          );
+        // Blocos = filhos diretos; dentro de um grid, cada card é um bloco
+        // (em uma coluna eles já estão empilhados).
+        const blocos: HTMLElement[] = [];
+        for (const filho of Array.from(raiz.children) as HTMLElement[]) {
+          const ehGrid = filho.classList.contains('grid');
+          const candidatos = ehGrid ? (Array.from(filho.children) as HTMLElement[]) : [filho];
+          for (const c of candidatos) {
+            if (c.getBoundingClientRect().height > 8) blocos.push(c);
+          }
         }
+
+        novaPagina();
+
+        for (const bloco of blocos) {
+          const canvas = await capturar(bloco);
+          if (canvas.width === 0 || canvas.height === 0) continue;
+
+          const mmPorPx = larguraUtil / canvas.width;
+          const alturaMm = canvas.height * mmPorPx;
+
+          // Cabe inteiro numa folha: encaixa, abrindo página nova se preciso.
+          if (alturaMm <= alturaUtil) {
+            if (y + alturaMm > margem + alturaUtil) novaPagina();
+            pdf.addImage(paraJpeg(canvas), 'JPEG', margem, y, larguraUtil, alturaMm);
+            y += alturaMm + espacoEntreBlocos;
+            continue;
+          }
+
+          // Mais alto que a folha: fatia nos fins de linha de tabela.
+          const escala = canvas.height / bloco.scrollHeight;
+          const topo = bloco.getBoundingClientRect().top;
+          const quebras = new Set<number>();
+          bloco.querySelectorAll('tr, li, tbody > tr').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.height > 0) quebras.add(Math.round((r.bottom - topo) * escala));
+          });
+
+          const alturaPaginaPx = Math.floor(alturaUtil / mmPorPx);
+          const fatias = paginar(canvas.height, alturaPaginaPx, [...quebras]);
+
+          for (const { inicio, fim } of fatias) {
+            const alturaFatia = fim - inicio;
+            if (alturaFatia <= 0) continue;
+
+            const corte = document.createElement('canvas');
+            corte.width = canvas.width;
+            corte.height = alturaFatia;
+            const ctx = corte.getContext('2d');
+            if (!ctx) continue;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, corte.width, corte.height);
+            ctx.drawImage(canvas, 0, inicio, canvas.width, alturaFatia, 0, 0, canvas.width, alturaFatia);
+
+            const fatiaMm = alturaFatia * mmPorPx;
+            if (y + fatiaMm > margem + alturaUtil) novaPagina();
+            pdf.addImage(paraJpeg(corte), 'JPEG', margem, y, larguraUtil, fatiaMm);
+            y += fatiaMm + espacoEntreBlocos;
+          }
+        }
+
+        raiz.classList.remove('exportando-pdf');
+        raiz.style.width = larguraAntes;
+        window.dispatchEvent(new Event('resize'));
       }
 
       selectProject(originalId);
@@ -252,6 +290,7 @@ const Index = () => {
     } catch (err) {
       console.error('Erro ao exportar PDF:', err);
       toast.error('Não foi possível exportar o PDF. Veja o console para o detalhe.');
+      reportRef.current?.classList.remove('exportando-pdf');
     } finally {
       setExporting(false);
     }

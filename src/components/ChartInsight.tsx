@@ -56,6 +56,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
     return (
       <button
         onClick={generateInsight}
+        data-pdf-hide
         className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors group"
       >
         <Sparkles className="h-3.5 w-3.5 group-hover:text-primary transition-colors" />
@@ -86,6 +87,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
         {!loading && (
           <button
             onClick={generateInsight}
+            data-pdf-hide
             className="shrink-0 text-muted-foreground hover:text-primary transition-colors"
             title="Regenerar"
           >

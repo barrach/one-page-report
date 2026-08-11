@@ -29,3 +29,6 @@ dist-ssr
 
 # Temporarios da CLI do Supabase
 supabase/.temp/
+
+# PDFs exportados pelo app
+*-relatorio*.pdf
