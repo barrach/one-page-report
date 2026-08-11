@@ -14,7 +14,7 @@ import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import AppSidebar from '@/components/AppSidebar';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical, CalendarCheck } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -30,33 +30,6 @@ import {
 import { cn } from '@/lib/utils';
 
 const TV_INTERVALS = [10, 20, 30, 60] as const;
-
-/** Card vazio com o mesmo enquadramento dos demais (mantém o grid alinhado). */
-const EmptyCard = ({
-  icon: Icon,
-  title,
-  subtitle,
-  emptyTitle,
-  emptyHint,
-}: {
-  icon: React.ElementType;
-  title: string;
-  subtitle: string;
-  emptyTitle: string;
-  emptyHint: string;
-}) => (
-  <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
-    <div className="mb-4">
-      <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h3>
-      <p className="text-xs text-muted-foreground">{subtitle}</p>
-    </div>
-    <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
-      <Icon className="h-7 w-7 text-muted-foreground/40" />
-      <p className="text-sm text-muted-foreground">{emptyTitle}</p>
-      <p className="text-xs text-muted-foreground/70 max-w-[280px]">{emptyHint}</p>
-    </div>
-  </div>
-);
 
 const Index = () => {
   const reportRef = useRef<HTMLDivElement>(null);
@@ -75,20 +48,6 @@ const Index = () => {
   const isMobile = useIsMobile();
   const current = useCurrentProject();
   const { isAdmin } = useAuth();
-
-  const hasRows = (arr: any[] | undefined, keys: string[]) =>
-    Array.isArray(arr) && arr.some((r) => r && keys.some((k) => {
-      const v = (r as any)[k];
-      return v !== undefined && v !== null && v !== '' && v !== 0;
-    }));
-
-  const showSCurve = hasRows(current?.sCurveData, ['date']);
-  const showHistogram = hasRows(current?.histogramData, ['date', 'semana']);
-  // A visão semanal também é derivada da Curva S quando não há série semanal importada
-  const showFiveWeek = hasRows(current?.weeklyData, ['date']) || showSCurve;
-  const showMonth = hasRows(current?.monthData, ['week', 'date']);
-  const showProgSemanal = Array.isArray(current?.programacaoSemanal) && (current?.programacaoSemanal?.length ?? 0) > 0;
-  const showExecutive = showSCurve || showHistogram || showFiveWeek || showMonth;
 
   const togglePresentation = () => {
     if (!presentationMode) {
@@ -384,41 +343,26 @@ const Index = () => {
 
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
-        {showExecutive && <ExecutiveSummary />}
+        <ExecutiveSummary />
 
-        {/* Prev. × Realizado Mês × Curva "S" */}
-        {(showMonth || showSCurve) && (
-          <div className={`grid grid-cols-1 ${showMonth && showSCurve ? 'lg:grid-cols-2' : ''} gap-4`}>
-            {showMonth && <MonthChart />}
-            {showSCurve && <SCurveChart />}
-          </div>
-        )}
+        {/* O layout é fixo: os seis cards aparecem sempre, zerados quando não
+            houver dados importados para o projeto selecionado. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <MonthChart />
+          <SCurveChart />
+        </div>
 
-        {/* Visão de 5 Semanas × Histograma MOD */}
-        {(showFiveWeek || showHistogram) && (
-          <div className={`grid grid-cols-1 ${showFiveWeek && showHistogram ? 'lg:grid-cols-2' : ''} gap-4`}>
-            {showFiveWeek && <FiveWeekChart />}
-            {showHistogram && <HistogramChart />}
-          </div>
-        )}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <FiveWeekChart />
+          <HistogramChart />
+        </div>
 
-        {/* Pontos de Atenção × Programação Semanal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ActionsTable />
-          {showProgSemanal ? (
-            <ProgramacaoSemanalCard
-              data={current!.programacaoSemanal!}
-              histogramData={current?.histogramData}
-            />
-          ) : (
-            <EmptyCard
-              icon={CalendarCheck}
-              title="Programação Semanal"
-              subtitle="Tarefas programadas × concluídas (PPC)"
-              emptyTitle="Nenhuma tarefa programada"
-              emptyHint='Importe a programação na aba "Dados" para acompanhar o PPC.'
-            />
-          )}
+          <ProgramacaoSemanalCard
+            data={current?.programacaoSemanal ?? []}
+            histogramData={current?.histogramData}
+          />
         </div>
 
         <motion.div

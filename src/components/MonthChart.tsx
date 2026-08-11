@@ -1,6 +1,19 @@
-import { useCurrentProject } from '@/store/projectStore';
+import { useCurrentProject, type MonthWeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import ChartInsight from '@/components/ChartInsight';
+
+/** Semanas em branco — mantêm o card com a mesma forma quando não há dados. */
+const PLACEHOLDER_MONTHS: MonthWeekData[] = [1, 2, 3, 4, 5].map((n) => ({
+  label: `Sem. ${n}`,
+  previsto: 0,
+  real: 0,
+}));
+
+/** monthData do projeto, ou as semanas em branco se não houver nada importado. */
+const useMonthData = (): MonthWeekData[] => {
+  const { monthData } = useCurrentProject();
+  return monthData && monthData.length > 0 ? monthData : PLACEHOLDER_MONTHS;
+};
 
 const GaugeChart = ({
   metaRealizado,
@@ -9,7 +22,7 @@ const GaugeChart = ({
   metaRealizado: number;
   selectedIndex: number | null;
 }) => {
-  const { monthData } = useCurrentProject();
+  const monthData = useMonthData();
   const { setSelectedMonthIndex } = useReportInteraction();
 
   // Mês ativo = último mês com Real > 0 (calculado a partir do MESMO monthData
@@ -138,7 +151,8 @@ const GaugeChart = ({
 };
 
 const MonthChart = () => {
-  const { monthData, info } = useCurrentProject();
+  const { info } = useCurrentProject();
+  const monthData = useMonthData();
   const { selectedMonthIndex, setSelectedMonthIndex } = useReportInteraction();
 
   const totalPrev = monthData.reduce((s, d) => s + Number(d.previsto || 0), 0);
