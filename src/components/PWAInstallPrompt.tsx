@@ -62,7 +62,7 @@ export default function PWAInstallPrompt() {
   return (
     <div
       className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[200] w-[calc(100%-1.5rem)] max-w-md rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3"
-      style={{ backgroundColor: '#0F172A', color: '#fff' }}
+      style={{ backgroundColor: '#002054', color: '#fff' }}
     >
       <Download className="h-5 w-5 shrink-0 text-white/80" />
       {showMacHint ? (

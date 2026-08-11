@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type Tab = 'login' | 'signup';
-const DARK = '#0F172A';
+const DARK = '#002054';
 
 export default function Login() {
   const navigate = useNavigate();

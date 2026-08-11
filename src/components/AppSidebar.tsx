@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
-const DARK = '#0F172A';
+const DARK = '#002054';
 
 export default function AppSidebar() {
   const location = useLocation();

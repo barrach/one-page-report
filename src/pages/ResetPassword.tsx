@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 
-const DARK = '#0F172A';
+const DARK = '#002054';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
