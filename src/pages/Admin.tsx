@@ -124,7 +124,7 @@ const Admin = () => {
         <span className="text-xs font-bold text-muted-foreground tracking-[0.2em] uppercase">Admin</span>
       </div>
 
-      <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
+      <div className="p-3 sm:p-4 space-y-6">
         {/* Create user */}
         <div className="bg-card rounded-xl p-6 border card-shadow">
           <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
