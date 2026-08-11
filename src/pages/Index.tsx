@@ -16,7 +16,7 @@ import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import AppSidebar from '@/components/AppSidebar';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -26,6 +26,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
 } from '@/components/ui/dialog';
+import { cn } from '@/lib/utils';
+
+const TV_INTERVALS = [10, 20, 30, 60] as const;
 
 const Index = () => {
   const reportRef = useRef<HTMLDivElement>(null);
@@ -37,6 +40,9 @@ const Index = () => {
   const navigate = useNavigate();
   const [isStandalone, setIsStandalone] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
+  const [tvMode, setTvMode] = useState(false);
+  const [tvPlaying, setTvPlaying] = useState(true);
+  const [tvInterval, setTvInterval] = useState<number>(20);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const current = useCurrentProject();
@@ -72,6 +78,38 @@ const Index = () => {
     document.addEventListener('fullscreenchange', onFsChange);
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
+
+  // ── MODO TV ────────────────────────────────────────────────────────────
+  const tvIndex = projects.findIndex((p) => p.id === selectedProjectId);
+
+  const goToProject = (dir: 1 | -1) => {
+    if (projects.length === 0) return;
+    const idx = tvIndex === -1 ? 0 : tvIndex;
+    const nextIdx = (idx + dir + projects.length) % projects.length;
+    selectProject(projects[nextIdx].id);
+  };
+
+  const toggleTvMode = () => {
+    if (!tvMode) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+      setTvPlaying(true);
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+    setTvMode(!tvMode);
+  };
+
+  const toggleFullscreenOnly = () => {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+    else document.exitFullscreen?.().catch(() => {});
+  };
+
+  useEffect(() => {
+    if (!tvMode || !tvPlaying || projects.length < 2) return;
+    const t = setInterval(() => goToProject(1), tvInterval * 1000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tvMode, tvPlaying, tvInterval, selectedProjectId, projects.length]);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
@@ -150,11 +188,11 @@ const Index = () => {
   };
 
   return (
-    <div className={`min-h-screen flex bg-background ${presentationMode ? 'overflow-auto' : ''}`}>
-      {!presentationMode && <AppSidebar />}
+    <div className={`min-h-screen flex bg-background ${presentationMode || tvMode ? 'overflow-auto' : ''}`}>
+      {!presentationMode && !tvMode && <AppSidebar />}
       <div className="flex-1 min-w-0">
       {/* Top navigation bar */}
-      {!presentationMode && (
+      {!presentationMode && !tvMode && (
         <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
           <div className="flex items-center gap-3 sm:gap-5 min-w-0">
             <div className="flex items-center gap-2 shrink-0 sm:hidden">
@@ -171,6 +209,14 @@ const Index = () => {
               title="Modo apresentação"
             >
               <Presentation className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+              onClick={toggleTvMode}
+              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
+              title="Modo TV"
+            >
+              <Tv className="h-3.5 w-3.5" />
             </button>
 
             {!isStandalone && (
@@ -247,6 +293,9 @@ const Index = () => {
                   <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); togglePresentation(); }}>
                     <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
                   </Button>
+                  <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); toggleTvMode(); }}>
+                    <Tv className="h-4 w-4 mr-2" /> Modo TV
+                  </Button>
                   <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); toggleTheme(); }}>
                     {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
                     {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
@@ -273,6 +322,48 @@ const Index = () => {
           <X className="h-3.5 w-3.5" />
           Sair
         </button>
+      )}
+
+      {/* Modo TV: barra de controle flutuante */}
+      {tvMode && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-foreground text-background rounded-full pl-3 pr-2 py-1.5 shadow-2xl text-sm">
+          <span className="font-semibold px-1.5 tabular-nums">
+            {projects.length > 0 ? `${tvIndex + 1}/${projects.length}` : '0/0'}
+          </span>
+          <button onClick={() => goToProject(-1)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-background/10 transition-colors" title="Anterior">
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button onClick={() => setTvPlaying((p) => !p)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-background/10 transition-colors" title={tvPlaying ? 'Pausar' : 'Reproduzir'}>
+            {tvPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
+          <button onClick={() => goToProject(1)} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-background/10 transition-colors" title="Próximo">
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-0.5 mx-1 pl-1 border-l border-background/20">
+            {TV_INTERVALS.map((s) => (
+              <button
+                key={s}
+                onClick={() => setTvInterval(s)}
+                className={cn(
+                  'px-2 py-1 rounded-full text-xs font-medium transition-colors',
+                  tvInterval === s ? 'bg-primary text-primary-foreground' : 'hover:bg-background/10'
+                )}
+              >
+                {s}s
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={toggleFullscreenOnly}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium hover:bg-background/10 transition-colors"
+          >
+            <Maximize className="h-3.5 w-3.5" />
+            Tela cheia
+          </button>
+          <button onClick={toggleTvMode} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-background/10 transition-colors ml-1" title="Sair do Modo TV">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       )}
 
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
@@ -310,7 +401,7 @@ const Index = () => {
       </div>
 
       {/* Mobile bottom nav */}
-      {!presentationMode && (
+      {!presentationMode && !tvMode && (
         <nav className="fixed bottom-0 left-0 right-0 z-40 sm:hidden bg-card border-t border-border flex justify-around items-stretch h-14 print:hidden">
           <Link to="/" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-primary">
             <FileText className="h-5 w-5" />
