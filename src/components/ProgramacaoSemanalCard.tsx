@@ -13,9 +13,8 @@ import {
   Cell,
 } from "recharts";
 import { Link } from "react-router-dom";
-import { CalendarCheck, Plus } from "lucide-react";
+import { CalendarCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -277,12 +276,6 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
               PPC · {totalRealizado}/{totalPrevisto}
             </div>
           </div>
-          <Button asChild size="sm" variant="outline" className="gap-1.5 h-8 text-xs">
-            <Link to="/dados">
-              <Plus className="h-3 w-3" />
-              Adicionar
-            </Link>
-          </Button>
         </div>
       </div>
 
@@ -297,15 +290,18 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
       {data.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
           <CalendarCheck className="h-7 w-7 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Nenhuma tarefa programada</p>
+          <p className="text-sm text-muted-foreground">Nenhuma semana importada</p>
           <p className="text-xs text-muted-foreground/70 max-w-[300px]">
-            Use “Adicionar” para montar a programação da semana.
+            Importe a planilha de Programação Semanal em{' '}
+            <Link to="/dados" className="underline hover:text-foreground">Dados</Link>.
           </p>
         </div>
       ) : (
-      <div className="space-y-4">
+      /* min-h-0 + overflow-y-auto: o conteúdo se ajusta ao espaço do card (que
+         acompanha a altura da linha do grid) em vez de empurrar o layout. */
+      <div className="flex-1 min-h-0 flex flex-col gap-3">
       {/* Tab buttons */}
-      <div className="flex gap-1 border-b">
+      <div className="flex gap-1 border-b shrink-0">
         {tabs.map((t) => (
           <button
             key={t.id}
@@ -322,6 +318,8 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
         ))}
       </div>
 
+      {/* Painel das abas — rola dentro do card quando o conteúdo passa da altura */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {/* TAB A — PPC Semanal (tabela) */}
       {activeTab === "ppc" && (
         <PpcSemanalTable data={data} showPeriodo />
@@ -594,6 +592,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
           )}
         </div>
       )}
+      </div>
       </div>
       )}
     </div>

@@ -10,14 +10,33 @@ const statusColors: Record<string, string> = {
   'ATRASADO': 'bg-destructive text-white',
 };
 
-const fields = [
-  { key: 'problema', label: 'Restrição / Problema', minW: 250 },
-  { key: 'causa', label: 'Causa Raiz', minW: 200 },
-  { key: 'impacto', label: 'Impacto (SSMA/Prazo)', minW: 150 },
-  { key: 'atividade', label: 'Atividade', minW: 150 },
-  { key: 'responsavel', label: 'Responsável', minW: 120 },
-  { key: 'prazo', label: 'Prazo', minW: 100 },
-  { key: 'necessidade', label: 'Ação', minW: 300 },
+/**
+ * Sete campos em TRÊS colunas: cada coluna tem um campo principal e os
+ * complementares abaixo dele, em linha menor. Mesma informação de antes, sem o
+ * scroll horizontal que a tabela de nove colunas exigia.
+ */
+const columns = [
+  {
+    label: 'Restrição / Problema',
+    main: { key: 'problema', placeholder: 'Restrição / problema...' },
+    subs: [{ key: 'causa', label: 'Causa raiz' }],
+    minW: 240,
+  },
+  {
+    label: 'Impacto',
+    main: { key: 'impacto', placeholder: 'Impacto (SSMA/prazo)...' },
+    subs: [{ key: 'atividade', label: 'Atividade' }],
+    minW: 170,
+  },
+  {
+    label: 'Ação',
+    main: { key: 'necessidade', placeholder: 'Ação corretiva...' },
+    subs: [
+      { key: 'responsavel', label: 'Resp.' },
+      { key: 'prazo', label: 'Prazo' },
+    ],
+    minW: 230,
+  },
 ] as const;
 
 const cellStyle: React.CSSProperties = {
@@ -25,6 +44,14 @@ const cellStyle: React.CSSProperties = {
   wordBreak: 'break-word',
   overflowWrap: 'anywhere',
   verticalAlign: 'top',
+};
+
+const val = (a: unknown, key: string) =>
+  String((a as Record<string, unknown>)[key] ?? '');
+
+const autoGrow = (el: HTMLTextAreaElement) => {
+  el.style.height = 'auto';
+  el.style.height = el.scrollHeight + 'px';
 };
 
 const ActionsTable = () => {
@@ -65,9 +92,9 @@ const ActionsTable = () => {
         <table className="w-full text-xs border-collapse" style={{ tableLayout: 'auto' }}>
           <thead className="sticky top-0 z-10">
             <tr className="bg-table-header text-table-header-foreground">
-              <th className="px-3 py-2.5 text-center rounded-tl-lg" style={{ minWidth: 50, ...cellStyle }}>ID</th>
-              {fields.map(f => (
-                <th key={f.key} className="px-3 py-2.5 text-left" style={{ minWidth: f.minW, ...cellStyle }}>{f.label}</th>
+              <th className="px-3 py-2.5 text-center rounded-tl-lg" style={{ minWidth: 44, ...cellStyle }}>ID</th>
+              {columns.map(c => (
+                <th key={c.label} className="px-3 py-2.5 text-left" style={{ minWidth: c.minW, ...cellStyle }}>{c.label}</th>
               ))}
               <th className="px-3 py-2.5 text-center" style={{ minWidth: 120, ...cellStyle }}>Status</th>
               <th className="px-2 py-2.5 rounded-tr-lg" style={{ minWidth: 36 }}></th>
@@ -82,24 +109,35 @@ const ActionsTable = () => {
                 }`}
               >
                 <td className="px-3 py-2.5 text-center font-bold text-muted-foreground" style={cellStyle}>{String(a.id).padStart(2, '0')}</td>
-                {fields.map((f) => (
-                  <td key={f.key} className="px-1 py-1" style={{ ...cellStyle, minWidth: f.minW }}>
+                {columns.map((c) => (
+                  <td key={c.label} className="px-1 py-1" style={{ ...cellStyle, minWidth: c.minW }}>
                     <textarea
                       className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden"
                       style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', minHeight: 34 }}
-                      value={String((a as unknown as Record<string, unknown>)[f.key] ?? '')}
+                      value={val(a, c.main.key)}
                       onChange={(e) => {
-                        updateAction(i, f.key, e.target.value);
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
+                        updateAction(i, c.main.key, e.target.value);
+                        autoGrow(e.target);
                       }}
-                      onFocus={(e) => {
-                        e.target.style.height = 'auto';
-                        e.target.style.height = e.target.scrollHeight + 'px';
-                      }}
-                      placeholder={f.label + '...'}
+                      onFocus={(e) => autoGrow(e.target)}
+                      placeholder={c.main.placeholder}
                       rows={1}
                     />
+                    {c.subs.length > 0 && (
+                      <div className="flex flex-wrap gap-x-2 px-2 pb-1">
+                        {c.subs.map((sub) => (
+                          <label key={sub.key} className="flex items-baseline gap-1 min-w-0 flex-1">
+                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground shrink-0">{sub.label}</span>
+                            <input
+                              className="min-w-0 flex-1 bg-transparent border-none outline-none text-[11px] text-muted-foreground focus:text-foreground focus:ring-1 focus:ring-primary rounded px-1"
+                              value={val(a, sub.key)}
+                              onChange={(e) => updateAction(i, sub.key, e.target.value)}
+                              placeholder="—"
+                            />
+                          </label>
+                        ))}
+                      </div>
+                    )}
                   </td>
                 ))}
                 <td className="px-1 py-1" style={cellStyle}>
