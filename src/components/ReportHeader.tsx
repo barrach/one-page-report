@@ -119,7 +119,8 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
             className="h-12 w-auto shrink-0 sm:mr-5 sm:border-r sm:border-primary-foreground/20 sm:pr-5"
           />
         )}
-        <div className="min-w-0">
+        {/* Na TV o título e o nome do projeto ficam centralizados entre si. */}
+        <div className={tvMode ? 'min-w-0 text-center' : 'min-w-0'}>
           <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
             One Page Report
           </h1>
