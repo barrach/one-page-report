@@ -15,6 +15,7 @@ import DesvioAnalysisCard from '@/components/DesvioAnalysisCard';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
+import AppSidebar from '@/components/AppSidebar';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, X, Menu } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -149,31 +150,18 @@ const Index = () => {
   };
 
   return (
-    <div className={`min-h-screen bg-background ${presentationMode ? 'overflow-auto' : ''}`}>
+    <div className={`min-h-screen flex bg-background ${presentationMode ? 'overflow-auto' : ''}`}>
+      {!presentationMode && <AppSidebar />}
+      <div className="flex-1 min-w-0">
       {/* Top navigation bar */}
       {!presentationMode && (
         <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
           <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 sm:hidden">
               <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-              <h1 className="text-[13px] sm:text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">One Page Report</h1>
+              <h1 className="text-[13px] font-bold text-primary-foreground tracking-[0.15em] uppercase">One Page Report</h1>
             </div>
-            <nav className="hidden sm:flex gap-1">
-              <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
-                <FileText className="h-3.5 w-3.5" />
-                Relatório
-              </Link>
-              <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-                <Database className="h-3.5 w-3.5" />
-                Dados
-              </Link>
-              {isAdmin && (
-                <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-                  <Shield className="h-3.5 w-3.5" />
-                  Admin
-                </Link>
-              )}
-            </nav>
+            <span className="hidden sm:block text-xs font-bold text-primary-foreground/70 tracking-[0.2em] uppercase">Relatório</span>
           </div>
 
           <div className="hidden sm:flex items-center gap-2 sm:gap-3">
@@ -340,6 +328,7 @@ const Index = () => {
           )}
         </nav>
       )}
+      </div>
     </div>
   );
 };

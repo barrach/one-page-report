@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 import { useProjectStore } from '@/store/projectStore';
-import { Link } from 'react-router-dom';
+import AppSidebar from '@/components/AppSidebar';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2, FileText, Database, Shield } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
@@ -116,26 +116,12 @@ const Admin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen flex bg-background">
+      <AppSidebar />
+      <div className="flex-1 min-w-0">
       {/* Nav */}
       <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50 card-shadow-elevated">
-        <div className="flex items-center gap-3 sm:gap-5">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">One Page Report</h1>
-          </div>
-          <nav className="flex gap-1">
-            <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <FileText className="h-3.5 w-3.5" /> Relatório
-            </Link>
-            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
-              <Database className="h-3.5 w-3.5" /> Dados
-            </Link>
-            <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
-              <Shield className="h-3.5 w-3.5" /> Admin
-            </Link>
-          </nav>
-        </div>
+        <span className="text-xs font-bold text-primary-foreground/70 tracking-[0.2em] uppercase">Admin</span>
       </div>
 
       <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
@@ -219,6 +205,7 @@ const Admin = () => {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );

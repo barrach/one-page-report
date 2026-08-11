@@ -4,17 +4,18 @@ import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-type Mode = 'login' | 'signup' | 'forgot';
+type Tab = 'login' | 'signup';
 const DARK = '#0F172A';
 
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, loading: authLoading } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  const [tab, setTab] = useState<Tab>('login');
+  const [forgot, setForgot] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -31,7 +32,7 @@ export default function Login() {
   if (!authLoading && user) return <Navigate to={redirectTo} replace />;
 
   const reset = () => { setError(''); setInfo(''); };
-  const switchMode = (m: Mode) => { reset(); setPassword(''); setConfirm(''); setMode(m); };
+  const switchTab = (t: Tab) => { reset(); setPassword(''); setConfirm(''); setForgot(false); setTab(t); };
 
   // ── LOGIN ──────────────────────────────────────────────────────────────
   const handleLogin = async (e: React.FormEvent) => {
@@ -40,7 +41,7 @@ export default function Login() {
     const { error } = await oprDataClient.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     setSubmitting(false);
     if (error) {
-      setError('E-mail ou senha inválidos. Primeiro acesso? Clique em "Criar conta" para definir sua senha.');
+      setError('E-mail ou senha inválidos.');
       return;
     }
     navigate(redirectTo, { replace: true });
@@ -69,7 +70,7 @@ export default function Login() {
     const { error: signErr } = await oprDataClient.auth.signInWithPassword({ email: mail, password });
     if (signErr) {
       setInfo('Conta criada! Verifique seu e-mail para confirmar e depois faça login.');
-      setMode('login');
+      switchTab('login');
       return;
     }
     navigate(redirectTo, { replace: true });
@@ -86,91 +87,96 @@ export default function Login() {
     });
     setSubmitting(false);
     if (error) { setError('Não foi possível enviar o e-mail de recuperação.'); return; }
-    setInfo('Se já existe uma conta com este e-mail, o link de recuperação foi enviado. Se for seu primeiro acesso, use "Criar conta" para definir a senha.');
+    setInfo('Se já existe uma conta com este e-mail, o link de recuperação foi enviado.');
   };
-
-  const title = mode === 'signup' ? 'Criar conta' : mode === 'forgot' ? 'Recuperar senha' : 'One Page Report';
-  const subtitle = mode === 'signup'
-    ? 'Use o e-mail corporativo @megasteam.com.br'
-    : mode === 'forgot'
-      ? 'Enviaremos um link para redefinir sua senha'
-      : 'Megasteam';
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: DARK }}>
-      <div className="w-full max-w-sm">
-        <div className="flex flex-col items-center gap-3 mb-8">
-          <img src="/logo.svg" alt="One Page Report" className="h-16 w-16 rounded-2xl shadow-lg" />
-          <h1 className="text-2xl font-black text-white tracking-tight">{title}</h1>
-          <p className="text-sm text-white/60 text-center">{subtitle}</p>
+      <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl p-8">
+        <div className="flex flex-col items-center gap-3 mb-6">
+          <div className="w-28 h-20 rounded-xl flex items-center justify-center px-4" style={{ backgroundColor: DARK }}>
+            <img src="/megasteam-logo.png" alt="Megasteam" className="max-w-full max-h-full object-contain" />
+          </div>
+          <h1 className="text-sm font-bold text-gray-500 tracking-[0.2em] uppercase">One Page Report</h1>
         </div>
 
+        {!forgot && (
+          <div className="grid grid-cols-2 gap-1 bg-gray-100 rounded-lg p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => switchTab('login')}
+              className={cn(
+                'py-2 rounded-md text-sm font-semibold transition-colors',
+                tab === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+              )}
+            >
+              Entrar
+            </button>
+            <button
+              type="button"
+              onClick={() => switchTab('signup')}
+              className={cn(
+                'py-2 rounded-md text-sm font-semibold transition-colors',
+                tab === 'signup' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'
+              )}
+            >
+              Criar conta
+            </button>
+          </div>
+        )}
+
         {/* LOGIN */}
-        {mode === 'login' && (
-          <form onSubmit={handleLogin} className="bg-white rounded-2xl shadow-2xl p-6 space-y-4">
-            <Field label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com" autoComplete="email" />
-            <Field label="Senha" type="password" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="current-password" />
-            <Button type="submit" className="w-full h-10" style={{ backgroundColor: DARK }} disabled={submitting}>
+        {!forgot && tab === 'login' && (
+          <form onSubmit={handleLogin} className="space-y-3">
+            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="E-mail" autoComplete="email" className="h-11 bg-gray-100 border-none" />
+            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="Senha" autoComplete="current-password" className="h-11 bg-gray-100 border-none" />
+            <Button type="submit" className="w-full h-11" style={{ backgroundColor: DARK }} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Entrar'}
             </Button>
             <Messages error={error} info={info} />
-            <div className="flex flex-col gap-1.5 pt-1">
-              <button type="button" onClick={() => switchMode('forgot')} className="text-center text-xs text-gray-500 hover:text-gray-800">
-                Esqueci minha senha
-              </button>
-              <button type="button" onClick={() => switchMode('signup')} className="text-center text-xs font-semibold text-gray-700 hover:text-gray-900">
-                Criar conta
-              </button>
-            </div>
+            <button type="button" onClick={() => { reset(); setForgot(true); }} className="block w-full text-center text-xs text-gray-500 hover:text-gray-800 pt-1">
+              Esqueci minha senha
+            </button>
           </form>
         )}
 
         {/* CADASTRO */}
-        {mode === 'signup' && (
-          <form onSubmit={handleSignup} className="bg-white rounded-2xl shadow-2xl p-6 space-y-4">
-            <Field label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@megasteam.com.br" autoComplete="email" />
-            <Field label="Senha (mín. 8 caracteres)" type="password" value={password} onChange={setPassword} placeholder="••••••••" autoComplete="new-password" />
-            <Field label="Confirmar senha" type="password" value={confirm} onChange={setConfirm} placeholder="••••••••" autoComplete="new-password" />
-            <Button type="submit" className="w-full h-10" style={{ backgroundColor: DARK }} disabled={submitting}>
+        {!forgot && tab === 'signup' && (
+          <form onSubmit={handleSignup} className="space-y-3">
+            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="E-mail" autoComplete="email" className="h-11 bg-gray-100 border-none" />
+            <Input type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="Senha (mín. 8 caracteres)" autoComplete="new-password" className="h-11 bg-gray-100 border-none" />
+            <Input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Confirmar senha" autoComplete="new-password" className="h-11 bg-gray-100 border-none" />
+            <Button type="submit" className="w-full h-11" style={{ backgroundColor: DARK }} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Criar conta'}
             </Button>
             <Messages error={error} info={info} />
-            <button type="button" onClick={() => switchMode('login')} className="block w-full text-center text-xs font-semibold text-gray-700 hover:text-gray-900 pt-1">
-              Já tenho conta → Entrar
-            </button>
           </form>
         )}
 
         {/* ESQUECI A SENHA */}
-        {mode === 'forgot' && (
-          <form onSubmit={handleForgot} className="bg-white rounded-2xl shadow-2xl p-6 space-y-4">
-            <Field label="E-mail" type="email" value={email} onChange={setEmail} placeholder="seu@email.com" autoComplete="email" />
-            <Button type="submit" className="w-full h-10" style={{ backgroundColor: DARK }} disabled={submitting}>
+        {forgot && (
+          <form onSubmit={handleForgot} className="space-y-3">
+            <Input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="E-mail" autoComplete="email" className="h-11 bg-gray-100 border-none" />
+            <Button type="submit" className="w-full h-11" style={{ backgroundColor: DARK }} disabled={submitting}>
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Enviar link de recuperação'}
             </Button>
             <Messages error={error} info={info} />
-            <button type="button" onClick={() => switchMode('login')} className="block w-full text-center text-xs font-semibold text-gray-700 hover:text-gray-900 pt-1">
-              ← Voltar para o login
+            <button type="button" onClick={() => { reset(); setForgot(false); }} className="block w-full text-center text-xs text-gray-500 hover:text-gray-800 pt-1">
+              ← Voltar
             </button>
           </form>
         )}
 
-        <p className="text-center text-[11px] text-white/40 mt-6">
-          One Page Report · Megasteam
+        <p className="text-center text-[11px] text-gray-400 mt-6">
+          Novas contas entram como visualizador e precisam de aprovação de um administrador para acessar os contratos.
         </p>
       </div>
-    </div>
-  );
-}
-
-function Field({ label, type, value, onChange, placeholder, autoComplete }: {
-  label: string; type: string; value: string; onChange: (v: string) => void; placeholder?: string; autoComplete?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-semibold text-gray-700">{label}</Label>
-      <Input type={type} required value={value} onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder} autoComplete={autoComplete} className="h-10" />
     </div>
   );
 }
