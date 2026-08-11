@@ -31,6 +31,8 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { paginar } from '@/lib/pdfPaginacao';
+import { toast } from 'sonner';
 
 const TV_INTERVALS = [10, 20, 30, 60] as const;
 
@@ -148,6 +150,15 @@ const Index = () => {
     );
   };
 
+  /**
+   * Exporta o relatório em A4 retrato, com quantas páginas forem necessárias.
+   *
+   * O relatório é capturado UMA vez em imagem e depois recortado em páginas. O
+   * recorte não é feito em altura fixa: os cortes acontecem em pontos de quebra
+   * (fim de cada bloco do relatório e fim de cada linha de tabela), para não
+   * partir um card nem uma linha do cronograma ao meio. Só quando um único bloco
+   * é mais alto que a página é que se corta no meio dele — não há alternativa.
+   */
   const exportPDF = async () => {
     if (!reportRef.current) return;
     setExporting(true);
@@ -158,40 +169,80 @@ const Index = () => {
       const idsToExport = selectedExportIds.length > 0 ? selectedExportIds : [selectedProjectId];
       const originalId = selectedProjectId;
 
-      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 3;
-      const contentWidth = pageWidth - margin * 2;
-      const contentHeight = pageHeight - margin * 2;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const margin = 8;
+      const contentWidth = pdf.internal.pageSize.getWidth() - margin * 2;
+      const contentHeight = pdf.internal.pageSize.getHeight() - margin * 2;
 
-      for (let idx = 0; idx < idsToExport.length; idx++) {
-        const projectId = idsToExport[idx];
+      // Largura de captura: mais estreita que a tela, para o texto não sair
+      // microscópico ao ser reduzido para 194 mm.
+      const LARGURA_CAPTURA = 1000;
+
+      let primeiraPagina = true;
+
+      for (const projectId of idsToExport) {
         selectProject(projectId);
-        await new Promise((r) => setTimeout(r, 500));
-        if (!reportRef.current) continue;
+        await new Promise((r) => setTimeout(r, 400));
+        const alvo = reportRef.current;
+        if (!alvo) continue;
 
-        const orig = reportRef.current.style.width;
-        reportRef.current.style.width = '1400px';
+        const larguraOriginal = alvo.style.width;
+        alvo.style.width = `${LARGURA_CAPTURA}px`;
+        // Os gráficos são responsivos: sem o resize eles ficariam na largura antiga.
+        window.dispatchEvent(new Event('resize'));
+        await new Promise((r) => setTimeout(r, 600));
 
-        const canvas = await html2canvas(reportRef.current, {
-          scale: 2, useCORS: true, logging: false,
-          backgroundColor: '#ffffff', windowWidth: 1500,
-          width: reportRef.current.scrollWidth, height: reportRef.current.scrollHeight,
+        const canvas = await html2canvas(alvo, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          windowWidth: LARGURA_CAPTURA,
+          width: alvo.scrollWidth,
+          height: alvo.scrollHeight,
         });
 
-        reportRef.current.style.width = orig;
+        // Pontos de quebra em pixels do canvas, medidos ANTES de devolver a largura.
+        const escala = canvas.height / alvo.scrollHeight;
+        const topo = alvo.getBoundingClientRect().top;
+        const quebras = new Set<number>();
+        const registrar = (el: Element) => {
+          const r = el.getBoundingClientRect();
+          if (r.height > 0) quebras.add(Math.round((r.bottom - topo) * escala));
+        };
+        Array.from(alvo.children).forEach(registrar);
+        alvo.querySelectorAll('tr, tbody > tr').forEach(registrar);
+        const pontos = [...quebras].filter((y) => y > 0 && y <= canvas.height).sort((a, b) => a - b);
 
-        const imgData = canvas.toDataURL('image/png');
-        const imgAspect = canvas.width / canvas.height;
-        const pageAspect = contentWidth / contentHeight;
+        alvo.style.width = larguraOriginal;
+        window.dispatchEvent(new Event('resize'));
 
-        let drawWidth: number, drawHeight: number;
-        if (imgAspect > pageAspect) { drawWidth = contentWidth; drawHeight = contentWidth / imgAspect; }
-        else { drawHeight = contentHeight; drawWidth = contentHeight * imgAspect; }
+        const alturaPagina = Math.floor((contentHeight * canvas.width) / contentWidth);
 
-        if (idx > 0) pdf.addPage();
-        pdf.addImage(imgData, 'PNG', margin + (contentWidth - drawWidth) / 2, margin, drawWidth, drawHeight);
+        for (const { inicio: y, fim } of paginar(canvas.height, alturaPagina, pontos)) {
+          const altura = fim - y;
+          if (altura <= 0) continue;
+
+          const fatia = document.createElement('canvas');
+          fatia.width = canvas.width;
+          fatia.height = altura;
+          const ctx = fatia.getContext('2d');
+          if (!ctx) break;
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, fatia.width, fatia.height);
+          ctx.drawImage(canvas, 0, y, canvas.width, altura, 0, 0, canvas.width, altura);
+
+          if (!primeiraPagina) pdf.addPage();
+          primeiraPagina = false;
+          pdf.addImage(
+            fatia.toDataURL('image/png'),
+            'PNG',
+            margin,
+            margin,
+            contentWidth,
+            (altura * contentWidth) / canvas.width,
+          );
+        }
       }
 
       selectProject(originalId);
@@ -200,6 +251,7 @@ const Index = () => {
       setShowExportDialog(false);
     } catch (err) {
       console.error('Erro ao exportar PDF:', err);
+      toast.error('Não foi possível exportar o PDF. Veja o console para o detalhe.');
     } finally {
       setExporting(false);
     }
