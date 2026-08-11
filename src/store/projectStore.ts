@@ -97,13 +97,26 @@ export interface CurvaSFinanceiraPoint {
 export interface ScheduleRow {
   id: string;
   tarefa: string;
+  /** % LB Prevista */
   previsto: number;
+  /** % Real */
   trabalhoConcluido: number;
   desvio: number;
+  /** Legado: a data "corrente" — nas importações do template é a Previsão. */
   inicio: string;
   termino: string;
   inicioBase: string;
   terminoBase: string;
+  // ─── Colunas do "Template - Cronograma" ───
+  status?: string;
+  critica?: boolean;
+  duracaoReal?: string;
+  duracaoRestante?: string;
+  inicioReal?: string;
+  previsaoInicio?: string;
+  terminoReal?: string;
+  previsaoTermino?: string;
+  custo?: number;
   highlight?: boolean;
   bold?: boolean;
   criticalPath?: boolean;
@@ -143,7 +156,7 @@ export interface Project {
   scheduleData: ScheduleRow[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
-  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; curvaSFinanceira?: string; progSemanal?: string };
+  lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; schedule?: string; curvaSFinanceira?: string; progSemanal?: string };
   programacaoSemanal?: ProgramacaoSemanal[];
   desvioAnalise?: DesvioAnalise;
 }

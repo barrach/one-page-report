@@ -10,6 +10,7 @@ import ProgramacaoSemanalCard from '@/components/ProgramacaoSemanalCard';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import ActionsTable from '@/components/ActionsTable';
+import ScheduleTable from '@/components/ScheduleTable';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
@@ -373,6 +374,9 @@ const Index = () => {
             histogramData={current?.histogramData}
           />
         </div>
+
+        {/* Cronograma — largura total: são as 15 colunas do template */}
+        <ScheduleTable />
 
         <motion.div
           initial={{ opacity: 0 }}

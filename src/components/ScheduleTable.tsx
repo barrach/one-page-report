@@ -14,6 +14,18 @@ const fmtDesvio = (n: number) => {
   return n < 0 ? `-${str}` : str;
 };
 
+const fmtCusto = (v: number | undefined) =>
+  v == null || v === 0 ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+
+/** Cores do Status vindo do MS Project (No Prazo / Atrasada / Concluída / Futura). */
+const statusStyle = (status: string | undefined): React.CSSProperties => {
+  const st = (status || '').toLowerCase();
+  if (st.includes('atras')) return { color: '#dc2626', fontWeight: 600 };
+  if (st.includes('prazo')) return { color: '#16a34a', fontWeight: 600 };
+  if (st.includes('conclu')) return { color: '#2563eb', fontWeight: 600 };
+  return {};
+};
+
 const levelStyle = (level: number): React.CSSProperties =>
   level === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700 } :
   level === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700 } :
@@ -149,13 +161,20 @@ const ScheduleTable = () => {
                   <div>Prev: <strong>{fmtPct(row.previsto)}%</strong></div>
                   <div>Real: <strong>{fmtPct(row.trabalhoConcluido)}%</strong></div>
                   <div>Desvio: <strong style={{ color: desvioColor }}>{fmtDesvio(row.desvio)}</strong></div>
-                  <div>Início: <strong>{row.inicio || '—'}</strong></div>
-                  <div className="col-span-2">Término: <strong>{row.termino || '—'}</strong></div>
+                  <div>Status: <strong>{row.status || '—'}</strong></div>
+                  <div className="col-span-2">Prev. de Término: <strong>{row.previsaoTermino || row.termino || '—'}</strong></div>
                 </div>
                 {isOpen && (
                   <div className="mt-2 pt-2 border-t border-current/20 grid grid-cols-2 gap-x-3 gap-y-1 text-[12px]">
-                    <div>Início Base: <span style={baselineStyle(row.inicioBase)}><strong>{row.inicioBase || '—'}</strong></span></div>
-                    <div>Término Base: <span style={baselineStyle(row.terminoBase)}><strong>{row.terminoBase || '—'}</strong></span></div>
+                    <div>Crítica: <strong>{row.critica === undefined ? '—' : row.critica ? 'Sim' : 'Não'}</strong></div>
+                    <div>Custo: <strong>{fmtCusto(row.custo)}</strong></div>
+                    <div>Dur. real: <strong>{row.duracaoReal || '—'}</strong></div>
+                    <div>Dur. restante: <strong>{row.duracaoRestante || '—'}</strong></div>
+                    <div>Início LB: <span style={baselineStyle(row.inicioBase)}><strong>{row.inicioBase || '—'}</strong></span></div>
+                    <div>Término LB: <span style={baselineStyle(row.terminoBase)}><strong>{row.terminoBase || '—'}</strong></span></div>
+                    <div>Início Real: <strong>{row.inicioReal || '—'}</strong></div>
+                    <div>Término Real: <strong>{row.terminoReal || '—'}</strong></div>
+                    <div className="col-span-2">Prev. de Início: <strong>{row.previsaoInicio || row.inicio || '—'}</strong></div>
                   </div>
                 )}
               </div>
@@ -168,19 +187,26 @@ const ScheduleTable = () => {
       ) : (
         /* Desktop: table */
         <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
-          <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[760px]">
+          <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[1500px]">
             <thead>
+              {/* Colunas do "Template - Cronograma", na mesma ordem do arquivo */}
               <tr className="bg-table-header text-table-header-foreground">
-                <th className="px-2 py-2 text-center w-16 rounded-tl-lg border border-border/30">+</th>
-                <th className="px-2 py-2 text-center w-12 border border-border/30">Id</th>
+                <th className="px-2 py-2 text-center w-16 rounded-tl-lg border border-border/30">Nível</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-24">Status</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-16">Crítica</th>
                 <th className="px-2 py-2 text-left border border-border/30 min-w-[220px]">Nome da Tarefa</th>
-                <th className="px-2 py-2 text-center border border-border/30 w-20">Prev. %</th>
-                <th className="px-2 py-2 text-center border border-border/30 w-20">% Trab.</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-20">% LB Prev.</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-20">% Real</th>
                 <th className="px-2 py-2 text-center border border-border/30 w-20">Desvio</th>
-                <th className="px-2 py-2 text-center border border-border/30 w-28">Início</th>
-                <th className="px-2 py-2 text-center border border-border/30 w-28">Término</th>
-                <th className="px-2 py-2 text-center border border-border/30 w-28">Início Base</th>
-                <th className="px-2 py-2 text-center border border-border/30 w-28 rounded-tr-lg">Término Base</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-24">Dur. real</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-24">Dur. restante</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28">Início LB</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28">Início Real</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28">Prev. de Início</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28">Término LB</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28">Término Real</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28">Prev. de Término</th>
+                <th className="px-2 py-2 text-center border border-border/30 w-28 rounded-tr-lg">Custo</th>
               </tr>
             </thead>
             <tbody>
@@ -212,7 +238,10 @@ const ScheduleTable = () => {
                     className={`border-b border-border/30 ${row.highlight ? 'ring-1 ring-warning/40 ring-inset' : ''}`}
                   >
                     <td className="px-2 py-1.5 text-center border border-border/30" style={{ fontFamily: 'monospace', fontSize: '11px', color: level <= 2 ? '#ffffff' : '#444444' }}>{row.outlineNumber || ''}</td>
-                    <td className="px-2 py-1.5 text-center border border-border/30 opacity-80">{row.id}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={statusStyle(row.status)}>{row.status || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30" style={row.critica ? { color: '#dc2626', fontWeight: 700 } : undefined}>
+                      {row.critica === undefined ? '—' : row.critica ? 'Sim' : 'Não'}
+                    </td>
                     <td className="px-2 py-1.5 border border-border/30">
                       <span style={{ paddingLeft: `${indentPx}px` }} className="inline-flex items-center gap-1 align-middle">
                         {hasKids ? (
@@ -237,10 +266,15 @@ const ScheduleTable = () => {
                     <td className="px-2 py-1.5 text-center border border-border/30" style={desvioStyle}>
                       {fmtDesvio(row.desvio)}
                     </td>
-                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.inicio}</td>
-                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.termino}</td>
-                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.inicioBase)}>{row.inicioBase}</td>
-                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.terminoBase)}>{row.terminoBase}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.duracaoReal || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.duracaoRestante || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.inicioBase)}>{row.inicioBase || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.inicioReal ?? '')}>{row.inicioReal || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.previsaoInicio || row.inicio || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.terminoBase)}>{row.terminoBase || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap" style={baselineStyle(row.terminoReal ?? '')}>{row.terminoReal || '—'}</td>
+                    <td className="px-2 py-1.5 text-center border border-border/30 whitespace-nowrap">{row.previsaoTermino || row.termino || '—'}</td>
+                    <td className="px-2 py-1.5 text-right border border-border/30 whitespace-nowrap">{fmtCusto(row.custo)}</td>
                   </tr>
                 );
               })}

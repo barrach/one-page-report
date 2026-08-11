@@ -6,6 +6,7 @@ import { Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Loader2, X } from '
 import { useProjectStore, ScheduleRow } from '@/store/projectStore';
 import { toast } from 'sonner';
 import { isProgramacaoSemanal, parseProgramacaoSemanal, type ProgramacaoSemanal, type AtividadeProgSemanal, type Causa6M } from '@/lib/parseProgramacaoSemanal';
+import { parseCronogramaFile, type CronogramaExtract } from '@/lib/parseCronograma';
 
 const DAYS_PT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const fmtScheduleDate = (d: Date): string => {
@@ -2086,7 +2087,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [schedule, setSchedule] = useState<ScheduleExtract | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
-  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; progSemanal?: string }>({});
+  const [cronograma, setCronograma] = useState<CronogramaExtract | null>(null);
+  const [cronogramaError, setCronogramaError] = useState<string | null>(null);
+  const [sourceNames, setSourceNames] = useState<{ curve?: string; hist?: string; schedule?: string; cronograma?: string; progSemanal?: string }>({});
   const [progSemanal, setProgSemanal] = useState<ProgramacaoSemanal | null>(null);
   const [ativJustificativas, setAtivJustificativas] = useState<AtividadeProgSemanal[]>([]);
   const [skipJustificativas, setSkipJustificativas] = useState(false);
@@ -2094,6 +2097,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const reset = () => {
     setFiles([]);
     setResult(null); setSchedule(null); setScheduleError(null);
+    setCronograma(null); setCronogramaError(null);
     setSourceNames({});
     setProgSemanal(null);
     setAtivJustificativas([]);
@@ -2125,12 +2129,13 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
     if (!files.length) return;
     setParsing(true);
     setResult(null); setSchedule(null); setScheduleError(null);
+    setCronograma(null); setCronogramaError(null);
     setSourceNames({});
 
     const xmls = files.filter(f => /\.xml$/i.test(f.name));
     const xlsxs = files.filter(f => /\.xlsx?$/i.test(f.name));
     const used = new Set<string>();
-    const srcs: { curve?: string; hist?: string; schedule?: string; progSemanal?: string } = {};
+    const srcs: { curve?: string; hist?: string; schedule?: string; cronograma?: string; progSemanal?: string } = {};
 
     // 1) Curva S / Histograma (formatos A/B/C) — em todos os xlsx
     let res: ImportResult | null = null;
@@ -2144,6 +2149,24 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       if (res.histBlock) { used.add(res.histBlock.ref.fileName); srcs.hist = res.histBlock.ref.fileName; }
     }
 
+
+    // 2) "Template - Cronograma" — traz as tarefas (15 colunas) E a Curva S (linha 3)
+    let cron: CronogramaExtract | null = null;
+    let cronErr: string | null = null;
+    for (const f of xlsxs) {
+      try {
+        cron = await parseCronogramaFile(f);
+        used.add(f.name);
+        srcs.cronograma = f.name;
+        break;
+      } catch (e) {
+        const msg = (e as Error).message;
+        // Só reporta erro quando o arquivo PARECE ser o template mas falhou na leitura.
+        if (!/não segue o/i.test(msg)) cronErr = msg;
+      }
+    }
+    setCronograma(cron);
+    if (!cron && cronErr) setCronogramaError(cronErr);
 
     // 2b) Programação Semanal — varre todos xlsx
     let parsedProgSemanal: ProgramacaoSemanal | null = null;
@@ -2179,7 +2202,6 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
 
     // Pré-marcar campos disponíveis
     const localC = res?.curve && !('error' in res.curve) ? (res.curve as CurveExtract) : null;
-    const localH = res?.hist && !('error' in res.hist) ? (res.hist as HistExtract) : null;
     // weeklyOk: para Formato C usa rRps/rRrs (replanejado) — checar pelo weekly já computado.
     // Para outros formatos: checar se cols recentes têm prevSem/realSem > 0.
     const weeklyHasData = !!localC && localC.weekly.some(w => w.previsto > 0 || w.real > 0);
@@ -2193,8 +2215,9 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
       weekly: weeklyOk,
       monthly: !!(localC && localC.monthly.length),
       projectInfo: !!localC,
-      histogram: !!(localH && localH.histogram.length),
       progSemanal: !!parsedProgSemanal,
+      cronograma: !!(cron && cron.rows.length),
+      sCurveCronograma: !!(cron && cron.sCurve.length),
     });
 
     setParsing(false);
@@ -2204,21 +2227,23 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   const histOk = result?.hist && !('error' in result.hist);
 
   // ─── Field selection (segunda etapa) ───
-  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'projectInfo' | 'progSemanal';
+  type FieldKey = 'sCurve' | 'weekly' | 'monthly' | 'projectInfo' | 'progSemanal' | 'cronograma' | 'sCurveCronograma';
   const FIELD_LABELS: Record<FieldKey, string> = {
+    cronograma: 'Cronograma — tarefas (15 colunas do template)',
+    sCurveCronograma: 'Curva S do cronograma — Linha de Base / Real / Tendência',
     sCurve: 'Curva S — Previsto / Real / Tendência',
     weekly: 'Resultado Semanal (evolução semanal %)',
     monthly: 'Prev × Mês (velocímetro mensal)',
-    histogram: 'Histograma (barras de avanço por semana)',
     projectInfo: 'Informações do Projeto (avanços, datas, cliente)',
     progSemanal: 'Programação Semanal (PPC + 6M + Pareto)',
   };
   const FIELD_SOURCE: Record<FieldKey, string | undefined> = {
+    cronograma: sourceNames.cronograma || sourceNames.schedule,
+    sCurveCronograma: sourceNames.cronograma,
     sCurve: sourceNames.curve,
     weekly: sourceNames.curve,
     monthly: sourceNames.curve,
     projectInfo: sourceNames.curve,
-    histogram: sourceNames.hist || sourceNames.curve,
     progSemanal: sourceNames.progSemanal,
   };
 
@@ -2230,17 +2255,19 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
   })();
 
   const available: Record<FieldKey, boolean> = {
+    cronograma: !!(cronograma && cronograma.rows.length) || !!(schedule && schedule.rows.length),
+    sCurveCronograma: !!(cronograma && cronograma.sCurve.length),
     sCurve: !!(c && c.sCurve.length),
     weekly: !!(c && c.weekly.length && weeklyValido),
     monthly: !!(c && c.monthly.length),
     projectInfo: !!c,
-    histogram: !!(histOk && (result!.hist as HistExtract).histogram.length),
     progSemanal: !!progSemanal,
   };
 
   const [selectedFields, setSelectedFields] = useState<Record<FieldKey, boolean>>({
-    sCurve: false, weekly: false, monthly: false, histogram: false,
+    sCurve: false, weekly: false, monthly: false,
     projectInfo: false, progSemanal: false,
+    cronograma: false, sCurveCronograma: false,
   });
 
   const initJustificativas = () => {
@@ -2301,9 +2328,19 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
         infoPatch.avancoReal = c.realAcuLast;
       }
     }
-    if (histOk && selectedFields.histogram) {
-      const h = result!.hist as HistExtract;
-      if (h.histogram.length) { setHistogramData(h.histogram); setLastImport('histogram', now); count++; }
+    if (selectedFields.cronograma) {
+      const rows = cronograma?.rows.length ? cronograma.rows : schedule?.rows;
+      if (rows && rows.length) { setScheduleData(rows); setLastImport('schedule', now); count++; }
+    }
+    if (cronograma && cronograma.sCurve.length && selectedFields.sCurveCronograma) {
+      setSCurveData(cronograma.sCurve);
+      setStatusDateIndex(cronograma.statusDateIndex);
+      setLastImport('sCurve', now);
+      toast.info(
+        `Curva S do cronograma: ${cronograma.sCurve.length} semanas · 100% = ${cronograma.totalLinhaBase.toLocaleString('pt-BR')} da linha de base`,
+        { duration: 8000 },
+      );
+      count++;
     }
     if (selectedFields.projectInfo) {
       const pd = result?.projectDates;
@@ -2438,7 +2475,7 @@ export default function WeeklyImportModal({ open, onOpenChange }: Props) {
             }}
             confirmLabel={selectedFields.progSemanal && progSemanal ? 'Próximo →' : 'Confirmar Importação'}
             result={result}
-            scheduleError={scheduleError}
+            scheduleError={scheduleError || cronogramaError}
           />
         )}
 
@@ -2730,7 +2767,7 @@ function JustificativasStep({
 }
 
 // ─── Fields Step ───
-type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'histogram' | 'projectInfo' | 'progSemanal';
+type FieldKeyT = 'sCurve' | 'weekly' | 'monthly' | 'projectInfo' | 'progSemanal' | 'cronograma' | 'sCurveCronograma';
 function FieldsStep({
   files, available, selectedFields, toggleField, FIELD_LABELS, FIELD_SOURCE,
   anyFieldChecked, onBack, onCancel, onConfirm, confirmLabel,
