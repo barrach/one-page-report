@@ -29,7 +29,7 @@ const autoGrow = (el: HTMLTextAreaElement) => {
 
 /** Rótulo dos campos — escuro e com peso, para não sumir no fundo do card. */
 const Rotulo = ({ children }: { children: React.ReactNode }) => (
-  <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/55">{children}</span>
+  <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/60">{children}</span>
 );
 
 /** Campo curto: linha de base sempre visível, para ler como formulário. */
@@ -45,7 +45,7 @@ const Campo = ({
   <label className="flex flex-col gap-1 min-w-0">
     <Rotulo>{label}</Rotulo>
     <input
-      className="w-full bg-transparent border-b border-border focus:border-primary outline-none text-xs font-medium text-foreground placeholder:text-muted-foreground/60 placeholder:font-normal pb-1 transition-colors"
+      className="w-full bg-transparent border-b border-border focus:border-primary outline-none text-sm font-medium text-foreground placeholder:text-muted-foreground/60 placeholder:font-normal pb-1 transition-colors"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder="preencher"
@@ -72,8 +72,8 @@ const CampoLongo = ({
       className={cn(
         'w-full bg-transparent border-none outline-none resize-none overflow-hidden rounded px-1 -mx-1 py-0.5 focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/60 placeholder:font-normal',
         destaque
-          ? 'text-sm font-semibold text-foreground leading-snug'
-          : 'text-xs font-medium text-foreground',
+          ? 'text-base font-semibold text-foreground leading-snug'
+          : 'text-sm font-medium text-foreground',
       )}
       style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
       value={value}
@@ -107,7 +107,7 @@ const ActionsTable = () => {
   };
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col min-h-[440px] sm:min-h-[560px]">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
@@ -165,9 +165,11 @@ const ActionsTable = () => {
                     value={a.status || ''}
                     onChange={(e) => updateAction(i, 'status', e.target.value)}
                   >
-                    <option value="">SEM STATUS</option>
+                    {/* A cor vem no style porque a <option> nativa herda o branco
+                        da pílula e ficaria branco sobre branco na lista. */}
+                    <option value="" style={{ color: '#111827', background: '#ffffff' }}>SEM STATUS</option>
                     {statusOptions.map((s) => (
-                      <option key={s} value={s}>{s}</option>
+                      <option key={s} value={s} style={{ color: '#111827', background: '#ffffff' }}>{s}</option>
                     ))}
                   </select>
                   <button
