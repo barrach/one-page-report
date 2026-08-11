@@ -11,6 +11,7 @@ import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
 import ActionsTable from '@/components/ActionsTable';
 import ScheduleTable from '@/components/ScheduleTable';
+import ParetoCausas from '@/components/ParetoCausas';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
@@ -441,6 +442,10 @@ const Index = () => {
             histogramData={current?.histogramData}
           />
         </div>
+
+        {/* Pareto 6M — largura total, entre a linha de Pontos de Atenção /
+            Programação Semanal e o Cronograma */}
+        <ParetoCausas />
 
         {/* Cronograma — largura total: são as 15 colunas do template */}
         <ScheduleTable />

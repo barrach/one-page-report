@@ -26,6 +26,10 @@ import { cn } from "@/lib/utils";
 import type { ProgramacaoSemanal, Causa6M } from "@/lib/parseProgramacaoSemanal";
 import PpcSemanalTable from "@/components/PpcSemanalTable";
 import { ppcDaSemana, ultimaSemana } from "@/lib/ppc";
+import Causa6MSelect from "@/components/Causa6MSelect";
+import { useProjectStore } from "@/store/projectStore";
+import { exigeJustificativa } from "@/lib/causas6m";
+
 const DIAS_CURTOS = ["2ª", "3ª", "4ª", "5ª", "6ª", "Sáb"] as const;
 
 // ---------------------------------------------------------------------------
@@ -140,6 +144,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const clientName = info?.cliente?.trim() || "Cliente";
 
   const [activeTab, setActiveTab] = useState<TabId>("atividades");
+  const { selectedProjectId, setAtividadeJustificativa } = useProjectStore();
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [responsavelMap, setResponsavelMap] = useState<Map<string, string>>(new Map());
 
@@ -345,7 +350,8 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
                     {DIAS_CURTOS.map((d) => (
                       <th key={d} className="px-1 py-1.5 text-center w-7">{d}</th>
                     ))}
-                    <th className="px-2 py-1.5 text-center rounded-tr-lg w-20">Aderência</th>
+                    <th className="px-2 py-1.5 text-center w-20">Aderência</th>
+                    <th className="px-2 py-1.5 text-left rounded-tr-lg min-w-[140px]">Causa (6M)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -379,6 +385,23 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
                               >
                                 {Math.round(ader * 100)}%
                               </span>
+                            )}
+                          </td>
+                          {/* Causa 6M — só faz sentido para quem ficou abaixo de 90%,
+                              que é a regra do próprio template. */}
+                          <td rowSpan={2} className="px-2 py-1 align-middle border-b border-border">
+                            {exigeJustificativa(a) ? (
+                              <Causa6MSelect
+                                compacto
+                                causas={a.causas6M}
+                                justificativa={a.planoAcao}
+                                onChange={(patch) =>
+                                  selectedProjectId &&
+                                  setAtividadeJustificativa(selectedProjectId, ultima.semana, i, patch)
+                                }
+                              />
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">—</span>
                             )}
                           </td>
                         </tr>

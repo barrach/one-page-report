@@ -362,6 +362,13 @@ interface ProjectStoreState {
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
   addProgramacaoSemanal: (projectId: string, data: ProgramacaoSemanal) => void;
   clearProgramacaoSemanal: (projectId: string) => void;
+  /** Justificativa 6M de uma atividade da programação semanal (causas + texto). */
+  setAtividadeJustificativa: (
+    projectId: string,
+    semana: number,
+    atividadeIndex: number,
+    patch: { causas6M?: Causa6M[]; planoAcao?: string },
+  ) => void;
 }
 
 export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
@@ -634,6 +641,28 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     const updated = s.projects.map((p) =>
       p.id !== projectId ? p : { ...p, programacaoSemanal: [] }
     );
+    const proj = updated.find(p => p.id === projectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setAtividadeJustificativa: (projectId, semana, atividadeIndex, patch) => set((s) => {
+    const updated = s.projects.map((p) => {
+      if (p.id !== projectId) return p;
+      return {
+        ...p,
+        programacaoSemanal: (p.programacaoSemanal ?? []).map((ps) =>
+          ps.semana !== semana
+            ? ps
+            : {
+                ...ps,
+                atividades: ps.atividades.map((a, i) =>
+                  i === atividadeIndex ? { ...a, ...patch } : a
+                ),
+              }
+        ),
+      };
+    });
     const proj = updated.find(p => p.id === projectId)!;
     debouncedSave(proj);
     return { projects: updated };
