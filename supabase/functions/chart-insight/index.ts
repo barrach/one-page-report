@@ -51,9 +51,11 @@ function candidatos(nomes: string[], executivo: boolean): string[] {
   const peso = (n: string): number => {
     let p = versaoDoNome(n) * 10;
     if (executivo) {
-      if (/pro/.test(n)) p += 60;
-      else if (/flash/.test(n) && !/lite/.test(n)) p += 40;
-      else if (/flash/.test(n)) p += 20;
+      // Flash e não pro: os modelos "pro" gastam boa parte do orçamento de saída
+      // em raciocínio interno e terminam com MAX_TOKENS sem devolver texto.
+      if (/flash/.test(n) && !/lite/.test(n)) p += 60;
+      else if (/flash/.test(n)) p += 40;
+      else if (/pro/.test(n)) p += 20;
     } else {
       if (/flash.*lite|lite.*flash/.test(n)) p += 60;
       else if (/flash/.test(n)) p += 40;
@@ -145,7 +147,9 @@ Gere um resumo executivo completo e estruturado do projeto.`;
     const corpo = JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: { maxOutputTokens: executivo ? 800 : 200 },
+      // Folga generosa no resumo executivo: 800 não cobria os 4-5 parágrafos
+      // pedidos, e o corte por MAX_TOKENS devolvia resposta vazia.
+      generationConfig: { maxOutputTokens: executivo ? 4096 : 400 },
     });
 
     const lista = await modelosDisponiveis(GEMINI_API_KEY);

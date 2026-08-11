@@ -4,6 +4,7 @@ import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 import { useTvMode } from '@/hooks/use-tv-mode';
+import { mensagemDaFunction } from '@/lib/functionError';
 
 interface ChartInsightProps {
   chartType: 'fiveweek' | 'scurve' | 'histogram' | 'month' | 'financialcurve';
@@ -30,7 +31,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
         body: { chartType, data, projectInfo },
       });
 
-      if (fnError) throw new Error(fnError.message);
+      if (fnError) throw new Error(await mensagemDaFunction(fnError));
       if (result?.error) {
         if (result.error.includes('Limite')) {
           toast({ title: 'Limite atingido', description: result.error, variant: 'destructive' });

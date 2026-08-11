@@ -4,6 +4,7 @@ import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient
 import { useCurrentProject } from '@/store/projectStore';
 import { useToast } from '@/hooks/use-toast';
 import { motion, AnimatePresence } from 'framer-motion';
+import { mensagemDaFunction } from '@/lib/functionError';
 
 const ExecutiveSummary = () => {
   const [summary, setSummary] = useState<string | null>(null);
@@ -34,7 +35,7 @@ const ExecutiveSummary = () => {
         },
       });
 
-      if (fnError) throw new Error(fnError.message);
+      if (fnError) throw new Error(await mensagemDaFunction(fnError));
       if (result?.error) {
         if (result.error.includes('Limite')) {
           toast({ title: 'Limite atingido', description: result.error, variant: 'destructive' });
