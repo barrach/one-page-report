@@ -16,7 +16,7 @@ import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import AppSidebar from '@/components/AppSidebar';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -24,8 +24,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 const TV_INTERVALS = [10, 20, 30, 60] as const;
@@ -193,90 +196,79 @@ const Index = () => {
       <div className="flex-1 min-w-0">
       {/* Top navigation bar */}
       {!presentationMode && !tvMode && (
-        <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50 card-shadow-elevated">
-          <div className="flex items-center gap-3 sm:gap-5 min-w-0">
-            <div className="flex items-center gap-2 shrink-0 sm:hidden">
-              <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-              <h1 className="text-[13px] font-bold text-primary-foreground tracking-[0.15em] uppercase">One Page Report</h1>
-            </div>
-            <span className="hidden sm:block text-xs font-bold text-primary-foreground/70 tracking-[0.2em] uppercase">Relatório</span>
-          </div>
-
-          <div className="hidden sm:flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={togglePresentation}
-              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-              title="Modo apresentação"
-            >
-              <Presentation className="h-3.5 w-3.5" />
-            </button>
-
-            <button
-              onClick={toggleTvMode}
-              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-              title="Modo TV"
-            >
-              <Tv className="h-3.5 w-3.5" />
-            </button>
-
-            {!isStandalone && (
-              <button
-                onClick={() => navigate('/install')}
-                className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-                title="Instalar no celular"
-              >
-                <Smartphone className="h-3.5 w-3.5" />
-              </button>
-            )}
-
-            <button
-              onClick={toggleTheme}
-              className="flex items-center justify-center h-8 w-8 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors"
-              title={theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
-            >
-              {theme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-            </button>
-
-            <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
-              <DialogTrigger asChild>
-                <Button size="sm" variant="secondary" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
-                  <Download className="h-3.5 w-3.5" />
-                  Exportar PDF
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Exportar Relatório em PDF</DialogTitle>
-                </DialogHeader>
-                <p className="text-sm text-muted-foreground mb-3">Selecione os projetos para exportar. Cada projeto será uma página no PDF.</p>
-                <div className="space-y-2 mb-4">
-                  {projects.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2 cursor-pointer">
-                      <Checkbox checked={selectedExportIds.includes(p.id)} onCheckedChange={() => toggleExportProject(p.id)} />
-                      <span className="text-sm font-medium">{p.name}</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancelar</Button>
-                  <Button onClick={exportPDF} disabled={exporting || selectedExportIds.length === 0} className="gap-1.5">
-                    <Download className="h-4 w-4" />
-                    {exporting ? 'Exportando...' : `Exportar ${selectedExportIds.length} projeto(s)`}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+        <div className="bg-card border-b border-border px-3 sm:px-5 py-2.5 flex items-center justify-between gap-2 print:hidden sticky top-0 z-50">
+          <div className="hidden sm:flex items-center gap-3 min-w-0">
+            <span className="text-xs font-bold text-muted-foreground tracking-[0.2em] uppercase shrink-0">Relatório</span>
             <ProjectSelector showCreate />
           </div>
 
-          <div className="flex sm:hidden items-center gap-2 min-w-0 flex-1 justify-end">
-            <div className="min-w-0 flex-1 max-w-[180px]">
+          <div className="hidden sm:flex items-center gap-2">
+            <Button size="sm" variant="outline" className="gap-1.5 h-8 text-xs" onClick={openExportDialog}>
+              <Download className="h-3.5 w-3.5" />
+              Exportar
+            </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center justify-center h-8 w-8 rounded-lg hover:bg-muted text-foreground transition-colors"
+                  title="Mais opções"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={togglePresentation}>
+                  <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleTvMode}>
+                  <Tv className="h-4 w-4 mr-2" /> Modo TV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleTheme}>
+                  {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                  {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                </DropdownMenuItem>
+                {!isStandalone && (
+                  <DropdownMenuItem onClick={() => navigate('/install')}>
+                    <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <Dialog open={showExportDialog} onOpenChange={setShowExportDialog}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Exportar Relatório em PDF</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground mb-3">Selecione os projetos para exportar. Cada projeto será uma página no PDF.</p>
+              <div className="space-y-2 mb-4">
+                {projects.map((p) => (
+                  <label key={p.id} className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox checked={selectedExportIds.includes(p.id)} onCheckedChange={() => toggleExportProject(p.id)} />
+                    <span className="text-sm font-medium">{p.name}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowExportDialog(false)}>Cancelar</Button>
+                <Button onClick={exportPDF} disabled={exporting || selectedExportIds.length === 0} className="gap-1.5">
+                  <Download className="h-4 w-4" />
+                  {exporting ? 'Exportando...' : `Exportar ${selectedExportIds.length} projeto(s)`}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <div className="flex sm:hidden items-center gap-2 min-w-0 flex-1 justify-between">
+            <div className="min-w-0 flex-1 max-w-[220px]">
               <ProjectSelector showCreate />
             </div>
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <button
-                  className="flex items-center justify-center h-11 w-11 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 text-primary-foreground transition-colors shrink-0"
+                  className="flex items-center justify-center h-11 w-11 rounded-lg hover:bg-muted text-foreground transition-colors shrink-0"
                   aria-label="Abrir menu"
                 >
                   <Menu className="h-5 w-5" />

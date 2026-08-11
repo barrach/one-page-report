@@ -120,8 +120,8 @@ const Admin = () => {
       <AppSidebar />
       <div className="flex-1 min-w-0">
       {/* Nav */}
-      <div className="gradient-primary px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50 card-shadow-elevated">
-        <span className="text-xs font-bold text-primary-foreground/70 tracking-[0.2em] uppercase">Admin</span>
+      <div className="bg-card border-b border-border px-3 sm:px-5 py-2.5 flex items-center justify-between sticky top-0 z-50">
+        <span className="text-xs font-bold text-muted-foreground tracking-[0.2em] uppercase">Admin</span>
       </div>
 
       <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8">
