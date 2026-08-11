@@ -5,10 +5,10 @@ import ReportHeader from '@/components/ReportHeader';
 import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
 import HistogramChart from '@/components/HistogramChart';
+import MonthChart from '@/components/MonthChart';
 import ProgramacaoSemanalCard from '@/components/ProgramacaoSemanalCard';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
-import ContractThermometer from '@/components/ContractThermometer';
 import ActionsTable from '@/components/ActionsTable';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
@@ -387,15 +387,17 @@ const Index = () => {
         <ReportHeader />
         {showExecutive && <ExecutiveSummary />}
 
-        {/* Termômetro do Contrato × Curva "S" */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ContractThermometer />
-          {showSCurve && <SCurveChart />}
-        </div>
+        {/* Prev. × Realizado Mês × Curva "S" */}
+        {(showMonth || showSCurve) && (
+          <div className={`grid grid-cols-1 ${showMonth && showSCurve ? 'lg:grid-cols-2' : ''} gap-4`}>
+            {showMonth && <MonthChart />}
+            {showSCurve && <SCurveChart />}
+          </div>
+        )}
 
         {/* Visão de 5 Semanas × Histograma MOD */}
         {(showFiveWeek || showHistogram) && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className={`grid grid-cols-1 ${showFiveWeek && showHistogram ? 'lg:grid-cols-2' : ''} gap-4`}>
             {showFiveWeek && <FiveWeekChart />}
             {showHistogram && <HistogramChart />}
           </div>
