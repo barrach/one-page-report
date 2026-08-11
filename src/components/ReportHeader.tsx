@@ -5,6 +5,7 @@ import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart
 import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
 import { useContractPerformance } from '@/hooks/use-contract-performance';
+import { useTvMode } from '@/hooks/use-tv-mode';
 
 
 const KpiCard = ({
@@ -72,6 +73,7 @@ interface ReportHeaderProps {
 
 const ReportHeader = ({ actions }: ReportHeaderProps) => {
   const { info, sCurveData, programacaoSemanal } = useCurrentProject();
+  const { tvMode } = useTvMode();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
@@ -108,6 +110,15 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
     >
       {/* Header band */}
       <div className="gradient-primary rounded-t-xl px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* No modo TV a sidebar não existe, então a marca entra aqui, ao lado do
+            título, como o timbre do painel. */}
+        {tvMode && (
+          <img
+            src="/megasteam-vertical-branca.png"
+            alt="Megasteam"
+            className="h-12 w-auto shrink-0 sm:mr-5 sm:border-r sm:border-primary-foreground/20 sm:pr-5"
+          />
+        )}
         <div className="min-w-0">
           <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
             One Page Report
