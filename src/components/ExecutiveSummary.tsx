@@ -55,7 +55,7 @@ const ExecutiveSummary = () => {
 
   if (!summary && !loading && !error) {
     return (
-      <div className="bg-card rounded-xl border card-shadow p-4 flex items-center justify-between gap-4">
+      <div data-pdf-skip className="bg-card rounded-xl border card-shadow p-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Sparkles className="h-4 w-4 text-primary" />

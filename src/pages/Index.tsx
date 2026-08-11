@@ -220,22 +220,43 @@ const Index = () => {
         // Folga para o layout assentar depois de esconder os controles.
         await new Promise((r) => setTimeout(r, 400));
 
-        // Blocos = filhos diretos; dentro de um grid, cada card é um bloco
-        // (em uma coluna eles já estão empilhados).
-        const blocos: HTMLElement[] = [];
-        for (const filho of Array.from(raiz.children) as HTMLElement[]) {
-          const ehGrid = filho.classList.contains('grid');
-          const candidatos = ehGrid ? (Array.from(filho.children) as HTMLElement[]) : [filho];
-          for (const c of candidatos) {
-            if (c.getBoundingClientRect().height > 8) blocos.push(c);
+        // Blocos = filhos diretos; dentro de um grid, cada card é um bloco.
+        //
+        // Guardo o CAMINHO (índices) e não o nó: entre capturas o React
+        // re-renderiza e trocar de projeto pode substituir os nós. Segurando a
+        // referência antiga, o html2canvas recebia um elemento fora da página e
+        // devolvia canvas vazio — foi assim que o 2º projeto perdeu os últimos
+        // cards (Programação Semanal, Pareto, Cronograma e rodapé).
+        const caminhos: [number, number | null][] = [];
+        Array.from(raiz.children).forEach((filho, i) => {
+          const el = filho as HTMLElement;
+          if (el.dataset.pdfSkip !== undefined) return; // Resumo Executivo não vai ao papel
+          if (el.classList.contains('grid')) {
+            Array.from(el.children).forEach((_, j) => caminhos.push([i, j]));
+          } else {
+            caminhos.push([i, null]);
           }
-        }
+        });
+
+        const resolver = ([i, j]: [number, number | null]): HTMLElement | null => {
+          const filho = raiz.children[i] as HTMLElement | undefined;
+          if (!filho) return null;
+          if (j === null) return filho;
+          return (filho.children[j] as HTMLElement) ?? null;
+        };
 
         novaPagina();
 
-        for (const bloco of blocos) {
+        for (const caminho of caminhos) {
+          const bloco = resolver(caminho);
+          if (!bloco || bloco.dataset.pdfSkip !== undefined) continue;
+          if (bloco.getBoundingClientRect().height <= 8) continue;
+
           const canvas = await capturar(bloco);
-          if (canvas.width === 0 || canvas.height === 0) continue;
+          if (canvas.width === 0 || canvas.height === 0) {
+            console.warn('Bloco não capturado no PDF:', caminho, bloco.className);
+            continue;
+          }
 
           const mmPorPx = larguraUtil / canvas.width;
           const alturaMm = canvas.height * mmPorPx;

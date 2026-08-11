@@ -4,6 +4,8 @@ import { useCurrentProject } from '@/store/projectStore';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
 import { cn } from '@/lib/utils';
+import { useExportMode } from '@/hooks/use-export-mode';
+import type { ScheduleRow } from '@/store/projectStore';
 
 const fmtPct = (n: number) => Math.round(n).toString();
 
@@ -38,8 +40,108 @@ const LEVEL_BUTTONS = [
   { label: '4', value: 4 }, { label: '5', value: 5 }, { label: 'Todos', value: 99 },
 ];
 
+/**
+ * Versão de impressão do cronograma.
+ *
+ * A tabela da tela usa estilo inline por linha, botão de colapsar e ícone de
+ * marco — coisas que o html2canvas renderiza de forma inconsistente (no PDF
+ * anterior as linhas de resumo saíram completamente vazias, sem nem os
+ * travessões). Aqui é uma tabela simples: cor por classe, nível como texto,
+ * nome indentado, nada de botão. Mostra exatamente as linhas visíveis do nível
+ * escolhido na tela.
+ */
+const CronogramaParaImpressao = ({
+  rows,
+  indices,
+  total,
+  nivel,
+}: {
+  rows: ScheduleRow[];
+  indices: number[];
+  total: number;
+  nivel: number;
+}) => {
+  const corDoNivel = (n: number) =>
+    n === 1 ? 'bg-[#1a3158] text-white font-bold'
+    : n === 2 ? 'bg-[#2e5fa3] text-white font-bold'
+    : n === 3 ? 'bg-[#d6e4f0] text-[#1a3158] font-semibold'
+    : 'bg-white text-[#333333]';
+
+  const th = 'px-1.5 py-1 border border-[#c9d4e4] text-center font-bold';
+  const td = 'px-1.5 py-1 border border-[#c9d4e4] text-center align-middle';
+
+  return (
+    <div className="bg-card rounded-xl p-4 card-shadow border">
+      <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Cronograma</h3>
+      <p className="text-xs text-muted-foreground mb-2">
+        Status das atividades planejadas · até nível {nivel === 99 ? 'todos' : nivel}
+      </p>
+
+      <table className="w-full border-collapse" style={{ fontSize: '8px' }}>
+        <thead>
+          <tr className="bg-[#0d2340] text-white">
+            <th className={th}>Nível</th>
+            <th className={th}>Status</th>
+            <th className={th}>Crít.</th>
+            <th className={cn(th, 'text-left')}>Nome da Tarefa</th>
+            <th className={th}>% LB</th>
+            <th className={th}>% Real</th>
+            <th className={th}>Desvio</th>
+            <th className={th}>Dur. real</th>
+            <th className={th}>Dur. rest.</th>
+            <th className={th}>Início LB</th>
+            <th className={th}>Início Real</th>
+            <th className={th}>Prev. Início</th>
+            <th className={th}>Término LB</th>
+            <th className={th}>Término Real</th>
+            <th className={th}>Prev. Término</th>
+            <th className={th}>Custo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {indices.map((i) => {
+            const r = rows[i];
+            const nivelLinha = r.outlineLevel ?? 1;
+            const desvioCor = r.desvio < 0 ? 'text-[#dc2626] font-semibold'
+              : r.desvio > 0 ? 'text-[#16a34a] font-semibold' : '';
+            return (
+              <tr key={i} className={corDoNivel(nivelLinha)}>
+                <td className={td} style={{ fontFamily: 'monospace' }}>{r.outlineNumber || ''}</td>
+                <td className={td}>{r.status || '—'}</td>
+                <td className={td}>{r.critica === undefined ? '—' : r.critica ? 'Sim' : 'Não'}</td>
+                <td className={cn(td, 'text-left')}>
+                  <span style={{ paddingLeft: `${Math.min(Math.max(nivelLinha - 1, 0), 5) * 8}px` }}>
+                    {r.tarefa}
+                  </span>
+                </td>
+                <td className={td}>{Math.round(r.previsto)}</td>
+                <td className={td}>{Math.round(r.trabalhoConcluido)}</td>
+                <td className={cn(td, desvioCor)}>{fmtDesvio(r.desvio)}</td>
+                <td className={td}>{r.duracaoReal || '—'}</td>
+                <td className={td}>{r.duracaoRestante || '—'}</td>
+                <td className={td}>{r.inicioBase || '—'}</td>
+                <td className={td}>{r.inicioReal || '—'}</td>
+                <td className={td}>{r.previsaoInicio || r.inicio || '—'}</td>
+                <td className={td}>{r.terminoBase || '—'}</td>
+                <td className={td}>{r.terminoReal || '—'}</td>
+                <td className={td}>{r.previsaoTermino || r.termino || '—'}</td>
+                <td className={td}>{r.custo ? Math.round(r.custo).toLocaleString('pt-BR') : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <p className="mt-1 text-[9px] text-muted-foreground">
+        Exibindo {indices.length} de {total} linhas.
+      </p>
+    </div>
+  );
+};
+
 const ScheduleTable = () => {
   const { scheduleData } = useCurrentProject();
+  const { exportando } = useExportMode();
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
   const [expandedMobile, setExpandedMobile] = useState<Record<number, boolean>>({});
@@ -70,6 +172,12 @@ const ScheduleTable = () => {
     }
     return computeVisibleIndices(all, maxLevel, collapsed);
   }, [all, maxLevel, collapsed, search]);
+
+  if (exportando) {
+    return (
+      <CronogramaParaImpressao rows={all} indices={visibleIdx} total={all.length} nivel={maxLevel} />
+    );
+  }
 
   if (all.length === 0) {
     return (

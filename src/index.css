@@ -282,3 +282,20 @@
   overflow: visible !important;
   max-height: none !important;
 }
+
+/* O velocímetro usa `h-full` (altura percentual), e o html2canvas trata isso mal:
+   no PDF ele saía deslocado e com o primeiro setor cortado. Com altura
+   automática, o viewBox define a proporção e o desenho fica determinístico. */
+.exportando-pdf .gauge-svg {
+  height: auto !important;
+  width: 100% !important;
+  max-width: 380px !important;
+  display: block;
+  margin: 0 auto;
+}
+
+/* `rounded-full` num elemento baixo vira um clipe elíptico que corta a base do
+   texto — foi o que desalinhou o "No Prazo". No papel, canto arredondado normal. */
+.exportando-pdf .rounded-full {
+  border-radius: 4px !important;
+}

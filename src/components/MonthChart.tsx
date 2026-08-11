@@ -97,7 +97,7 @@ const GaugeChart = ({
   });
 
   return (
-    <svg viewBox="0 0 400 240" className="w-full h-full max-w-[460px] mx-auto">
+    <svg viewBox="0 0 400 240" className="gauge-svg w-full h-full max-w-[460px] mx-auto">
       {arcs.map((arc, i) => {
         const isSelected = selectedIndex === null || selectedIndex === arc.originalIndex;
         return (
