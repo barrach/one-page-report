@@ -1,10 +1,9 @@
-import { useState } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
 import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { formatDateBR, formatDateShort, getWeekOfYear } from '@/lib/dateUtils';
+import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
 import { useContractPerformance } from '@/hooks/use-contract-performance';
 
 
@@ -65,35 +64,15 @@ const TrendIndicator = ({ current, previous, suffix = '%' }: { current: number; 
 
 const fmtBR = (n: number, d = 2) => n.toFixed(d).replace('.', ',');
 
-const ExecutiveSummaryStrip = ({ idp, text }: { idp: number; text: string }) => {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div className={`bg-muted/50 border-x border-border px-3 sm:px-5 py-2.5 border-l-4 ${
-      idp >= 95 ? 'border-l-success' : idp >= 80 ? 'border-l-warning' : 'border-l-destructive'
-    }`}>
-      <p className={`text-[12px] sm:text-xs text-foreground leading-relaxed ${expanded ? '' : 'line-clamp-4 sm:line-clamp-none'}`}>
-        <span className="font-semibold text-primary mr-1.5">Resumo:</span>
-        {text}
-      </p>
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="mt-1 text-[11px] font-semibold text-primary sm:hidden"
-      >
-        {expanded ? 'Ver menos' : 'Ver mais'}
-      </button>
-    </div>
-  );
-};
-
 const ReportHeader = () => {
-  const { info, sCurveData, weeklyData, programacaoSemanal } = useCurrentProject();
+  const { info, sCurveData, programacaoSemanal } = useCurrentProject();
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
   const {
     ultIdx, penIdx, penPoint,
     hasReplanejado, refLabel, getRealAt,
-    avancoReal, refPrev, prevAvancoReal, prevRefPrev,
+    avancoReal, refPrev, prevAvancoReal,
     desvio, idp, prevIdp, status, statusLabel,
   } = useContractPerformance();
 
@@ -114,36 +93,6 @@ const ReportHeader = () => {
     : status === 'risk'
     ? { label: statusLabel, Icon: ShieldAlert, cls: 'bg-warning/20 text-warning border-warning/30' }
     : { label: statusLabel, Icon: ShieldX, cls: 'bg-destructive/20 text-destructive border-destructive/30' };
-
-  // Auto executive summary (2-3 lines)
-  const summaryParts: string[] = [];
-
-
-  // Propósito do relatório
-  const inicioFmt = formatDateShort(info.inicio);
-  const terminoFmt = formatDateShort(info.terminoPrev || info.terminoLB);
-  const periodoInfo = [inicioFmt, terminoFmt].filter(Boolean).join(' a ');
-  const semanaAtual = info.atualizadoEm ? getWeekOfYear(info.atualizadoEm) : '';
-  summaryParts.push(`Este relatório apresenta o acompanhamento de desempenho físico do projeto ${info.projeto || 'em andamento'}${info.cliente ? ` (cliente: ${info.cliente})` : ''}${periodoInfo ? `, período de ${periodoInfo}` : ''}${semanaAtual ? ` (${semanaAtual})` : ''}, com o objetivo de fornecer visibilidade sobre o progresso, identificar desvios e apoiar a tomada de decisão.`);
-
-  // Status atual
-  summaryParts.push(`Situação atual: projeto ${statusLabel.toLowerCase()}, com ${fmtBR(avancoReal)}% de avanço real contra ${fmtBR(refPrev)}% ${hasReplanejado ? 'replanejado' : 'previsto'} (desvio de ${desvio >= 0 ? '+' : ''}${desvio.toFixed(1)}pp, IDP ${idp.toFixed(0)}%).`);
-
-  // Weekly performance
-  const lastWeek = weeklyData.length >= 1 ? weeklyData[weeklyData.length - 1] : null;
-  if (lastWeek && lastWeek.date) {
-    const weekDiff = lastWeek.real - lastWeek.previsto;
-    summaryParts.push(`Na semana ${lastWeek.date}, o realizado foi de ${lastWeek.real}% vs ${lastWeek.previsto}% previsto (${weekDiff >= 0 ? '+' : ''}${weekDiff.toFixed(1)}pp).`);
-  }
-
-  // Trend
-  if (penPoint && prevAvancoReal > 0) {
-    const prevDesvioCalc = prevAvancoReal - prevRefPrev;
-    const trendDir = desvio > prevDesvioCalc ? 'melhora' : desvio < prevDesvioCalc ? 'piora' : 'estabilidade';
-    summaryParts.push(`Tendência de ${trendDir} em relação ao período anterior.`);
-  }
-
-  const executiveSummaryText = summaryParts.join(' ');
 
   return (
     <motion.div
@@ -209,12 +158,6 @@ const ReportHeader = () => {
           </div>
         ))}
       </div>
-
-      {/* Executive Summary Strip */}
-      <ExecutiveSummaryStrip
-        idp={idp}
-        text={executiveSummaryText}
-      />
 
       {/* KPI Cards */}
       <div className="border-x border-b border-border rounded-b-xl bg-background/50 backdrop-blur-sm p-3 sm:p-4">
