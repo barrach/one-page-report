@@ -1,5 +1,6 @@
 import { useProjectStore, useCurrentProject, ActionStatus } from '@/store/projectStore';
 import { Trash2, Plus, ClipboardList } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
@@ -10,57 +11,79 @@ const statusColors: Record<string, string> = {
   'ATRASADO': 'bg-destructive text-white',
 };
 
-/**
- * Sete campos em TRÊS colunas: cada coluna tem um campo principal e os
- * complementares abaixo dele, em linha menor. Mesma informação de antes, sem o
- * scroll horizontal que a tabela de nove colunas exigia.
- */
-const columns = [
-  {
-    label: 'Restrição / Problema',
-    main: { key: 'problema', placeholder: 'Restrição / problema...' },
-    subs: [{ key: 'causa', label: 'Causa raiz' }],
-    minW: 240,
-  },
-  {
-    label: 'Impacto',
-    main: { key: 'impacto', placeholder: 'Impacto (SSMA/prazo)...' },
-    subs: [{ key: 'atividade', label: 'Atividade' }],
-    minW: 170,
-  },
-  {
-    label: 'Ação',
-    main: { key: 'necessidade', placeholder: 'Ação corretiva...' },
-    subs: [
-      { key: 'responsavel', label: 'Resp.' },
-      { key: 'prazo', label: 'Prazo' },
-    ],
-    minW: 230,
-  },
-] as const;
-
-const cellStyle: React.CSSProperties = {
-  whiteSpace: 'normal',
-  wordBreak: 'break-word',
-  overflowWrap: 'anywhere',
-  verticalAlign: 'top',
-};
-
-const val = (a: unknown, key: string) =>
-  String((a as Record<string, unknown>)[key] ?? '');
+const val = (a: unknown, key: string) => String((a as Record<string, unknown>)[key] ?? '');
 
 const autoGrow = (el: HTMLTextAreaElement) => {
   el.style.height = 'auto';
   el.style.height = el.scrollHeight + 'px';
 };
 
+/** Campo curto, com rótulo acima em caixa alta. */
+const Campo = ({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) => (
+  <label className="flex flex-col gap-0.5 min-w-0">
+    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</span>
+    <input
+      className="w-full bg-transparent border-b border-transparent hover:border-border focus:border-primary outline-none text-xs text-foreground placeholder:text-muted-foreground/50 pb-0.5 transition-colors"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="—"
+    />
+  </label>
+);
+
+/** Campo longo, que cresce com o texto. */
+const CampoLongo = ({
+  label,
+  value,
+  onChange,
+  strong,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  strong?: boolean;
+}) => (
+  <label className="flex flex-col gap-0.5 min-w-0">
+    <span className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</span>
+    <textarea
+      rows={1}
+      className={cn(
+        'w-full bg-transparent border-none outline-none resize-none overflow-hidden text-xs rounded px-1 -mx-1 py-0.5 focus:ring-1 focus:ring-primary',
+        strong ? 'font-semibold text-foreground' : 'text-foreground',
+      )}
+      style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+      value={value}
+      onChange={(e) => {
+        onChange(e.target.value);
+        autoGrow(e.target);
+      }}
+      onFocus={(e) => autoGrow(e.target)}
+      placeholder="—"
+    />
+  </label>
+);
+
+/**
+ * Pontos de Atenção — lista de cartões, não tabela.
+ *
+ * Com sete campos por registro, qualquer tabela precisa de rolagem horizontal
+ * dentro de um card de meia largura. Em cartão os campos se distribuem em linhas
+ * que quebram sozinhas, então tudo fica visível na largura disponível.
+ */
 const ActionsTable = () => {
   const { actions } = useCurrentProject();
   const { setActions, addAction, removeAction } = useProjectStore();
 
   const updateAction = (index: number, field: string, value: string) => {
-    const updated = actions.map((a, i) => i === index ? { ...a, [field]: value } : a);
-    setActions(updated);
+    setActions(actions.map((a, i) => (i === index ? { ...a, [field]: value } : a)));
   };
 
   return (
@@ -72,7 +95,7 @@ const ActionsTable = () => {
         </div>
         <button
           onClick={addAction}
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shrink-0"
         >
           <Plus className="h-3 w-3" />
           Adicionar
@@ -88,85 +111,75 @@ const ActionsTable = () => {
           </p>
         </div>
       ) : (
-      <div className="overflow-x-auto flex-1">
-        <table className="w-full text-xs border-collapse" style={{ tableLayout: 'auto' }}>
-          <thead className="sticky top-0 z-10">
-            <tr className="bg-table-header text-table-header-foreground">
-              <th className="px-3 py-2.5 text-center rounded-tl-lg" style={{ minWidth: 44, ...cellStyle }}>ID</th>
-              {columns.map(c => (
-                <th key={c.label} className="px-3 py-2.5 text-left" style={{ minWidth: c.minW, ...cellStyle }}>{c.label}</th>
-              ))}
-              <th className="px-3 py-2.5 text-center" style={{ minWidth: 120, ...cellStyle }}>Status</th>
-              <th className="px-2 py-2.5 rounded-tr-lg" style={{ minWidth: 36 }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {actions.map((a, i) => (
-              <tr
-                key={i}
-                className={`border-b border-border transition-colors hover:bg-muted/40 ${
-                  a.status === 'ATRASADO' ? 'bg-destructive/10' : i % 2 === 1 ? 'bg-muted/20' : ''
-                }`}
-              >
-                <td className="px-3 py-2.5 text-center font-bold text-muted-foreground" style={cellStyle}>{String(a.id).padStart(2, '0')}</td>
-                {columns.map((c) => (
-                  <td key={c.label} className="px-1 py-1" style={{ ...cellStyle, minWidth: c.minW }}>
-                    <textarea
-                      className="w-full bg-transparent border-none outline-none px-2 py-1.5 text-xs focus:ring-1 focus:ring-primary rounded resize-none overflow-hidden"
-                      style={{ whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'anywhere', minHeight: 34 }}
-                      value={val(a, c.main.key)}
-                      onChange={(e) => {
-                        updateAction(i, c.main.key, e.target.value);
-                        autoGrow(e.target);
-                      }}
-                      onFocus={(e) => autoGrow(e.target)}
-                      placeholder={c.main.placeholder}
-                      rows={1}
-                    />
-                    {c.subs.length > 0 && (
-                      <div className="flex flex-wrap gap-x-2 px-2 pb-1">
-                        {c.subs.map((sub) => (
-                          <label key={sub.key} className="flex items-baseline gap-1 min-w-0 flex-1">
-                            <span className="text-[9px] uppercase tracking-wide text-muted-foreground shrink-0">{sub.label}</span>
-                            <input
-                              className="min-w-0 flex-1 bg-transparent border-none outline-none text-[11px] text-muted-foreground focus:text-foreground focus:ring-1 focus:ring-primary rounded px-1"
-                              value={val(a, sub.key)}
-                              onChange={(e) => updateAction(i, sub.key, e.target.value)}
-                              placeholder="—"
-                            />
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </td>
-                ))}
-                <td className="px-1 py-1" style={cellStyle}>
-                  <select
-                    className={`w-full text-xs font-bold px-2 py-1.5 rounded border-none outline-none cursor-pointer ${
-                      a.status ? statusColors[a.status] || 'bg-muted' : 'bg-transparent'
-                    }`}
-                    value={a.status || ''}
-                    onChange={(e) => updateAction(i, 'status', e.target.value)}
-                  >
-                    <option value="">—</option>
-                    {statusOptions.map(s => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-2 py-2.5 text-center" style={cellStyle}>
-                  <button
-                    onClick={() => removeAction(i)}
-                    className="text-destructive/40 hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
+          {actions.map((a, i) => (
+            <div
+              key={i}
+              className={cn(
+                'rounded-lg border p-3 transition-colors',
+                a.status === 'ATRASADO'
+                  ? 'border-destructive/40 bg-destructive/5'
+                  : 'border-border bg-muted/20 hover:bg-muted/30',
+              )}
+            >
+              {/* Identificação, status e excluir */}
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-[11px] font-bold text-muted-foreground tabular-nums shrink-0">
+                  {String(a.id).padStart(2, '0')}
+                </span>
+                <select
+                  className={cn(
+                    'text-[10px] font-bold px-2 py-1 rounded-full border-none outline-none cursor-pointer',
+                    a.status ? statusColors[a.status] || 'bg-muted' : 'bg-muted text-muted-foreground',
+                  )}
+                  value={a.status || ''}
+                  onChange={(e) => updateAction(i, 'status', e.target.value)}
+                >
+                  <option value="">SEM STATUS</option>
+                  {statusOptions.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+                <div className="flex-1" />
+                <button
+                  onClick={() => removeAction(i)}
+                  className="text-destructive/40 hover:text-destructive transition-colors shrink-0"
+                  title="Excluir"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* O problema */}
+              <CampoLongo
+                label="Restrição / Problema"
+                value={val(a, 'problema')}
+                onChange={(v) => updateAction(i, 'problema', v)}
+                strong
+              />
+
+              {/* Contexto — 2 colunas em tela estreita, 3 quando cabe */}
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-3 gap-y-1.5 mt-2">
+                <Campo label="Causa raiz" value={val(a, 'causa')} onChange={(v) => updateAction(i, 'causa', v)} />
+                <Campo label="Atividade" value={val(a, 'atividade')} onChange={(v) => updateAction(i, 'atividade', v)} />
+                <Campo label="Impacto (SSMA/prazo)" value={val(a, 'impacto')} onChange={(v) => updateAction(i, 'impacto', v)} />
+              </div>
+
+              {/* A ação corretiva e seus responsáveis */}
+              <div className="mt-2 pt-2 border-t border-border/60">
+                <CampoLongo
+                  label="Ação corretiva"
+                  value={val(a, 'necessidade')}
+                  onChange={(v) => updateAction(i, 'necessidade', v)}
+                />
+                <div className="grid grid-cols-2 gap-x-3 mt-1.5">
+                  <Campo label="Responsável" value={val(a, 'responsavel')} onChange={(v) => updateAction(i, 'responsavel', v)} />
+                  <Campo label="Prazo" value={val(a, 'prazo')} onChange={(v) => updateAction(i, 'prazo', v)} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
