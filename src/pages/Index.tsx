@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
 import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
@@ -14,6 +14,7 @@ import ScheduleTable from '@/components/ScheduleTable';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
+import { useTvMode } from '@/hooks/use-tv-mode';
 import AppSidebar from '@/components/AppSidebar';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -42,9 +43,11 @@ const Index = () => {
   const navigate = useNavigate();
   const [isStandalone, setIsStandalone] = useState(false);
   const [presentationMode, setPresentationMode] = useState(false);
-  const [tvMode, setTvMode] = useState(false);
+  const { tvMode, setTvMode } = useTvMode();
   const [tvPlaying, setTvPlaying] = useState(true);
   const [tvInterval, setTvInterval] = useState<number>(20);
+  /** Barra de controle da TV: aparece ao interagir e se esconde sozinha. */
+  const [tvUiVisible, setTvUiVisible] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const current = useCurrentProject();
@@ -81,11 +84,45 @@ const Index = () => {
     if (!tvMode) {
       document.documentElement.requestFullscreen?.().catch(() => {});
       setTvPlaying(true);
+      setTvUiVisible(true);
     } else {
       document.exitFullscreen?.().catch(() => {});
     }
     setTvMode(!tvMode);
   };
+
+  // A barra de controle se esconde após alguns segundos sem interação e volta a
+  // qualquer sinal de uso. Numa TV ela simplesmente desaparece e fica só o painel.
+  useEffect(() => {
+    if (!tvMode) return;
+    let timer: number | undefined;
+    const arm = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setTvUiVisible(false), 4000);
+    };
+    const wake = () => { setTvUiVisible(true); arm(); };
+    const events: (keyof WindowEventMap)[] = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'wheel'];
+    events.forEach((e) => window.addEventListener(e, wake, { passive: true }));
+    arm();
+    return () => {
+      window.clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, wake));
+    };
+  }, [tvMode]);
+
+  // Sair do fullscreen (ESC, por exemplo) NÃO encerra o modo TV — ele só sai pelo
+  // botão. Numa TV, um ESC acidental não pode derrubar o painel.
+  useEffect(() => {
+    if (!tvMode) return;
+    const block = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') e.stopPropagation();
+    };
+    window.addEventListener('keydown', block);
+    return () => window.removeEventListener('keydown', block);
+  }, [tvMode]);
+
+  // O modo TV vive num store global; ao sair da tela do relatório ele não pode ficar ligado.
+  useEffect(() => () => setTvMode(false), [setTvMode]);
 
   const toggleFullscreenOnly = () => {
     if (!document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
@@ -222,7 +259,7 @@ const Index = () => {
   );
 
   return (
-    <div className={`min-h-screen flex bg-background ${presentationMode || tvMode ? 'overflow-auto' : ''}`}>
+    <div className={`flex bg-background ${tvMode ? 'h-screen overflow-hidden' : presentationMode ? 'min-h-screen overflow-auto' : 'min-h-screen'}`}>
       {!presentationMode && !tvMode && <AppSidebar />}
       <div className="flex-1 min-w-0">
       {/* Barra superior — só no mobile. No desktop os controles ficam dentro do
@@ -310,8 +347,15 @@ const Index = () => {
       )}
 
       {/* Modo TV: barra de controle flutuante */}
-      {tvMode && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-foreground text-background rounded-full pl-3 pr-2 py-1.5 shadow-2xl text-sm">
+      <AnimatePresence>
+      {tvMode && tvUiVisible && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 12 }}
+          transition={{ duration: 0.25 }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 bg-foreground text-background rounded-full pl-3 pr-2 py-1.5 shadow-2xl text-sm"
+        >
           <span className="font-semibold px-1.5 tabular-nums">
             {projects.length > 0 ? `${tvIndex + 1}/${projects.length}` : '0/0'}
           </span>
@@ -348,11 +392,37 @@ const Index = () => {
           <button onClick={toggleTvMode} className="h-8 w-8 flex items-center justify-center rounded-full hover:bg-background/10 transition-colors ml-1" title="Sair do Modo TV">
             <X className="h-4 w-4" />
           </button>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
+      {/* ── MODO TV ──────────────────────────────────────────────────────────
+          Pensado para uma TV na parede: só o cabeçalho do contrato (com os KPIs) e
+          os dois gráficos principais, tudo em UMA tela. Sem rolagem, sem nada
+          clicável e sem o Resumo Executivo — o gestor olha de longe e entende.
+          A troca de contrato entra com animação. */}
+      {tvMode ? (
+        <div className="h-screen overflow-hidden flex flex-col gap-3 p-4">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={selectedProjectId}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+              className="flex-1 min-h-0 flex flex-col gap-3"
+            >
+              <ReportHeader />
+              <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                <SCurveChart />
+                <FiveWeekChart />
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      ) : (
       <div ref={reportRef} className="px-3 sm:px-4 py-3 sm:py-4 space-y-4 pb-20 sm:pb-6">
-        <ReportHeader actions={presentationMode || tvMode ? undefined : reportActions} />
+        <ReportHeader actions={presentationMode ? undefined : reportActions} />
         <ExecutiveSummary />
 
         {/* O layout é fixo: os seis cards aparecem sempre, zerados quando não
@@ -387,6 +457,7 @@ const Index = () => {
           One Page Report · Gerado automaticamente
         </motion.div>
       </div>
+      )}
 
       {/* Mobile bottom nav */}
       {!presentationMode && !tvMode && (

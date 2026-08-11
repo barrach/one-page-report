@@ -3,6 +3,7 @@ import { useCurrentProject, type WeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { centerWeeklyWindow } from '@/lib/dateUtils';
 import ChartInsight from '@/components/ChartInsight';
+import { useTvMode } from '@/hooks/use-tv-mode';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, Cell, ReferenceLine, LabelList,
@@ -13,6 +14,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 const FiveWeekChart = () => {
   const { weeklyData: allWeeklyData, sCurveData, info } = useCurrentProject();
   const { selectedDate, setSelectedDate } = useReportInteraction();
+  const { tvMode } = useTvMode();
 
   // Quando o projeto não tem série semanal importada, deriva o resultado da
   // semana a partir da Curva S (semanal = delta do acumulado).
@@ -62,8 +64,9 @@ const FiveWeekChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Visão de 5 Semanas</h3>
       <p className="text-xs text-muted-foreground mb-4">Resultado semanal previsto × real{hasTendencia ? ' × tendência' : ''}</p>
-      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
-      <div className="flex-1 min-h-[240px] sm:min-h-[380px]">
+      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1.
+          Na TV não há piso: o gráfico ocupa exatamente a altura disponível. */}
+      <div className={tvMode ? 'flex-1 min-h-0' : 'flex-1 min-h-[240px] sm:min-h-[380px]'}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={weeklyData} onClick={handleClick} style={{ cursor: 'pointer' }} barCategoryGap="15%" barGap={4} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />

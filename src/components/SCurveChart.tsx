@@ -1,4 +1,5 @@
 import { useCurrentProject } from '@/store/projectStore';
+import { useTvMode } from '@/hooks/use-tv-mode';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { useIsMobile } from '@/hooks/use-mobile';
 import ChartInsight from '@/components/ChartInsight';
@@ -22,6 +23,7 @@ const fmtPct = (v: number | null | undefined) =>
 
 const SCurveChart = () => {
   const { sCurveData, statusDateIndex, info } = useCurrentProject();
+  const { tvMode } = useTvMode();
   const { selectedDate, setSelectedDate } = useReportInteraction();
   const isMobile = useIsMobile();
   const labelInterval = isMobile ? 6 : 3;
@@ -229,8 +231,9 @@ const SCurveChart = () => {
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
-      {chartContent('flex-1 min-h-[280px] sm:min-h-[500px]')}
+      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1.
+          Na TV não há piso: o gráfico ocupa exatamente a altura disponível. */}
+      {chartContent(tvMode ? 'flex-1 min-h-0' : 'flex-1 min-h-[280px] sm:min-h-[500px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}

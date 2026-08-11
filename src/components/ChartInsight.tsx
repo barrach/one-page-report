@@ -3,6 +3,7 @@ import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
 import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
+import { useTvMode } from '@/hooks/use-tv-mode';
 
 interface ChartInsightProps {
   chartType: 'fiveweek' | 'scurve' | 'histogram' | 'month' | 'financialcurve';
@@ -14,6 +15,7 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
   const { aiInsights } = useCurrentProject();
   const setAiInsight = useProjectStore(s => s.setAiInsight);
   const savedInsight = aiInsights?.[chartType] ?? null;
+  const { tvMode } = useTvMode();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,9 @@ const ChartInsight = ({ chartType, data, projectInfo }: ChartInsightProps) => {
       setLoading(false);
     }
   };
+
+  // Na TV não há interação nem espaço a perder: o gráfico é o que importa.
+  if (tvMode) return null;
 
   if (!savedInsight && !loading && !error) {
     return (
