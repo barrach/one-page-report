@@ -54,13 +54,13 @@ export default function AppSidebar() {
       style={{ backgroundColor: DARK }}
     >
       {/* Brand */}
-      <div className={cn('flex items-center gap-2.5 px-4 py-4 border-b border-white/10', collapsed && 'justify-center px-2')}>
+      <div className={cn('flex items-center gap-1 px-2 py-4 border-b border-white/10', collapsed && 'justify-center')}>
         {!collapsed && (
           <div className="min-w-0 flex-1 flex items-center justify-center">
             <img
               src="/megasteam-vertical-branca.png"
               alt="Megasteam"
-              className="h-12 w-auto max-w-full object-contain"
+              className="h-20 w-auto max-w-full object-contain"
             />
           </div>
         )}
