@@ -1,6 +1,9 @@
+import { useState } from 'react';
 import { useProjectStore, useCurrentProject, ActionStatus } from '@/store/projectStore';
-import { Trash2, Plus, ClipboardList, AlertTriangle } from 'lucide-react';
+import { Trash2, Plus, ClipboardList, AlertTriangle, ChevronDown, ChevronRight, CalendarClock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import ResponsavelSelect from '@/components/ResponsavelSelect';
+import { situacaoDoPrazo, corDoPrazo, paraInputDate } from '@/lib/prazoUtils';
 
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
@@ -27,7 +30,6 @@ const autoGrow = (el: HTMLTextAreaElement) => {
   el.style.height = el.scrollHeight + 'px';
 };
 
-/** Rótulo dos campos — escuro e com peso, para não sumir no fundo do card. */
 const Rotulo = ({ children }: { children: React.ReactNode }) => (
   <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/60">{children}</span>
 );
@@ -37,14 +39,17 @@ const Campo = ({
   label,
   value,
   onChange,
+  type = 'text',
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  type?: 'text' | 'date';
 }) => (
   <label className="flex flex-col gap-1 min-w-0">
     <Rotulo>{label}</Rotulo>
     <input
+      type={type}
       className="w-full bg-transparent border-b border-border focus:border-primary outline-none text-sm font-medium text-foreground placeholder:text-muted-foreground/60 placeholder:font-normal pb-1 transition-colors"
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -88,19 +93,19 @@ const CampoLongo = ({
 );
 
 /**
- * Pontos de Atenção — lista de cartões, não tabela.
+ * Pontos de Atenção — gavetas recolhíveis.
  *
- * Com sete campos por registro, qualquer tabela precisa de rolagem horizontal
- * dentro de um card de meia largura. Em cartão os campos se distribuem em linhas
- * que quebram sozinhas, então tudo fica visível na largura disponível.
+ * Fechado, cada ponto ocupa uma linha: status, problema, responsável e o
+ * indicador de prazo. Abre ao clicar no cabeçalho. Assim o card mostra vários
+ * pontos na altura disponível, em vez de um único registro esparramado.
  *
  * O visual segue a identidade do relatório: faixa azul-marinho de cabeçalho (a
- * mesma das tabelas), faixa lateral com a cor do status e campos com linha de
- * base visível — nada de cinza sobre cinza.
+ * mesma das tabelas) e faixa lateral com a cor do status.
  */
 const ActionsTable = () => {
   const { actions } = useCurrentProject();
   const { setActions, addAction, removeAction } = useProjectStore();
+  const [aberto, setAberto] = useState<number | null>(0);
 
   const updateAction = (index: number, field: string, value: string) => {
     setActions(actions.map((a, i) => (i === index ? { ...a, [field]: value } : a)));
@@ -114,7 +119,7 @@ const ActionsTable = () => {
           <p className="text-xs text-muted-foreground">Restrições e ações corretivas</p>
         </div>
         <button
-          onClick={addAction}
+          onClick={() => { addAction(); setAberto(actions.length); }}
           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shrink-0 font-semibold"
         >
           <Plus className="h-3 w-3" />
@@ -131,35 +136,71 @@ const ActionsTable = () => {
           </p>
         </div>
       ) : (
-        <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-1">
           {actions.map((a, i) => {
             const atrasado = a.status === 'ATRASADO';
+            const prazo = situacaoDoPrazo(val(a, 'prazo'), a.status);
+            const estaAberto = aberto === i;
+            const resumo = val(a, 'problema').trim();
+
             return (
               <div
                 key={i}
                 className={cn(
                   'relative rounded-lg border overflow-hidden bg-card',
-                  atrasado ? 'border-destructive/50 shadow-sm' : 'border-border',
+                  atrasado || prazo.situacao === 'atrasado'
+                    ? 'border-destructive/50'
+                    : 'border-border',
                 )}
               >
                 {/* Semáforo lateral */}
                 <span
                   className={cn(
-                    'absolute left-0 top-0 bottom-0 w-1',
+                    'absolute left-0 top-0 bottom-0 w-1 z-10',
                     a.status ? statusAccent[a.status] : 'bg-border',
                   )}
                 />
 
-                {/* Cabeçalho — mesma faixa azul-marinho das tabelas do relatório */}
+                {/* Cabeçalho — clique abre/fecha a gaveta */}
                 <div className="bg-table-header text-table-header-foreground flex items-center gap-2 pl-4 pr-2 py-1.5">
-                  <span className="text-[11px] font-bold tabular-nums opacity-80">
-                    {String(a.id).padStart(2, '0')}
-                  </span>
-                  {atrasado && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                  <div className="flex-1" />
+                  <button
+                    type="button"
+                    onClick={() => setAberto(estaAberto ? null : i)}
+                    className="flex items-center gap-2 min-w-0 flex-1 text-left"
+                    aria-expanded={estaAberto}
+                  >
+                    {estaAberto
+                      ? <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                      : <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                    <span className="text-[11px] font-bold tabular-nums opacity-80 shrink-0">
+                      {String(a.id).padStart(2, '0')}
+                    </span>
+                    {atrasado && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                    {/* Fechado, o problema é o rótulo da gaveta */}
+                    {!estaAberto && (
+                      <span className={cn('text-xs truncate', resumo ? 'text-white/90' : 'text-white/40 italic')}>
+                        {resumo || 'sem descrição'}
+                      </span>
+                    )}
+                  </button>
+
+                  {/* Indicador de prazo — some quando a gaveta está aberta, onde já há a data */}
+                  {!estaAberto && prazo.situacao !== 'sem_prazo' && (
+                    <span
+                      className={cn(
+                        'shrink-0 hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border',
+                        corDoPrazo[prazo.situacao],
+                      )}
+                      title={`Prazo: ${val(a, 'prazo') || '—'}`}
+                    >
+                      <CalendarClock className="h-3 w-3" />
+                      {prazo.label}
+                    </span>
+                  )}
+
                   <select
                     className={cn(
-                      'text-[10px] font-bold px-2 py-1 rounded-full border-none outline-none cursor-pointer',
+                      'text-[10px] font-bold px-2 py-1 rounded-full border-none outline-none cursor-pointer shrink-0',
                       a.status ? statusPill[a.status] : 'bg-white/15 text-white',
                     )}
                     value={a.status || ''}
@@ -181,35 +222,62 @@ const ActionsTable = () => {
                   </button>
                 </div>
 
-                {/* Corpo */}
-                <div className="pl-4 pr-3 py-3 space-y-3">
-                  <CampoLongo
-                    label="Restrição / Problema"
-                    value={val(a, 'problema')}
-                    onChange={(v) => updateAction(i, 'problema', v)}
-                    destaque
-                  />
-
-                  {/* Contexto — 2 colunas em tela estreita, 3 quando cabe */}
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2.5 pt-1">
-                    <Campo label="Causa raiz" value={val(a, 'causa')} onChange={(v) => updateAction(i, 'causa', v)} />
-                    <Campo label="Atividade" value={val(a, 'atividade')} onChange={(v) => updateAction(i, 'atividade', v)} />
-                    <Campo label="Impacto (SSMA/prazo)" value={val(a, 'impacto')} onChange={(v) => updateAction(i, 'impacto', v)} />
-                  </div>
-
-                  {/* Ação corretiva — bloco destacado, é a saída do ponto de atenção */}
-                  <div className="rounded-md bg-primary/5 border border-primary/15 p-2.5 space-y-2.5">
+                {/* Corpo — só quando a gaveta está aberta */}
+                {estaAberto && (
+                  <div className="pl-4 pr-3 py-3 space-y-3">
                     <CampoLongo
-                      label="Ação corretiva"
-                      value={val(a, 'necessidade')}
-                      onChange={(v) => updateAction(i, 'necessidade', v)}
+                      label="Restrição / Problema"
+                      value={val(a, 'problema')}
+                      onChange={(v) => updateAction(i, 'problema', v)}
+                      destaque
                     />
-                    <div className="grid grid-cols-2 gap-x-4">
-                      <Campo label="Responsável" value={val(a, 'responsavel')} onChange={(v) => updateAction(i, 'responsavel', v)} />
-                      <Campo label="Prazo" value={val(a, 'prazo')} onChange={(v) => updateAction(i, 'prazo', v)} />
+
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2.5 pt-1">
+                      <Campo label="Causa raiz" value={val(a, 'causa')} onChange={(v) => updateAction(i, 'causa', v)} />
+                      <Campo label="Atividade" value={val(a, 'atividade')} onChange={(v) => updateAction(i, 'atividade', v)} />
+                      <Campo label="Impacto (SSMA/prazo)" value={val(a, 'impacto')} onChange={(v) => updateAction(i, 'impacto', v)} />
+                    </div>
+
+                    {/* Ação corretiva — a saída do ponto de atenção */}
+                    <div className="rounded-md bg-primary/5 border border-primary/15 p-2.5 space-y-2.5">
+                      <CampoLongo
+                        label="Ação corretiva"
+                        value={val(a, 'necessidade')}
+                        onChange={(v) => updateAction(i, 'necessidade', v)}
+                      />
+                      <div className="grid grid-cols-2 gap-x-4 items-end">
+                        <label className="flex flex-col gap-1 min-w-0">
+                          <Rotulo>Responsável</Rotulo>
+                          <ResponsavelSelect
+                            value={val(a, 'responsavel')}
+                            onChange={(v) => updateAction(i, 'responsavel', v)}
+                          />
+                        </label>
+                        <div className="flex items-end gap-2 min-w-0">
+                          <div className="min-w-0 flex-1">
+                            <Campo
+                              label="Prazo"
+                              type="date"
+                              value={paraInputDate(val(a, 'prazo'))}
+                              onChange={(v) => updateAction(i, 'prazo', v)}
+                            />
+                          </div>
+                          {prazo.situacao !== 'sem_prazo' && (
+                            <span
+                              className={cn(
+                                'shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded border mb-1',
+                                corDoPrazo[prazo.situacao],
+                              )}
+                            >
+                              <CalendarClock className="h-3 w-3" />
+                              {prazo.label}
+                            </span>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             );
           })}
