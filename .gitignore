@@ -23,3 +23,9 @@ dist-ssr
 *.sln
 *.sw?
 .vercel
+
+# Arquivos de lock do Excel
+~$*
+
+# Temporarios da CLI do Supabase
+supabase/.temp/
