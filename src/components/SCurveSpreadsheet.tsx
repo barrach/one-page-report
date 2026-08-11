@@ -17,12 +17,14 @@ const SCurveSpreadsheet = () => {
   const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const hasReplanejadoData     = sCurveData.some(p => (p.replanejado ?? 0) > 0);
-  const hasRealReplanejadoData = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
+  const hasReplanejadoData =
+    sCurveData.some(p => (p.replanejado ?? 0) > 0 || (p.realReplanejado ?? 0) > 0);
+  // As linhas de replanejado nascem OCULTAS e quem manda é o botão: o replanejamento
+  // não vem da importação, é o usuário que preenche quando existe. Revelar sozinho
+  // quando havia dado deixava o botão sem efeito nenhum.
   const [showReplanejadoManual, setShowReplanejadoManual] = useState(false);
-  // Mostra as linhas de replanejado se houver dados OU se o toggle manual estiver ativo
-  const showReplanejado    = hasReplanejadoData    || showReplanejadoManual;
-  const showRealReplanejado = hasRealReplanejadoData || showReplanejadoManual;
+  const showReplanejado = showReplanejadoManual;
+  const showRealReplanejado = showReplanejadoManual;
   const setShowReplanejado = setShowReplanejadoManual;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -152,9 +154,17 @@ const SCurveSpreadsheet = () => {
               ? 'bg-primary text-primary-foreground border-primary'
               : 'text-muted-foreground border-border hover:text-foreground'
           }`}
-          title="Mostrar/ocultar linhas de Replanejado"
+          title={
+            hasReplanejadoData
+              ? 'Este projeto já tem replanejado preenchido — clique para ver e editar'
+              : 'Mostrar as linhas de Replanejado para preencher'
+          }
         >
           {showReplanejadoManual ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
+          {/* Aviso de que há dado escondido atrás do botão */}
+          {!showReplanejadoManual && hasReplanejadoData && (
+            <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
+          )}
         </button>
       </div>
 
