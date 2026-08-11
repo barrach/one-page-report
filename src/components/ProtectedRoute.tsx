@@ -1,11 +1,10 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import type { Module } from '@/types/auth';
 
-/** Exige autenticação. Opcionalmente exige acesso a um módulo específico. */
-export default function ProtectedRoute({ module, children }: { module?: Module; children: ReactNode }) {
-  const { user, loading, hasModule } = useAuth();
+/** Exige autenticação. */
+export default function ProtectedRoute({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
   const location = useLocation();
   const [timedOut, setTimedOut] = useState(false);
 
@@ -31,6 +30,5 @@ export default function ProtectedRoute({ module, children }: { module?: Module; 
   }
 
   if (!user) return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  if (module && !hasModule(module)) return <Navigate to="/" replace />;
   return <>{children}</>;
 }

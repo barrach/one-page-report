@@ -1,11 +1,10 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig(() => ({
   server: {
     host: "::",
     port: 8080,
@@ -30,7 +29,6 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     react(),
-    mode === "development" && componentTagger(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "offline.html"],
@@ -40,7 +38,7 @@ export default defineConfig(({ mode }) => ({
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB — app unificado é maior
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MiB
         navigateFallback: "index.html",
         runtimeCaching: [
           {
@@ -71,9 +69,9 @@ export default defineConfig(({ mode }) => ({
         ],
       },
       manifest: {
-        name: "MegaHub — Plataforma Integrada MEGASTEAM",
-        short_name: "MegaHub",
-        description: "Plataforma integrada de gestão de projetos Megasteam",
+        name: "One Page Report — Megasteam",
+        short_name: "OPR",
+        description: "One Page Report — acompanhamento de projetos Megasteam",
         theme_color: "#0F172A",
         background_color: "#0F172A",
         display: "standalone",
@@ -92,8 +90,6 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
-      "@prodcontrol": path.resolve(__dirname, "./src/prodcontrol"),
-      "@budget": path.resolve(__dirname, "./src/budget"),
     },
     dedupe: ["react", "react-dom"],
   },

@@ -70,7 +70,7 @@ export default function PWAInstallPrompt() {
           Para instalar: toque em <Share className="inline h-3.5 w-3.5 mx-0.5" /> <strong>Compartilhar</strong> → <strong>Adicionar à Tela de Início</strong>
         </div>
       ) : (
-        <div className="flex-1 text-sm font-medium">Instalar MegaHub como app</div>
+        <div className="flex-1 text-sm font-medium">Instalar One Page Report como app</div>
       )}
       <div className="flex items-center gap-1.5 shrink-0">
         {!showMacHint && (

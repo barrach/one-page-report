@@ -1,21 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-// CLIENTE DE DADOS DO ONE PAGE REPORT
-// Os projetos/contratos do OPR (FRIGO, NTS, OXICORTE, GUAXE, ...) vivem no
-// projeto Supabase ORIGINAL: bxmvzxtbjxlicjaewvfg.
-// A AUTENTICAÇÃO do MegaHub continua no projeto rlpmwuaaosmxlrqtruol
-// (ver ./client.ts) — por isso este client é separado e usado SÓ para dados.
-const OPR_DATA_URL = 'https://bxmvzxtbjxlicjaewvfg.supabase.co';
+// Cliente Supabase do One Page Report — dados (FRIGO, NTS, OXICORTE, GUAXE, ...)
+// e autenticação do próprio app vivem no projeto bpcfsdrhnxdvahmocdjp
+// (migrado do Lovable Cloud em 2026-08-11).
+const OPR_DATA_URL = 'https://bpcfsdrhnxdvahmocdjp.supabase.co';
 const OPR_DATA_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4bXZ6eHRianhsaWNqYWV3dmZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE0MjU3MDcsImV4cCI6MjA4NzAwMTcwN30.uM4H1zXJeLedPzTcsntolpP-JSuqyIIPqT4wQxqgOhI';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJwY2ZzZHJobnhkdmFobW9jZGpwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY0NDY4NzMsImV4cCI6MjEwMjAyMjg3M30.V5_kOKK0L8JOyNTqRgOqNNnl6S30gqRCaaHaByIHSO4';
 
-// storageKey próprio para não conflitar com a sessão de auth (rlpmw).
 export const oprDataClient = createClient<Database>(OPR_DATA_URL, OPR_DATA_KEY, {
   auth: {
     storage: localStorage,
-    storageKey: 'opr-data-bxmvz',
-    persistSession: false,
-    autoRefreshToken: false,
+    persistSession: true,
+    autoRefreshToken: true,
   },
 });

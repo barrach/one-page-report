@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
-import { permissionsClient } from '@/lib/permissionsClient';
+import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,7 +37,7 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     reset(); setSubmitting(true);
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+    const { error } = await oprDataClient.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
     setSubmitting(false);
     if (error) {
       setError('E-mail ou senha inválidos. Primeiro acesso? Clique em "Criar conta" para definir sua senha.');
@@ -56,19 +55,7 @@ export default function Login() {
     if (password !== confirm) { setError('Senhas não conferem.'); return; }
 
     setSubmitting(true);
-    // 1. e-mail precisa estar autorizado em user_permissions
-    const { data: perm } = await permissionsClient
-      .from('user_permissions')
-      .select('email')
-      .eq('email', mail)
-      .maybeSingle();
-    if (!perm) {
-      setSubmitting(false);
-      setError('Este e-mail não está autorizado. Entre em contato com michel.zabalia@megasteam.com.br');
-      return;
-    }
-    // 2. cria a conta no Supabase Auth
-    const { data, error } = await supabase.auth.signUp({ email: mail, password });
+    const { data, error } = await oprDataClient.auth.signUp({ email: mail, password });
     setSubmitting(false);
     if (error) {
       if (/already|registered|exists/i.test(error.message)) {
@@ -78,10 +65,8 @@ export default function Login() {
       }
       return;
     }
-    // 3. se já houver sessão (confirmação de e-mail desativada) → entra direto
     if (data.session) { navigate(redirectTo, { replace: true }); return; }
-    // senão, tenta logar imediatamente
-    const { error: signErr } = await supabase.auth.signInWithPassword({ email: mail, password });
+    const { error: signErr } = await oprDataClient.auth.signInWithPassword({ email: mail, password });
     if (signErr) {
       setInfo('Conta criada! Verifique seu e-mail para confirmar e depois faça login.');
       setMode('login');
@@ -96,7 +81,7 @@ export default function Login() {
     reset();
     if (!email.trim()) { setError('Informe o e-mail.'); return; }
     setSubmitting(true);
-    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+    const { error } = await oprDataClient.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${window.location.origin}/reset-password`,
     });
     setSubmitting(false);
@@ -104,18 +89,18 @@ export default function Login() {
     setInfo('Se já existe uma conta com este e-mail, o link de recuperação foi enviado. Se for seu primeiro acesso, use "Criar conta" para definir a senha.');
   };
 
-  const title = mode === 'signup' ? 'Criar conta' : mode === 'forgot' ? 'Recuperar senha' : 'MegaHub';
+  const title = mode === 'signup' ? 'Criar conta' : mode === 'forgot' ? 'Recuperar senha' : 'One Page Report';
   const subtitle = mode === 'signup'
     ? 'Use o e-mail corporativo @megasteam.com.br'
     : mode === 'forgot'
       ? 'Enviaremos um link para redefinir sua senha'
-      : 'Plataforma integrada MEGASTEAM';
+      : 'Megasteam';
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: DARK }}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-8">
-          <img src="/logo.svg" alt="MegaHub" className="h-16 w-16 rounded-2xl shadow-lg" />
+          <img src="/logo.svg" alt="One Page Report" className="h-16 w-16 rounded-2xl shadow-lg" />
           <h1 className="text-2xl font-black text-white tracking-tight">{title}</h1>
           <p className="text-sm text-white/60 text-center">{subtitle}</p>
         </div>
@@ -171,7 +156,7 @@ export default function Login() {
         )}
 
         <p className="text-center text-[11px] text-white/40 mt-6">
-          MegaHub · Plataforma integrada MEGASTEAM
+          One Page Report · Megasteam
         </p>
       </div>
     </div>

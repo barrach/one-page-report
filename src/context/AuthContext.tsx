@@ -1,120 +1,76 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
-import { permissionsClient } from '@/lib/permissionsClient';
-import type { UserPermission, UserRole, Module } from '@/types/auth';
+import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 
-const ADMIN_EMAIL = 'michel.zabalia@megasteam.com.br';
-const ALL_MODULES: Module[] = ['megapricing', 'controladoria', 'prodcontrol', 'opr'];
+export type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
+
+const ROLE_PRIORITY: AppRole[] = ['admin', 'gestor', 'visualizador', 'cliente'];
 
 interface AuthState {
   user: User | null;
-  email: string | null;
+  role: AppRole | null;
   loading: boolean;
-  userPermission: UserPermission | null;
-  role: UserRole | null;
-  modules: Module[];
   isAdmin: boolean;
-  hasModule: (m: Module) => boolean;
   signOut: () => Promise<void>;
-  refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userPermission, setUserPermission] = useState<UserPermission | null>(null);
 
-  // Busca permissões — SEMPRE finaliza o loading (finally) e tem fallback
-  // para o app funcionar mesmo se a RLS bloquear a query.
-  const fetchPermissions = async (email: string): Promise<void> => {
+  const fetchRole = async (userId: string) => {
     try {
-      const { data, error } = await permissionsClient
-        .from('user_permissions')
-        .select('*')
-        .eq('email', email)
-        .single();
-
-      if (error || !data) {
-        console.error('[Auth] erro ao buscar permissões:', error?.message ?? 'sem dados');
-        // Fallback: admin conhecido recebe acesso total; demais ficam como cliente
-        if (email.toLowerCase() === ADMIN_EMAIL) {
-          setUserPermission({ id: '', email, role: 'admin', modules: ALL_MODULES });
-        } else {
-          setUserPermission({ id: '', email, role: 'cliente', modules: [] });
-        }
-      } else {
-        setUserPermission({
-          id: data.id,
-          email: data.email,
-          role: data.role as UserRole,
-          modules: (data.modules ?? []) as Module[],
-        });
-      }
-    } catch (err) {
-      console.error('[Auth] exceção ao buscar permissões:', (err as Error).message);
-      setUserPermission(
-        email.toLowerCase() === ADMIN_EMAIL
-          ? { id: '', email, role: 'admin', modules: ALL_MODULES }
-          : { id: '', email, role: 'cliente', modules: [] }
-      );
+      const { data } = await oprDataClient.from('user_roles').select('role').eq('user_id', userId);
+      const roles = (data ?? []).map((r) => r.role as AppRole);
+      const best = ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
+      setRole(best);
+    } catch {
+      setRole(null);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user?.email) {
+    oprDataClient.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
         setUser(session.user);
-        fetchPermissions(session.user.email);
+        fetchRole(session.user.id);
       } else {
         setUser(null);
-        setUserPermission(null);
+        setRole(null);
         setLoading(false);
       }
     }).catch(() => setLoading(false));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = oprDataClient.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
         setUser(null);
-        setUserPermission(null);
+        setRole(null);
         setLoading(false);
         return;
       }
-      if (session?.user?.email) {
-        setUser(session.user);
-        fetchPermissions(session.user.email);
-      }
+      setUser(session.user);
+      fetchRole(session.user.id);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const role = userPermission?.role ?? null;
-  const modules = userPermission?.modules ?? [];
-  const isAdmin = role === 'admin' || user?.email?.toLowerCase() === ADMIN_EMAIL;
-
   const value: AuthState = {
     user,
-    email: user?.email ?? null,
-    loading,
-    userPermission,
     role,
-    modules,
-    isAdmin,
-    hasModule: (m) => isAdmin || modules.includes(m),
+    loading,
+    isAdmin: role === 'admin',
     signOut: async () => {
       setUser(null);
-      setUserPermission(null);
-      sessionStorage.clear();
-      localStorage.clear();
-      try { await supabase.auth.signOut(); } catch { /* ignore */ }
+      setRole(null);
+      try { await oprDataClient.auth.signOut(); } catch { /* ignore */ }
       window.location.replace('/login');
     },
-    refreshPermissions: async () => { if (user?.email) await fetchPermissions(user.email); },
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

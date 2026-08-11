@@ -20,7 +20,7 @@ if (!isInIframe && !isPreviewHost && "serviceWorker" in navigator) {
     onNeedRefresh() {
       // Nova versão detectada: toast com ação + auto-aplica em 60s.
       const autoTimer = setTimeout(() => updateSW(true), 60_000);
-      toast("🔄 Nova versão do MegaHub disponível", {
+      toast("🔄 Nova versão disponível", {
         duration: 60_000,
         action: {
           label: "Atualizar",
@@ -29,7 +29,7 @@ if (!isInIframe && !isPreviewHost && "serviceWorker" in navigator) {
       });
     },
     onOfflineReady() {
-      toast.success("MegaHub pronto para uso offline");
+      toast.success("One Page Report pronto para uso offline");
     },
     onRegisteredSW(_swUrl, registration) {
       // Verifica atualizações a cada 60s enquanto o app estiver aberto.

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +22,7 @@ export default function ResetPassword() {
     if (password.length < 8) { setError('A senha deve ter no mínimo 8 caracteres.'); return; }
     if (password !== confirm) { setError('Senhas não conferem.'); return; }
     setSubmitting(true);
-    const { error } = await supabase.auth.updateUser({ password });
+    const { error } = await oprDataClient.auth.updateUser({ password });
     setSubmitting(false);
     if (error) {
       setError('Não foi possível salvar a nova senha. Abra o link do e-mail novamente.');
@@ -36,7 +36,7 @@ export default function ResetPassword() {
     <div className="min-h-screen flex items-center justify-center px-4" style={{ backgroundColor: DARK }}>
       <div className="w-full max-w-sm">
         <div className="flex flex-col items-center gap-3 mb-8">
-          <img src="/logo.svg" alt="MegaHub" className="h-16 w-16 rounded-2xl shadow-lg" />
+          <img src="/logo.svg" alt="One Page Report" className="h-16 w-16 rounded-2xl shadow-lg" />
           <h1 className="text-2xl font-black text-white tracking-tight">Nova senha</h1>
           <p className="text-sm text-white/60 text-center">Defina uma nova senha para sua conta</p>
         </div>

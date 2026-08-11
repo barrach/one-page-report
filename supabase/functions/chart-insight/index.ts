@@ -10,8 +10,8 @@ serve(async (req) => {
 
   try {
     const { chartType, data, projectInfo } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     let systemPrompt = "";
     let userPrompt = "";
@@ -73,21 +73,21 @@ Gere um resumo executivo completo e estruturado do projeto.`;
       throw new Error("chartType inválido");
     }
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: chartType === "executive" ? "google/gemini-2.5-flash" : "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: chartType === "executive" ? 800 : 200,
-      }),
-    });
+    const geminiModel = chartType === "executive" ? "gemini-2.5-flash" : "gemini-2.5-flash-lite";
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: "user", parts: [{ text: userPrompt }] }],
+          generationConfig: {
+            maxOutputTokens: chartType === "executive" ? 800 : 200,
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       if (response.status === 429) {
@@ -96,14 +96,8 @@ Gere um resumo executivo completo e estruturado do projeto.`;
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Créditos insuficientes para uso da IA." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const t = await response.text();
-      console.error("AI gateway error:", response.status, t);
+      console.error("Gemini API error:", response.status, t);
       return new Response(JSON.stringify({ error: "Erro ao consultar IA" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -111,7 +105,7 @@ Gere um resumo executivo completo e estruturado do projeto.`;
     }
 
     const result = await response.json();
-    const insight = result.choices?.[0]?.message?.content || "";
+    const insight = result.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
     return new Response(JSON.stringify({ insight }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

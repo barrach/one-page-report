@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 import { useProjectStore } from '@/store/projectStore';
 import { Link } from 'react-router-dom';
 import { Input } from '@/components/ui/input';
@@ -39,8 +39,8 @@ const Admin = () => {
   const [creating, setCreating] = useState(false);
 
   const callAdmin = useCallback(async (body: Record<string, unknown>) => {
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await supabase.functions.invoke('admin-users', {
+    const { data: { session } } = await oprDataClient.auth.getSession();
+    const res = await oprDataClient.functions.invoke('admin-users', {
       body,
       headers: { Authorization: `Bearer ${session?.access_token}` },
     });
@@ -122,16 +122,16 @@ const Admin = () => {
         <div className="flex items-center gap-3 sm:gap-5">
           <div className="flex items-center gap-2">
             <div className="h-6 w-1 bg-primary-foreground/60 rounded-full" />
-            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">MegaHub</h1>
+            <h1 className="text-sm font-bold text-primary-foreground tracking-[0.15em] uppercase">One Page Report</h1>
           </div>
           <nav className="flex gap-1">
-            <Link to="/opr" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+            <Link to="/" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
               <FileText className="h-3.5 w-3.5" /> Relatório
             </Link>
-            <Link to="/opr/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
+            <Link to="/dados" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-primary-foreground/60 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors">
               <Database className="h-3.5 w-3.5" /> Dados
             </Link>
-            <Link to="/opr/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
+            <Link to="/admin" className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary-foreground/20 text-primary-foreground">
               <Shield className="h-3.5 w-3.5" /> Admin
             </Link>
           </nav>

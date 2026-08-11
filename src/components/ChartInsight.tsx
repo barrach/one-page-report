@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Sparkles, RefreshCw, AlertCircle } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
 import { useToast } from '@/hooks/use-toast';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 
