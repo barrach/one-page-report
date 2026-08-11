@@ -4,19 +4,17 @@ import { motion } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
 import SCurveChart from '@/components/SCurveChart';
 import FiveWeekChart from '@/components/FiveWeekChart';
-import MonthChart from '@/components/MonthChart';
-import ObservationsSection from '@/components/ObservationsSection';
 import HistogramChart from '@/components/HistogramChart';
-import FinancialCurveChart from '@/components/FinancialCurveChart';
 import ProgramacaoSemanalCard from '@/components/ProgramacaoSemanalCard';
 import ProjectSelector from '@/components/ProjectSelector';
 import ExecutiveSummary from '@/components/ExecutiveSummary';
-import DesvioAnalysisCard from '@/components/DesvioAnalysisCard';
+import ContractThermometer from '@/components/ContractThermometer';
+import ActionsTable from '@/components/ActionsTable';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import AppSidebar from '@/components/AppSidebar';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical, CalendarCheck } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -32,6 +30,33 @@ import {
 import { cn } from '@/lib/utils';
 
 const TV_INTERVALS = [10, 20, 30, 60] as const;
+
+/** Card vazio com o mesmo enquadramento dos demais (mantém o grid alinhado). */
+const EmptyCard = ({
+  icon: Icon,
+  title,
+  subtitle,
+  emptyTitle,
+  emptyHint,
+}: {
+  icon: React.ElementType;
+  title: string;
+  subtitle: string;
+  emptyTitle: string;
+  emptyHint: string;
+}) => (
+  <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
+    <div className="mb-4">
+      <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h3>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+    </div>
+    <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
+      <Icon className="h-7 w-7 text-muted-foreground/40" />
+      <p className="text-sm text-muted-foreground">{emptyTitle}</p>
+      <p className="text-xs text-muted-foreground/70 max-w-[280px]">{emptyHint}</p>
+    </div>
+  </div>
+);
 
 const Index = () => {
   const reportRef = useRef<HTMLDivElement>(null);
@@ -59,11 +84,10 @@ const Index = () => {
 
   const showSCurve = hasRows(current?.sCurveData, ['date']);
   const showHistogram = hasRows(current?.histogramData, ['date', 'semana']);
-  const showFinancial = Array.isArray(current?.curvaSFinanceira) && current.curvaSFinanceira.length > 0;
   const showFiveWeek = hasRows(current?.weeklyData, ['date']);
   const showMonth = hasRows(current?.monthData, ['week', 'date']);
   const showProgSemanal = Array.isArray(current?.programacaoSemanal) && (current?.programacaoSemanal?.length ?? 0) > 0;
-  const showExecutive = showSCurve || showHistogram || showFinancial || showFiveWeek || showMonth;
+  const showExecutive = showSCurve || showHistogram || showFiveWeek || showMonth;
 
   const togglePresentation = () => {
     if (!presentationMode) {
@@ -361,26 +385,39 @@ const Index = () => {
       <div ref={reportRef} className="px-3 sm:px-5 md:px-6 py-3 sm:py-5 md:py-6 max-w-[1440px] mx-auto space-y-4 pb-20 sm:pb-6">
         <ReportHeader />
         {showExecutive && <ExecutiveSummary />}
-        <DesvioAnalysisCard />
 
-        {showSCurve && <SCurveChart />}
-        {showHistogram && <HistogramChart />}
-        {showFinancial && <FinancialCurveChart />}
+        {/* Termômetro do Contrato × Curva "S" */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ContractThermometer />
+          {showSCurve && <SCurveChart />}
+        </div>
 
-        {(showFiveWeek || showMonth) && (
-          <div className={`grid grid-cols-1 ${showFiveWeek && showMonth ? 'lg:grid-cols-2' : ''} gap-4`}>
+        {/* Visão de 5 Semanas × Histograma MOD */}
+        {(showFiveWeek || showHistogram) && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {showFiveWeek && <FiveWeekChart />}
-            {showMonth && <MonthChart />}
+            {showHistogram && <HistogramChart />}
           </div>
         )}
 
-        {showProgSemanal && (
-          <ProgramacaoSemanalCard
-            data={current!.programacaoSemanal!}
-            histogramData={current?.histogramData}
-          />
-        )}
-        <ObservationsSection />
+        {/* Pontos de Atenção × Programação Semanal */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ActionsTable />
+          {showProgSemanal ? (
+            <ProgramacaoSemanalCard
+              data={current!.programacaoSemanal!}
+              histogramData={current?.histogramData}
+            />
+          ) : (
+            <EmptyCard
+              icon={CalendarCheck}
+              title="Programação Semanal"
+              subtitle="Tarefas programadas × concluídas (PPC)"
+              emptyTitle="Nenhuma tarefa programada"
+              emptyHint='Importe a programação na aba "Dados" para acompanhar o PPC.'
+            />
+          )}
+        </div>
 
         <motion.div
           initial={{ opacity: 0 }}

@@ -1,5 +1,5 @@
 import { useProjectStore, useCurrentProject, ActionStatus } from '@/store/projectStore';
-import { Trash2, Plus } from 'lucide-react';
+import { Trash2, Plus, ClipboardList } from 'lucide-react';
 
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
@@ -40,7 +40,7 @@ const ActionsTable = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Ponto de Atenção</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
           <p className="text-xs text-muted-foreground">Restrições e ações corretivas</p>
         </div>
         <button
@@ -48,9 +48,19 @@ const ActionsTable = () => {
           className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity"
         >
           <Plus className="h-3 w-3" />
-          Ação
+          Adicionar
         </button>
       </div>
+
+      {actions.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <ClipboardList className="h-7 w-7 text-muted-foreground/40" />
+          <p className="text-sm text-muted-foreground">Nenhum ponto de atenção registrado</p>
+          <p className="text-xs text-muted-foreground/70 max-w-[280px]">
+            Use “Adicionar” para incluir restrições e ações corretivas.
+          </p>
+        </div>
+      ) : (
       <div className="overflow-x-auto flex-1">
         <table className="w-full text-xs border-collapse" style={{ tableLayout: 'auto' }}>
           <thead className="sticky top-0 z-10">
@@ -119,6 +129,7 @@ const ActionsTable = () => {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 };

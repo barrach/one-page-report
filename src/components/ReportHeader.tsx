@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort, getWeekOfYear } from '@/lib/dateUtils';
+import { useContractPerformance } from '@/hooks/use-contract-performance';
 
 
 const KpiCard = ({
@@ -89,39 +90,12 @@ const ReportHeader = () => {
   const { selectedDate, selectedMonthIndex, clearSelection } = useReportInteraction();
   const hasFilter = selectedDate !== null || selectedMonthIndex !== null;
 
-  // ULTIMA_SEMANA = last index where Real > 0 OR Real Replanejado > 0
-  const ultIdx = (() => {
-    for (let i = sCurveData.length - 1; i >= 0; i--) {
-      if ((sCurveData[i]?.real ?? 0) > 0 || (sCurveData[i]?.realReplanejado ?? 0) > 0) return i;
-    }
-    return -1;
-  })();
-  // PENULTIMA_SEMANA = previous index with real data
-  const penIdx = (() => {
-    for (let i = ultIdx - 1; i >= 0; i--) {
-      if ((sCurveData[i]?.real ?? 0) > 0 || (sCurveData[i]?.realReplanejado ?? 0) > 0) return i;
-    }
-    return -1;
-  })();
-
-  const ultPoint = ultIdx >= 0 ? sCurveData[ultIdx] : null;
-  const penPoint = penIdx >= 0 ? sCurveData[penIdx] : null;
-
-  const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
-  const refLabel = hasReplanejado ? 'replanj.' : 'LB';
-
-  // Real: use realReplanejado (Format C) when available, else real (other formats)
-  const getRealAt = (p: typeof ultPoint) =>
-    p == null ? 0 : (p.realReplanejado ?? 0) > 0 ? (p.realReplanejado ?? 0) : (p.real ?? 0);
-  // Prev: use replanejado (Format C) when available, else previsto
-  const getPrevAt = (p: typeof ultPoint) =>
-    p == null ? 0 : (p.replanejado ?? 0) > 0 ? (p.replanejado ?? 0) : (p.previsto ?? 0);
-
-  // Prefer authoritative values from import (FORMATO D), fallback to S-Curve derivation
-  const avancoReal = info.realAcumulado ?? getRealAt(ultPoint);
-  const refPrev    = info.prevAcumulado ?? getPrevAt(ultPoint);
-  const prevAvancoReal = getRealAt(penPoint);
-  const prevRefPrev    = getPrevAt(penPoint);
+  const {
+    ultIdx, penIdx, penPoint,
+    hasReplanejado, refLabel, getRealAt,
+    avancoReal, refPrev, prevAvancoReal, prevRefPrev,
+    desvio, idp, prevIdp, status, statusLabel,
+  } = useContractPerformance();
 
   // Weekly Real % derived from accumulated delta.
   // Quando há replanejamento, ignorar info.desvioSemana/desvioAcumulado (vêm do RESUMO,
@@ -132,24 +106,17 @@ const ReportHeader = () => {
     ? prevAvancoReal - getRealAt(sCurveData[penIdx - 1])
     : prevAvancoReal;
 
-  const desvio = hasReplanejado ? (avancoReal - refPrev) : (info.desvioAcumulado ?? (avancoReal - refPrev));
-  const idp = refPrev > 0 ? ((avancoReal / refPrev) * 100) : 0;
-  const prevIdp = prevRefPrev > 0 ? ((prevAvancoReal / prevRefPrev) * 100) : 0;
-
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
 
-
   // Health badge
-  const healthConfig = idp >= 95
-    ? { label: 'No Prazo', Icon: ShieldCheck, cls: 'bg-success/20 text-success border-success/30' }
-    : idp >= 80
-    ? { label: 'Em Risco', Icon: ShieldAlert, cls: 'bg-warning/20 text-warning border-warning/30' }
-    : { label: 'Atrasado', Icon: ShieldX, cls: 'bg-destructive/20 text-destructive border-destructive/30' };
+  const healthConfig = status === 'ok'
+    ? { label: statusLabel, Icon: ShieldCheck, cls: 'bg-success/20 text-success border-success/30' }
+    : status === 'risk'
+    ? { label: statusLabel, Icon: ShieldAlert, cls: 'bg-warning/20 text-warning border-warning/30' }
+    : { label: statusLabel, Icon: ShieldX, cls: 'bg-destructive/20 text-destructive border-destructive/30' };
 
   // Auto executive summary (2-3 lines)
   const summaryParts: string[] = [];
-  const statusLabel = healthConfig.label;
-
 
 
   // Propósito do relatório
