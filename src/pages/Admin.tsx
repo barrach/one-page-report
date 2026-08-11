@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import type { AppRole } from '@/context/AuthContext';
 
-type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
 
 interface UserRow {
   user_id: string;
@@ -21,6 +21,7 @@ interface UserRow {
 
 const roleLabels: Record<AppRole, string> = {
   admin: 'Administrador',
+  planejador: 'Planejador',
   gestor: 'Gestor',
   visualizador: 'Visualizador',
   cliente: 'Cliente',
@@ -130,10 +131,41 @@ const Admin = () => {
           <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
             <Plus className="h-5 w-5" /> Criar Usuário
           </h2>
-          <form onSubmit={handleCreate} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            <Input placeholder="Nome" value={newName} onChange={(e) => setNewName(e.target.value)} required />
-            <Input type="email" placeholder="E-mail" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
-            <Input type="password" placeholder="Senha" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={6} />
+          {/* autoComplete="off" no form não basta: o Chrome preenche campos de e-mail e
+              senha do gerenciador de qualquer forma. O que ele respeita é `new-password`
+              e nomes de campo que não pareçam de login. */}
+          <form
+            onSubmit={handleCreate}
+            autoComplete="off"
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3"
+          >
+            <Input
+              name="novo-usuario-nome"
+              autoComplete="off"
+              placeholder="Nome"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              required
+            />
+            <Input
+              type="email"
+              name="novo-usuario-email"
+              autoComplete="off"
+              placeholder="E-mail"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              required
+            />
+            <Input
+              type="password"
+              name="novo-usuario-senha"
+              autoComplete="new-password"
+              placeholder="Senha"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              required
+              minLength={6}
+            />
             <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>

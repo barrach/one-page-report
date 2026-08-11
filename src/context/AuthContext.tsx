@@ -2,13 +2,17 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { User } from '@supabase/supabase-js';
 import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 
-export type AppRole = 'admin' | 'gestor' | 'visualizador' | 'cliente';
+export type AppRole = 'admin' | 'planejador' | 'gestor' | 'visualizador' | 'cliente';
 
-const ROLE_PRIORITY: AppRole[] = ['admin', 'gestor', 'visualizador', 'cliente'];
+// Da maior para a menor permissão: quando o usuário tem mais de um papel, vale o
+// primeiro desta lista.
+const ROLE_PRIORITY: AppRole[] = ['admin', 'planejador', 'gestor', 'visualizador', 'cliente'];
 
 interface AuthState {
   user: User | null;
   role: AppRole | null;
+  /** Criar e excluir projetos — só administrador. */
+  canManageProjects: boolean;
   loading: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -65,6 +69,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     role,
     loading,
     isAdmin: role === 'admin',
+    // O planejador faz tudo no projeto (importar, lançar, editar), menos criar ou
+    // excluir projetos — essa é a única diferença em relação ao administrador.
+    canManageProjects: role === 'admin',
     signOut: async () => {
       setUser(null);
       setRole(null);

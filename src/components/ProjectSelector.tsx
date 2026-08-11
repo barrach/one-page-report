@@ -3,6 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/context/AuthContext';
 
 interface Props {
   /** Exibe o botão de excluir o projeto selecionado. */
@@ -13,6 +14,7 @@ interface Props {
 
 const ProjectSelector = ({ showDelete = false, tone = 'light' }: Props) => {
   const { projects, selectedProjectId, selectProject, deleteProject } = useProjectStore();
+  const { canManageProjects } = useAuth();
   const dark = tone === 'dark';
 
   return (
@@ -34,7 +36,8 @@ const ProjectSelector = ({ showDelete = false, tone = 'light' }: Props) => {
         </SelectContent>
       </Select>
 
-      {showDelete && projects.length > 1 && (
+      {/* Excluir projeto é exclusivo de quem administra. */}
+      {showDelete && canManageProjects && projects.length > 1 && (
         <Button
           size="sm"
           variant="ghost"

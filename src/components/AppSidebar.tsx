@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, Database, Shield, LogOut, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { FileText, Database, Shield, LogOut, Plus, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
@@ -14,7 +14,7 @@ const DARK = '#002054';
 
 export default function AppSidebar() {
   const location = useLocation();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user, isAdmin, canManageProjects, signOut } = useAuth();
   const addProject = useProjectStore((s) => s.addProject);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('opr_sidebar_collapsed') === '1');
   const [newOpen, setNewOpen] = useState(false);
@@ -83,6 +83,10 @@ export default function AppSidebar() {
           <Database className="h-4 w-4 shrink-0" />
           {!collapsed && 'Dados'}
         </Link>
+        <Link to="/configuracoes" className={itemClass(isActive('/configuracoes'))} title="Configurações">
+          <Settings className="h-4 w-4 shrink-0" />
+          {!collapsed && 'Configurações'}
+        </Link>
 
         {isAdmin && (
           <>
@@ -98,10 +102,14 @@ export default function AppSidebar() {
           </>
         )}
 
-        <button onClick={() => setNewOpen(true)} className={cn(itemClass(), 'mt-4')} title="Novo projeto">
-          <Plus className="h-4 w-4 shrink-0" />
-          {!collapsed && 'Novo'}
-        </button>
+        {/* Criar projeto é exclusivo de quem administra — o planejador trabalha
+            nos projetos que lhe foram atribuídos. */}
+        {canManageProjects && (
+          <button onClick={() => setNewOpen(true)} className={cn(itemClass(), 'mt-4')} title="Novo projeto">
+            <Plus className="h-4 w-4 shrink-0" />
+            {!collapsed && 'Novo'}
+          </button>
+        )}
       </nav>
 
       {/* Footer */}
