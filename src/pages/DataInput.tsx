@@ -13,6 +13,8 @@ import ClearDataButton from '@/components/ClearDataButton';
 import { cn } from '@/lib/utils';
 import PpcSemanalTable from '@/components/PpcSemanalTable';
 import ProjectSelector from '@/components/ProjectSelector';
+import TemplatesDownload from '@/components/TemplatesDownload';
+import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -296,6 +298,8 @@ const DataInputPage = () => {
 
       <WeeklyImportModal open={importOpen} onOpenChange={setImportOpen} />
 
+      <TemplatesDownload />
+
       {/* Project Info */}
       <ProjectInfoEditor info={info} setInfo={setInfo} />
 
@@ -395,6 +399,13 @@ const DataInputPage = () => {
         <HistogramSpreadsheet />
         <ImportStamp iso={lastImports?.histogram} />
       </div>
+
+      {/* Cronograma — as tarefas vindas do "Template - Cronograma" */}
+      <div>
+        <ScheduleSpreadsheet />
+        <ImportStamp iso={lastImports?.schedule} />
+      </div>
+
       <ProgSemanalSection />
     </div>
   );
