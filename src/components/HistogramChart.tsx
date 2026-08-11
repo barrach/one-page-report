@@ -29,7 +29,7 @@ const HistogramChart = () => {
 
   if (data.length === 0) {
     return (
-      <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
+      <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
         <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Histograma MOD</h3>
         <p className="text-xs text-muted-foreground">Nenhum dado de histograma. Adicione dados na aba Dados.</p>
       </div>
@@ -37,7 +37,7 @@ const HistogramChart = () => {
   }
 
   const chartContent = (height: string) => (
-    <div className={height} style={{ minHeight: 0 }}>
+    <div className={height}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} onClick={handleClick} style={{ cursor: 'pointer' }}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
@@ -136,7 +136,7 @@ const HistogramChart = () => {
   );
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between mb-1">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Histograma MOD</h3>
         <ChartExpandModal
@@ -144,11 +144,12 @@ const HistogramChart = () => {
           subtitle="Mão de obra prevista × real por período"
           expandedHeight="h-full"
         >
-          {chartContent('h-full')}
+          {chartContent('h-full min-h-0')}
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Mão de obra prevista × real por período</p>
-      {chartContent('h-[260px] sm:h-[450px]')}
+      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
+      {chartContent('flex-1 min-h-[260px] sm:min-h-[450px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
     </div>
   );

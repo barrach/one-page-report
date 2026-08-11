@@ -168,7 +168,7 @@ const MonthChart = () => {
   
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border flex flex-col">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
       <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
 

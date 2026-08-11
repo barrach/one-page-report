@@ -116,7 +116,7 @@ const SCurveChart = () => {
   };
 
   const chartContent = (height: string) => (
-    <div className={height} style={{ minHeight: 0 }}>
+    <div className={height}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}
@@ -217,7 +217,7 @@ const SCurveChart = () => {
   );
 
   return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between mb-1">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva "S"</h3>
         <ChartExpandModal
@@ -225,11 +225,12 @@ const SCurveChart = () => {
           subtitle="Avanço acumulado previsto × real × tendência"
           expandedHeight="h-full"
         >
-          {chartContent('h-full')}
+          {chartContent('h-full min-h-0')}
         </ChartExpandModal>
       </div>
       <p className="text-xs text-muted-foreground mb-4">Avanço acumulado previsto × real × tendência</p>
-      {chartContent('h-[280px] sm:h-[500px]')}
+      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
+      {chartContent('flex-1 min-h-[280px] sm:min-h-[500px]')}
       {selectedDate && (
         <button
           onClick={() => useReportInteraction.getState().clearSelection()}
