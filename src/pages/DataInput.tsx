@@ -12,6 +12,7 @@ import WeeklyImportModal from '@/components/WeeklyImportModal';
 import ClearDataButton from '@/components/ClearDataButton';
 import { cn } from '@/lib/utils';
 import PpcSemanalTable from '@/components/PpcSemanalTable';
+import ProjectSelector from '@/components/ProjectSelector';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -280,8 +281,9 @@ const DataInputPage = () => {
 
   return (
     <div className="min-h-screen bg-background p-3 sm:p-4 space-y-6">
-      {/* Import button - top of page */}
-      <div className="flex justify-end">
+      {/* Primeira linha: seletor de projeto à esquerda, Importar Semana à direita */}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <ProjectSelector showDelete />
         <Button
           size="lg"
           onClick={() => setImportOpen(true)}
