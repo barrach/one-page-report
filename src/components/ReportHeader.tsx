@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
 import { useContractPerformance } from '@/hooks/use-contract-performance';
 import { useTvMode } from '@/hooks/use-tv-mode';
+import { ppcDaSemana, ultimaSemana } from '@/lib/ppc';
 
 
 const KpiCard = ({
@@ -296,18 +297,18 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
 
           {/* Card 5 — PPC Semanal */}
           {(() => {
-            const semanas = programacaoSemanal ?? [];
-            const ultima = semanas.length > 0 ? semanas[semanas.length - 1] : null;
-            const ppc = ultima
-              ? (ultima.ppc.ppcSemana > 0 ? ultima.ppc.ppcSemana : Math.round(ultima.ppc.totalAdherencia * 100))
-              : null;
+            // PPC binário (Last Planner): concluídas ÷ programadas, contado a partir
+            // da baixa dada no card da Programação Semanal.
+            const ultima = ultimaSemana(programacaoSemanal);
+            const resumo = ppcDaSemana(ultima);
+            const ppc = ultima ? resumo.pct : null;
             const ppcOk = ppc !== null && ppc >= 80;
             const ppcColor = ppc === null
               ? 'text-muted-foreground'
               : ppcOk ? 'text-success' : 'text-destructive';
             const ppcLabel = ppc !== null ? `${Math.round(ppc)}%` : '—';
             const subInfo = ultima
-              ? `Sem. ${ultima.semana} · ${ultima.periodo}`
+              ? `Sem. ${ultima.semana} · ${resumo.concluidas}/${resumo.programadas} atividades`
               : 'Nenhuma semana importada';
             return (
               <motion.div

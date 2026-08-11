@@ -25,6 +25,9 @@ import {
 import { cn } from "@/lib/utils";
 import type { ProgramacaoSemanal, Causa6M } from "@/lib/parseProgramacaoSemanal";
 import PpcSemanalTable from "@/components/PpcSemanalTable";
+import { useProjectStore } from "@/store/projectStore";
+import { ppcDaSemana, ultimaSemana } from "@/lib/ppc";
+import { Check } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -40,7 +43,7 @@ interface Props {
   }[];
 }
 
-type TabId = "ppc" | "pareto" | "planos";
+type TabId = "baixa" | "ppc" | "pareto" | "planos";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -137,7 +140,8 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   const { info } = useCurrentProject();
   const clientName = info?.cliente?.trim() || "Cliente";
 
-  const [activeTab, setActiveTab] = useState<TabId>("ppc");
+  const [activeTab, setActiveTab] = useState<TabId>("baixa");
+  const { selectedProjectId, setAtividadeExecutada } = useProjectStore();
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [responsavelMap, setResponsavelMap] = useState<Map<string, string>>(new Map());
 
@@ -241,18 +245,17 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
   // -------------------------------------------------------------------------
 
   const tabs: { id: TabId; label: string }[] = [
+    { id: "baixa", label: "Baixa" },
     { id: "ppc", label: "PPC Semanal" },
     { id: "pareto", label: "Pareto 6M" },
     { id: "planos", label: "Planos de Ação" },
   ];
 
   // PPC da última semana importada — alimenta o indicador e a barra do topo.
-  const ultima = data.length > 0 ? data[data.length - 1] : null;
-  const totalPrevisto = ultima?.ppc.totalPrevisto ?? 0;
-  const totalRealizado = ultima?.ppc.totalRealizado ?? 0;
-  const ppcPct = ultima
-    ? (ultima.ppc.ppcSemana > 0 ? ultima.ppc.ppcSemana : Math.round((ultima.ppc.totalAdherencia ?? 0) * 100))
-    : 0;
+  // É binário: conta atividades com baixa dada ÷ atividades programadas.
+  const ultima = ultimaSemana(data);
+  const resumo = ppcDaSemana(ultima);
+  const ppcPct = resumo.pct;
   const ppcColor = ppcPct >= 80 ? "text-success" : "text-destructive";
 
   return (
@@ -273,7 +276,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
               {Math.round(ppcPct)}%
             </div>
             <div className="text-[10px] text-muted-foreground mt-0.5">
-              PPC · {totalRealizado}/{totalPrevisto}
+              PPC · {resumo.concluidas}/{resumo.programadas}
             </div>
           </div>
         </div>
@@ -320,6 +323,84 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
 
       {/* Painel das abas — rola dentro do card quando o conteúdo passa da altura */}
       <div className="flex-1 min-h-0 overflow-y-auto">
+      {/* TAB — Baixa das atividades: é daqui que sai o PPC */}
+      {activeTab === "baixa" && ultima && (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground">
+            Semana {ultima.semana} · {ultima.periodo} — marque as atividades concluídas conforme
+            programado. Atividade parcial conta como não concluída.
+          </p>
+          {ultima.atividades.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Nenhuma atividade nesta semana.
+            </p>
+          ) : (
+            <ul className="space-y-1">
+              {ultima.atividades.map((a, i) => (
+                <li key={`${a.id}-${i}`}>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      selectedProjectId &&
+                      setAtividadeExecutada(selectedProjectId, ultima.semana, i, !a.executada)
+                    }
+                    className={cn(
+                      "w-full flex items-start gap-2 text-left rounded-lg border px-2.5 py-2 transition-colors",
+                      a.executada
+                        ? "border-success/40 bg-success/5"
+                        : "border-border bg-muted/20 hover:bg-muted/40"
+                    )}
+                    aria-pressed={a.executada}
+                  >
+                    <span
+                      className={cn(
+                        "mt-0.5 h-4 w-4 rounded border flex items-center justify-center shrink-0",
+                        a.executada
+                          ? "bg-success border-success text-white"
+                          : "border-muted-foreground/40"
+                      )}
+                    >
+                      {a.executada && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          "block text-xs leading-snug",
+                          a.executada ? "text-muted-foreground line-through" : "text-foreground"
+                        )}
+                      >
+                        {a.descricao || a.idCronograma || `Atividade ${i + 1}`}
+                      </span>
+                      {(a.local || a.responsavel || a.quantidade.prev > 0) && (
+                        <span className="block text-[10px] text-muted-foreground mt-0.5">
+                          {[
+                            a.local,
+                            a.responsavel,
+                            a.quantidade.prev > 0
+                              ? `${a.quantidade.prev} ${a.unidade || ""}`.trim()
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      )}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-[10px] font-bold shrink-0 tabular-nums",
+                        a.executada ? "text-success" : "text-muted-foreground"
+                      )}
+                    >
+                      {a.executada ? "1" : "0"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* TAB A — PPC Semanal (tabela) */}
       {activeTab === "ppc" && (
         <PpcSemanalTable data={data} showPeriodo />
