@@ -161,9 +161,10 @@ const Index = () => {
    * que a folha inteira precisa ser fatiado — e aí o corte acontece no fim de
    * uma linha de tabela, nunca no meio dela.
    *
-   * Durante a captura o relatório recebe a classe `exportando-pdf`, que o coloca
-   * em UMA coluna: em duas colunas, cada gráfico ficaria com metade de 194 mm e
-   * sairia ilegível no papel.
+   * Cada bloco é capturado na largura que já tem na tela e desenhado nos 194 mm
+   * úteis, então quem é meia-largura sai com texto maior no papel. A classe
+   * `exportando-pdf` só esconde controles e destrava overflow — mexer em largura
+   * fazia o recharts redesenhar e o gráfico saía vazio.
    */
   const exportPDF = async () => {
     if (!reportRef.current) return;
@@ -555,6 +556,10 @@ const Index = () => {
           <HistogramChart />
         </div>
 
+        {/* Cronograma — largura total: são as 15 colunas do template. Vem antes
+            dos cards de acompanhamento da semana. */}
+        <ScheduleTable />
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ActionsTable />
           <ProgramacaoSemanalCard
@@ -563,12 +568,8 @@ const Index = () => {
           />
         </div>
 
-        {/* Pareto 6M — largura total, entre a linha de Pontos de Atenção /
-            Programação Semanal e o Cronograma */}
+        {/* Pareto 6M — largura total, fecha o relatório com as causas */}
         <ParetoCausas />
-
-        {/* Cronograma — largura total: são as 15 colunas do template */}
-        <ScheduleTable />
 
         <motion.div
           initial={{ opacity: 0 }}
