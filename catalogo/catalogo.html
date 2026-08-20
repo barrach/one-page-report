@@ -457,6 +457,86 @@
     gap: 16px;
     flex-wrap: wrap;
   }
+
+  /* ---------- impressao / PDF A4 ---------- */
+
+  @page { size: A4 portrait; margin: 15mm 14mm 13mm; }
+  /* cada captura de tela ganha uma pagina inteira em paisagem: em retrato o
+     texto do painel fica ilegivel, e no papel nao da para arrastar a imagem */
+  @page tela { size: A4 landscape; margin: 11mm; }
+
+  @media print {
+    /* o PDF e sempre claro; a especificidade e a ordem vencem os blocos de tema escuro */
+    :root, :root:not([data-theme="x"]), :root[data-theme="dark"] {
+      --paper:      #ffffff;
+      --surface:    #ffffff;
+      --surface-2:  #f4f7fa;
+      --ink:        #0a1a30;
+      --ink-soft:   #3f4f66;
+      --ink-faint:  #55667e;
+      --rule:       #b9c4d4;
+      --rule-soft:  #d6dde8;
+      --structure:  #0b2b5c;
+      --on-struct:  #eef3fa;
+      --accent:      #de5a18;
+      --accent-text: #ab400b;
+      --accent-ink:  #1a0c04;
+      --accent-dim:  #ffb387;
+      --real:        #1a8a49;
+      --shadow: none;
+    }
+
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    body {
+      background-image: none;
+      background-color: #ffffff;
+      font-size: 10pt;
+      line-height: 1.5;
+    }
+    .frame { max-width: none; padding-inline: 0; }
+
+    /* a capa termina depois do heroi */
+    .hero { padding-block: 4mm 0; break-after: page; }
+    .hero-grid { grid-template-columns: 1fr; gap: 7mm; }
+    .titleblock { border-bottom: 1px solid var(--rule); }
+    .tb-row { padding-block: 0 4mm; }
+
+    h1 { font-size: 30pt; margin-bottom: 5mm; }
+    .lede { font-size: 12pt; max-width: none; }
+    h2 { font-size: 15pt; margin-bottom: 3mm; break-after: avoid; }
+    h3 { font-size: 10.5pt; }
+    p  { max-width: none; margin-bottom: 3mm; }
+    .eyebrow { font-size: 8pt; margin-bottom: 3mm; break-after: avoid; }
+
+    section { padding-block: 7mm; }
+    section:first-of-type { padding-top: 0; }
+    .split { gap: 8mm; }
+    .figs { gap: 5mm; margin-top: 6mm; }
+
+    /* nada de bloco cortado no meio da pagina */
+    figure, .plot, .step, .readout > div, .ms li, .chips li, tr, .steps, .readout { break-inside: avoid; }
+    figure, .plot { box-shadow: none; }
+    figure { page: tela; break-before: page; break-after: page; }
+    .figs { gap: 0; margin-top: 0; }
+    /* seis indicadores em duas fileiras de tres, sem celula vazia */
+    .readout { grid-template-columns: repeat(3, 1fr); }
+    .shot { overflow: visible; }
+    .shot img { width: 100%; max-width: 100%; }
+    figcaption { font-size: 7.5pt; padding: 2.5mm 3mm; }
+
+    .readout dd, .step p, th, td { font-size: 9pt; }
+    .spec-wrap { overflow: visible; }
+    table { min-width: 0; }
+
+    /* graficos e rotulos estaticos no papel */
+    .draw { animation: none; stroke-dashoffset: 0; }
+    .fade { animation: none; opacity: 1; }
+
+    .close { break-before: page; padding-block: 10mm; }
+    .cta { border: 1px solid var(--accent); }
+    footer { padding-block: 5mm 0; }
+  }
 </style>
 
 <header class="titleblock">
