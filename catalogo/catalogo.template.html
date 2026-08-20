@@ -1,0 +1,774 @@
+<title>One Page Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+  :root {
+    --paper:      #edf0f5;
+    --surface:    #ffffff;
+    --surface-2:  #f6f8fb;
+    --ink:        #0a1a30;
+    --ink-soft:   #4a5a72;
+    --ink-faint:  #5c6d86;
+    --rule:       #c9d2e0;
+    --rule-soft:  #dde3ec;
+    --structure:  #0b2b5c;
+    --on-struct:  #e8eef8;
+    --accent:     #de5a18;
+    --accent-text: #b8480d;
+    --accent-ink: #1a0c04;
+    --accent-dim: #ff9d63;
+    --real:       #1f9d55;
+    --grid:       rgba(11, 43, 92, 0.055);
+    --shadow:     0 1px 2px rgba(10, 26, 48, .06), 0 12px 32px -18px rgba(10, 26, 48, .28);
+
+    --display: 'Archivo', 'Helvetica Neue', Arial, sans-serif;
+    --prose:   'Newsreader', Georgia, 'Times New Roman', serif;
+    --mono:    'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace;
+
+    --frame: 1180px;
+    --gut: clamp(20px, 5vw, 56px);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #070e18;
+      --surface:    #0e1826;
+      --surface-2:  #121f31;
+      --ink:        #e7edf6;
+      --ink-soft:   #97a7c0;
+      --ink-faint:  #7b8da8;
+      --rule:       #22344c;
+      --rule-soft:  #1a2839;
+      --structure:  #0d2f63;
+      --on-struct:  #eaf1fb;
+      --accent:     #ff7f42;
+      --accent-text: #ff7f42;
+      --accent-ink: #1a0c04;
+      --accent-dim: #ffab7d;
+      --real:       #2fbc6b;
+      --grid:       rgba(146, 178, 224, 0.055);
+      --shadow:     0 1px 2px rgba(0, 0, 0, .5), 0 18px 40px -22px rgba(0, 0, 0, .8);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #070e18;
+    --surface:    #0e1826;
+    --surface-2:  #121f31;
+    --ink:        #e7edf6;
+    --ink-soft:   #97a7c0;
+    --ink-faint:  #7b8da8;
+    --rule:       #22344c;
+    --rule-soft:  #1a2839;
+    --structure:  #0d2f63;
+    --on-struct:  #eaf1fb;
+    --accent:     #ff7f42;
+    --accent-text: #ff7f42;
+    --accent-ink: #1a0c04;
+    --accent-dim: #ffab7d;
+    --real:       #2fbc6b;
+    --grid:       rgba(146, 178, 224, 0.055);
+    --shadow:     0 1px 2px rgba(0, 0, 0, .5), 0 18px 40px -22px rgba(0, 0, 0, .8);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 28px 28px, 28px 28px;
+    background-position: -1px -1px;
+    color: var(--ink);
+    font-family: var(--prose);
+    font-size: 17px;
+    line-height: 1.62;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .frame {
+    max-width: var(--frame);
+    margin: 0 auto;
+    padding-inline: var(--gut);
+  }
+
+  /* ---------- title block ---------- */
+
+  .titleblock {
+    border-bottom: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  .tb-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding-block: 18px;
+    flex-wrap: wrap;
+  }
+  .mark { display: flex; align-items: center; gap: 11px; }
+  .mark svg { display: block; }
+  .mark-name {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+  }
+  .tb-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: flex;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+
+  /* ---------- hero ---------- */
+
+  .hero { padding-block: clamp(44px, 8vw, 88px) clamp(32px, 5vw, 56px); }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: clamp(32px, 5vw, 64px);
+    align-items: center;
+  }
+  @media (max-width: 880px) { .hero-grid { grid-template-columns: 1fr; } }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    font-weight: 500;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin: 0 0 18px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .eyebrow::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(38px, 6.2vw, 66px);
+    line-height: .98;
+    letter-spacing: -.03em;
+    margin: 0 0 22px;
+    text-wrap: balance;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+
+  .lede {
+    font-size: clamp(18px, 2.2vw, 21px);
+    line-height: 1.55;
+    color: var(--ink-soft);
+    max-width: 34em;
+    margin: 0;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 30px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .chips li {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    color: var(--ink-soft);
+    padding: 7px 11px;
+  }
+
+  /* ---------- s-curve ---------- */
+
+  .plot {
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .plot-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+  .plot svg { display: block; width: 100%; height: auto; }
+  .plot-legend {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding: 11px 14px;
+    border-top: 1px solid var(--rule-soft);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+  }
+  .plot-legend span { display: flex; align-items: center; gap: 7px; }
+  .swatch { width: 16px; height: 2px; flex: none; }
+
+  .draw { stroke-dasharray: 1400; stroke-dashoffset: 1400; animation: draw 1.9s cubic-bezier(.4, 0, .2, 1) forwards; }
+  .draw.d2 { animation-delay: .28s; }
+  .draw.d3 { animation-delay: 1.5s; animation-duration: .7s; }
+  .fade { opacity: 0; animation: fade .5s ease 1.9s forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  @keyframes fade { to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) {
+    .draw { animation: none; stroke-dashoffset: 0; }
+    .fade { animation: none; opacity: 1; }
+  }
+
+  /* ---------- sections ---------- */
+
+  section { padding-block: clamp(40px, 6vw, 76px); }
+  section + section { border-top: 1px solid var(--rule); }
+
+  h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: clamp(26px, 3.6vw, 38px);
+    line-height: 1.08;
+    letter-spacing: -.022em;
+    margin: 0 0 16px;
+    text-wrap: balance;
+  }
+  h3 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: -.01em;
+    margin: 0 0 7px;
+  }
+  p { margin: 0 0 16px; max-width: 62ch; }
+  p:last-child { margin-bottom: 0; }
+  .soft { color: var(--ink-soft); }
+
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: clamp(28px, 4vw, 56px);
+    align-items: start;
+  }
+  @media (max-width: 880px) { .split { grid-template-columns: 1fr; } }
+
+  /* ---------- figures ---------- */
+
+  figure {
+    margin: 0;
+    min-width: 0;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .shot { overflow-x: auto; overscroll-behavior-x: contain; min-width: 0; }
+  figure img { display: block; width: 100%; height: auto; }
+  @media (max-width: 700px) {
+    .shot img { width: 640px; max-width: none; }
+  }
+  figcaption {
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.5;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    padding: 11px 14px;
+    border-top: 1px solid var(--rule-soft);
+    background: var(--surface-2);
+  }
+  .figs { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; margin-top: 34px; }
+
+  /* ---------- indicator readout ---------- */
+
+  .readout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    border-top: 1px solid var(--rule);
+    border-left: 1px solid var(--rule);
+    background: var(--surface);
+    margin: 0;
+  }
+  .readout > div {
+    padding: 16px 17px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+  }
+  .readout dt {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin-bottom: 6px;
+  }
+  .readout dd {
+    margin: 0;
+    font-size: 15px;
+    line-height: 1.45;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- steps ---------- */
+
+  .steps {
+    display: grid;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    margin-top: 30px;
+  }
+  @media (min-width: 760px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  .step { background: var(--surface); padding: 22px 20px; }
+  .step-n {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .12em;
+    color: var(--accent-text);
+    display: block;
+    margin-bottom: 12px;
+  }
+  .step p { font-size: 15.5px; color: var(--ink-soft); margin: 0; max-width: none; }
+
+  /* ---------- 6M ---------- */
+
+  .ms { display: flex; flex-wrap: wrap; gap: 9px; margin: 24px 0 0; padding: 0; list-style: none; }
+  .ms li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+    padding: 7px 11px 7px 9px;
+    color: var(--ink-soft);
+  }
+  .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+  /* ---------- spec table ---------- */
+
+  .spec-wrap {
+    overflow-x: auto;
+    margin-top: 30px;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; }
+  caption {
+    text-align: left;
+    padding: 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    border-bottom: 1px solid var(--rule);
+  }
+  th, td {
+    text-align: left;
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--rule-soft);
+    vertical-align: top;
+    font-size: 15px;
+  }
+  th {
+    font-family: var(--mono);
+    font-weight: 500;
+    font-size: 11px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    white-space: nowrap;
+    width: 1%;
+    border-right: 1px solid var(--rule-soft);
+  }
+  td { color: var(--ink-soft); }
+  tbody tr:last-child th, tbody tr:last-child td { border-bottom: 0; }
+
+  /* ---------- close ---------- */
+
+  .close {
+    background: var(--structure);
+    color: var(--on-struct);
+    border-top: 1px solid var(--rule);
+  }
+  .close h2 { color: var(--on-struct); }
+  .close p { color: #b9caea; }
+  .close .eyebrow { color: var(--accent-dim); }
+  .close .eyebrow::after { background: rgba(185, 202, 234, .28); }
+  .cta {
+    display: inline-block;
+    margin-top: 26px;
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    background: var(--accent);
+    color: var(--accent-ink);
+    padding: 15px 26px;
+    text-decoration: none;
+    border: 1px solid transparent;
+  }
+  .cta:hover { background: var(--on-struct); color: var(--structure); }
+  .cta:focus-visible { outline: 2px solid var(--accent-dim); outline-offset: 3px; }
+
+  footer {
+    border-top: 1px solid rgba(185, 202, 234, .22);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: #8fa5cc;
+    padding-block: 18px;
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+</style>
+
+<header class="titleblock">
+  <div class="frame tb-row">
+    <div class="mark">
+      <svg width="30" height="30" viewBox="0 0 30 30" role="img" aria-label="Marca One Page Report">
+        <rect x=".5" y=".5" width="29" height="29" fill="none" stroke="currentColor" stroke-opacity=".35"></rect>
+        <path d="M4 24C9 24 11 20 15 14S22 6 26 6" fill="none" stroke="currentColor" stroke-width="2"></path>
+        <path d="M4 26C10 26 13 23 17 18S23 11 26 11" fill="none" stroke="#de5a18" stroke-width="2"></path>
+      </svg>
+      <span class="mark-name">One Page Report</span>
+    </div>
+    <div class="tb-meta">
+      <span>Controle de projetos</span>
+      <span>Curva S &middot; PPC &middot; 6M</span>
+      <span>Cat&aacute;logo do produto</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="frame hero">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">Uma p&aacute;gina. O projeto inteiro.</p>
+        <h1>O relat&oacute;rio da obra <em>pronto</em> na hora em que a planilha sobe.</h1>
+        <p class="lede">
+          Voc&ecirc; j&aacute; monta cronograma e programa&ccedil;&atilde;o semanal no Excel. O One Page
+          Report l&ecirc; esses arquivos e devolve, em segundos, o relat&oacute;rio de acompanhamento
+          completo &mdash; curva S, indicadores, ader&ecirc;ncia, causas e plano de a&ccedil;&atilde;o
+          &mdash; numa p&aacute;gina que a diretoria entende sem precisar de explica&ccedil;&atilde;o.
+        </p>
+        <ul class="chips">
+          <li>Importa .xlsx</li>
+          <li>Exporta PDF A4</li>
+          <li>Multiprojeto</li>
+          <li>Modo TV</li>
+        </ul>
+      </div>
+
+      <div class="plot">
+        <div class="plot-head">
+          <span>Curva &ldquo;S&rdquo; &mdash; avan&ccedil;o acumulado</span>
+          <span>% &middot; 34 semanas</span>
+        </div>
+        <svg viewBox="0 0 800 330" role="img" aria-label="Curva S de exemplo: linha de base, avanço real e tendência ao longo de 34 semanas">
+          <g stroke="var(--rule-soft)" stroke-width="1">
+            <line x1="52" y1="300" x2="780" y2="300"></line>
+            <line x1="52" y1="230" x2="780" y2="230" stroke-dasharray="3 5"></line>
+            <line x1="52" y1="160" x2="780" y2="160" stroke-dasharray="3 5"></line>
+            <line x1="52" y1="90" x2="780" y2="90" stroke-dasharray="3 5"></line>
+            <line x1="52" y1="26" x2="780" y2="26" stroke-dasharray="3 5"></line>
+            <line x1="52" y1="20" x2="52" y2="300"></line>
+          </g>
+          <g font-family="IBM Plex Mono, monospace" font-size="11" fill="var(--ink-faint)">
+            <text x="20" y="304">0%</text>
+            <text x="12" y="234">25%</text>
+            <text x="12" y="164">50%</text>
+            <text x="12" y="94">75%</text>
+            <text x="4" y="30">100%</text>
+          </g>
+
+          <line class="fade" x1="596" y1="20" x2="596" y2="300" stroke="var(--accent)" stroke-width="1" stroke-dasharray="4 4"></line>
+          <text class="fade" x="590" y="316" text-anchor="end" font-family="IBM Plex Mono, monospace"
+                font-size="10" letter-spacing="1.2" fill="var(--accent-text)">DATA DE STATUS</text>
+
+          <path class="draw" d="M52 298C140 296 196 268 262 206S372 78 470 46 596 30 780 26"
+                fill="none" stroke="var(--structure)" stroke-width="2.5" stroke-linecap="round"></path>
+          <path class="draw d2" d="M52 299C150 298 214 282 286 232S404 116 500 78 566 66 596 62"
+                fill="none" stroke="var(--real)" stroke-width="2.5" stroke-linecap="round"></path>
+          <path class="draw d3" d="M596 62C660 54 712 42 780 34"
+                fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-dasharray="7 6" stroke-linecap="round"></path>
+          <circle class="fade" cx="596" cy="62" r="4.5" fill="var(--real)"></circle>
+        </svg>
+        <div class="plot-legend">
+          <span><i class="swatch" style="background: var(--structure)"></i>Linha de base</span>
+          <span><i class="swatch" style="background: var(--real)"></i>Real</span>
+          <span><i class="swatch" style="background: var(--accent)"></i>Tend&ecirc;ncia</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="frame">
+    <div class="split">
+      <div>
+        <p class="eyebrow">O relat&oacute;rio</p>
+        <h2>Seis indicadores, sempre no mesmo lugar.</h2>
+        <p class="soft">
+          A primeira dobra responde o que a reuni&atilde;o pergunta: onde o projeto est&aacute;, se
+          andou na semana, se est&aacute; atrasado e quanto falta. Cada indicador vem do cronograma
+          importado &mdash; ningu&eacute;m digita n&uacute;mero em campo de resumo.
+        </p>
+        <p class="soft">
+          Cabe&ccedil;alho com cliente, gestor, contrato, in&iacute;cio, t&eacute;rmino da linha de
+          base e t&eacute;rmino previsto. Um selo diz, em uma palavra, se o projeto est&aacute; no
+          prazo.
+        </p>
+      </div>
+      <dl class="readout">
+        <div><dt>% Realizado</dt><dd>Avan&ccedil;o real contra o previsto e contra o replanejamento.</dd></div>
+        <div><dt>Evolu&ccedil;&atilde;o semanal</dt><dd>Quanto o projeto andou desde a semana anterior.</dd></div>
+        <div><dt>Desvio</dt><dd>Dist&acirc;ncia entre real e linha de base, com sinal.</dd></div>
+        <div><dt>Prazo restante</dt><dd>Semanas at&eacute; o t&eacute;rmino previsto &mdash; ou de atraso.</dd></div>
+        <div><dt>PPC semanal</dt><dd>Ader&ecirc;ncia da programa&ccedil;&atilde;o da semana contra a meta.</dd></div>
+        <div><dt>IDP</dt><dd>&Iacute;ndice de desempenho do prazo em um n&uacute;mero.</dd></div>
+      </dl>
+    </div>
+
+    <div class="figs">
+      <figure>
+        <div class="shot">
+          <img src="{{IMG:01-relatorio-indicadores}}" alt="Topo do relatório com cabeçalho do projeto, seis cartões de indicador e a curva S">
+        </div>
+        <figcaption>Topo do relat&oacute;rio &mdash; cabe&ccedil;alho do projeto, painel de indicadores, curva S e resultado das cinco &uacute;ltimas semanas.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="frame">
+    <p class="eyebrow">Os gr&aacute;ficos</p>
+    <h2>Previsto e real, lado a lado, em cada corte que a obra usa.</h2>
+    <div class="split">
+      <p class="soft">
+        Curva S com linha de base, real, replanejado e tend&ecirc;ncia na mesma escala. Resultado
+        semanal em barras. Veloc&iacute;metro da meta do m&ecirc;s. Histograma de m&atilde;o de obra
+        prevista contra a efetiva, semana a semana &mdash; o gr&aacute;fico que mostra o custo
+        escondido do atraso.
+      </p>
+      <p class="soft">
+        Abaixo de cada gr&aacute;fico, uma linha de leitura escrita por IA: o que o n&uacute;mero
+        est&aacute; dizendo, em texto corrido, pronto para colar na ata. Voc&ecirc; gera quando quiser
+        e recolhe quando n&atilde;o precisar.
+      </p>
+    </div>
+    <div class="figs">
+      <figure>
+        <div class="shot">
+          <img src="{{IMG:02-curvas-histograma}}" alt="Velocímetro da meta mensal e histograma de mão de obra prevista contra real">
+        </div>
+        <figcaption>Prev. &times; realizado no m&ecirc;s, histograma de MOD e as observa&ccedil;&otilde;es geradas por IA sob cada gr&aacute;fico.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="frame">
+    <p class="eyebrow">O cronograma</p>
+    <h2>Da EAP inteira at&eacute; a atividade que travou.</h2>
+    <div class="split">
+      <p class="soft">
+        O cronograma entra com hierarquia. Voc&ecirc; escolhe at&eacute; que n&iacute;vel olhar
+        &mdash; de 1 a 5, ou tudo &mdash; e busca a tarefa pelo nome. Cada linha traz previsto da
+        linha de base, real, desvio, datas de in&iacute;cio e t&eacute;rmino da base e do
+        replanejado, dura&ccedil;&atilde;o restante e custo.
+      </p>
+      <p class="soft">
+        Nada de rolar quinze colunas de cronograma em reuni&atilde;o: o desvio negativo salta em
+        vermelho e a conversa vai direto para as frentes que est&atilde;o puxando o projeto para
+        baixo.
+      </p>
+    </div>
+    <div class="figs">
+      <figure>
+        <div class="shot">
+          <img src="{{IMG:03-cronograma}}" alt="Tabela de cronograma com níveis hierárquicos, percentuais e desvio por atividade">
+        </div>
+        <figcaption>Cronograma com filtro por n&iacute;vel, busca por tarefa e desvio calculado linha a linha.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="frame">
+    <div class="split">
+      <div>
+        <p class="eyebrow">Programa&ccedil;&atilde;o semanal</p>
+        <h2>PPC de verdade, com a causa do que n&atilde;o foi feito.</h2>
+        <p class="soft">
+          A programa&ccedil;&atilde;o semanal entra em pares previsto/real por dia. O PPC sai da
+          ader&ecirc;ncia de cada atividade, n&atilde;o de um n&uacute;mero digitado &agrave;
+          m&atilde;o. Toda atividade que fica abaixo de 90% de ader&ecirc;ncia exige justificativa.
+        </p>
+        <p class="soft">
+          As justificativas viram um Pareto das seis causas de Ishikawa. Em duas semanas voc&ecirc;
+          para de discutir opini&atilde;o e passa a ver qual dos seis M come a sua
+          programa&ccedil;&atilde;o.
+        </p>
+        <ul class="ms">
+          <li><i class="dot" style="background: #3b82f6"></i>M&eacute;todo</li>
+          <li><i class="dot" style="background: #f97316"></i>M&aacute;quina</li>
+          <li><i class="dot" style="background: #8b5cf6"></i>Material</li>
+          <li><i class="dot" style="background: #ef4444"></i>M&atilde;o de obra</li>
+          <li><i class="dot" style="background: #eab308"></i>Medida</li>
+          <li><i class="dot" style="background: #22c55e"></i>Meio ambiente</li>
+        </ul>
+      </div>
+      <div>
+        <p class="eyebrow">Pontos de aten&ccedil;&atilde;o</p>
+        <h2>Restri&ccedil;&atilde;o registrada &eacute; restri&ccedil;&atilde;o com dono e data.</h2>
+        <p class="soft">
+          Cada ponto de aten&ccedil;&atilde;o guarda a restri&ccedil;&atilde;o, a a&ccedil;&atilde;o
+          corretiva, o respons&aacute;vel e o prazo &mdash; com indicador de vencido, vence hoje ou
+          em dia. &Eacute; o plano de a&ccedil;&atilde;o da obra dentro do mesmo relat&oacute;rio que
+          mostra o problema, em vez de numa ata que ningu&eacute;m reabre.
+        </p>
+        <p class="soft">
+          Na reuni&atilde;o seguinte, a lista j&aacute; chega ordenada pelo que venceu.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="frame">
+    <p class="eyebrow">Como os dados entram</p>
+    <h2>Tr&ecirc;s passos, e o &uacute;nico trabalho &eacute; o que voc&ecirc; j&aacute; fazia.</h2>
+    <div class="steps">
+      <div class="step">
+        <span class="step-n">Passo 01</span>
+        <h3>Baixe o modelo</h3>
+        <p>Dois templates prontos: Cronograma e Programa&ccedil;&atilde;o Semanal. &Eacute; o Excel de sempre &mdash; s&oacute; n&atilde;o mude os t&iacute;tulos das colunas nem os nomes das abas.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">Passo 02</span>
+        <h3>Suba a planilha da semana</h3>
+        <p>A importa&ccedil;&atilde;o analisa o arquivo, mostra o que encontrou e deixa voc&ecirc; marcar campo por campo o que quer sobrescrever. O que n&atilde;o for marcado fica como est&aacute;.</p>
+      </div>
+      <div class="step">
+        <span class="step-n">Passo 03</span>
+        <h3>O relat&oacute;rio se monta</h3>
+        <p>Curvas, indicadores, cronograma, PPC e Pareto s&atilde;o recalculados na hora. Exporte em PDF A4 retrato, quantas p&aacute;ginas forem necess&aacute;rias, sem cortar informa&ccedil;&atilde;o.</p>
+      </div>
+    </div>
+    <div class="figs">
+      <figure>
+        <div class="shot">
+          <img src="{{IMG:06-import-inteligente}}" alt="Janela de importação semanal com os campos detectados na planilha e caixas de seleção">
+        </div>
+        <figcaption>Importa&ccedil;&atilde;o semanal &mdash; os campos detectados v&ecirc;m marcados; os que a planilha n&atilde;o traz aparecem desabilitados.</figcaption>
+      </figure>
+      <figure>
+        <div class="shot">
+          <img src="{{IMG:05-dados-importacao}}" alt="Tela de dados com modelos de importação, informações do projeto e a tabela da curva S">
+        </div>
+        <figcaption>Tela de dados &mdash; modelos para baixar, informa&ccedil;&otilde;es do projeto e as tabelas por tr&aacute;s de cada gr&aacute;fico, edit&aacute;veis c&eacute;lula a c&eacute;lula.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="frame">
+    <p class="eyebrow">Os dados por tr&aacute;s</p>
+    <h2>Toda tabela que alimenta um gr&aacute;fico fica aberta.</h2>
+    <div class="split">
+      <p class="soft">
+        Nada &eacute; caixa-preta. Curva S, resultado semanal, meta do m&ecirc;s, histograma de MOD e
+        cronograma aparecem em tabela edit&aacute;vel, com a data de status marcada na coluna certa e
+        o hor&aacute;rio da &uacute;ltima atualiza&ccedil;&atilde;o.
+      </p>
+      <p class="soft">
+        Se um n&uacute;mero est&aacute; estranho no gr&aacute;fico, voc&ecirc; corrige na
+        c&eacute;lula e o relat&oacute;rio acompanha. E se a semana veio errada, limpa aquele bloco
+        sem derrubar o resto do projeto.
+      </p>
+    </div>
+    <div class="figs">
+      <figure>
+        <div class="shot">
+          <img src="{{IMG:07-dados-tabelas}}" alt="Tabelas de previsto contra realizado, histograma e cronograma na tela de dados">
+        </div>
+        <figcaption>Prev. &times; realizado m&ecirc;s, histograma de MOD e cronograma &mdash; as mesmas tabelas que geram os gr&aacute;ficos, abertas para confer&ecirc;ncia.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="frame">
+    <p class="eyebrow">Especifica&ccedil;&atilde;o</p>
+    <h2>O que vem na caixa.</h2>
+    <div class="spec-wrap">
+      <table>
+        <caption>One Page Report &middot; resumo funcional</caption>
+        <tbody>
+          <tr><th scope="row">Projetos</th><td>V&aacute;rios projetos por conta, com troca pelo seletor no topo do relat&oacute;rio.</td></tr>
+          <tr><th scope="row">Acesso</th><td>Cinco pap&eacute;is &mdash; administrador, planejador, gestor, visualizador e cliente. Login por e-mail e senha, sem autocadastro; troca de senha na pr&oacute;pria conta.</td></tr>
+          <tr><th scope="row">Entrada</th><td>Planilhas .xlsx de cronograma e de programa&ccedil;&atilde;o semanal, mais edi&ccedil;&atilde;o manual de qualquer c&eacute;lula.</td></tr>
+          <tr><th scope="row">Curvas</th><td>Linha de base, real, replanejado e tend&ecirc;ncia. Resultado das cinco &uacute;ltimas semanas e meta mensal em veloc&iacute;metro.</td></tr>
+          <tr><th scope="row">Indicadores</th><td>% realizado, evolu&ccedil;&atilde;o semanal, desvio, prazo restante, PPC semanal e IDP.</td></tr>
+          <tr><th scope="row">M&atilde;o de obra</th><td>Histograma de MOD prevista contra real, por semana e por m&ecirc;s.</td></tr>
+          <tr><th scope="row">An&aacute;lise de causa</th><td>Justificativa 6M por atividade, com corte de ader&ecirc;ncia em 90%, e Pareto das causas.</td></tr>
+          <tr><th scope="row">Plano de a&ccedil;&atilde;o</th><td>Pontos de aten&ccedil;&atilde;o com restri&ccedil;&atilde;o, a&ccedil;&atilde;o corretiva, respons&aacute;vel, prazo e indicador de vencimento.</td></tr>
+          <tr><th scope="row">Texto autom&aacute;tico</th><td>Observa&ccedil;&atilde;o por gr&aacute;fico e resumo executivo do projeto, gerados por IA sobre os n&uacute;meros reais.</td></tr>
+          <tr><th scope="row">Exporta&ccedil;&atilde;o</th><td>PDF A4 retrato, multip&aacute;gina, bloco por bloco, sem texto cortado.</td></tr>
+          <tr><th scope="row">Painel</th><td>Modo TV para tel&atilde;o de obra: sem controles, gr&aacute;ficos preenchendo a tela, e n&atilde;o cai em atualiza&ccedil;&atilde;o de p&aacute;gina.</td></tr>
+          <tr><th scope="row">Instala&ccedil;&atilde;o</th><td>Aplicativo web instal&aacute;vel (PWA), tema claro e escuro, roda no navegador do celular e do desktop.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="close">
+    <div class="frame">
+      <p class="eyebrow">Pr&oacute;ximo passo</p>
+      <h2>Traga o cronograma do seu projeto.</h2>
+      <p>
+        A demonstra&ccedil;&atilde;o &eacute; com os seus dados: voc&ecirc; sobe a planilha que
+        j&aacute; usa e v&ecirc; o relat&oacute;rio da sua obra montado na frente. Se o modelo
+        n&atilde;o bater com o seu, a leitura do arquivo se ajusta.
+      </p>
+      <a class="cta" href="#contato">Agendar uma demonstra&ccedil;&atilde;o</a>
+    </div>
+    <div class="frame">
+      <footer>
+        <span id="contato">Contato &middot; [ inserir e-mail e telefone ]</span>
+        <span>One Page Report</span>
+      </footer>
+    </div>
+  </section>
+</main>
