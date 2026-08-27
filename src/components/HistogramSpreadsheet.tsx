@@ -1,12 +1,13 @@
 import { useProjectStore, useCurrentProject, HistogramPoint } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, ClipboardPaste, Upload } from 'lucide-react';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import ClearDataButton from '@/components/ClearDataButton';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
+import { alinharComCurva, indiceDaSemanaDeStatus } from '@/lib/histograma';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -24,7 +25,7 @@ const parseNumber = (val: string): number => {
 };
 
 const HistogramSpreadsheet = () => {
-  const { histogramData } = useCurrentProject();
+  const { histogramData, sCurveData, info } = useCurrentProject();
   const { setHistogramData, addHistogramPoint, removeHistogramPoint } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
@@ -94,7 +95,27 @@ const HistogramSpreadsheet = () => {
       toast.error(`Erro ao importar: ${e instanceof Error ? e.message : 'desconhecido'}`);
     }
   }, [setHistogramData]);
-  const data = histogramData || [];
+  // As colunas são as semanas da obra inteira, vindas da Curva S; o que já foi
+  // lançado é reaproveitado casando pela data. Editar grava a série alinhada,
+  // então a planilha passa a cobrir do início ao fim do projeto.
+  const data = useMemo(
+    () => alinharComCurva(histogramData || [], sCurveData, new Date().getFullYear()),
+    [histogramData, sCurveData],
+  );
+
+  // Rola até a semana de status: numa obra longa a coluna a preencher fica
+  // muito à direita, e abrir a planilha no começo obrigava a arrastar até lá.
+  const rolagemRef = useRef<HTMLDivElement>(null);
+  const colunaStatusRef = useRef<HTMLTableCellElement>(null);
+  const statusIdx = indiceDaSemanaDeStatus(data, info?.atualizadoEm || '');
+
+  useEffect(() => {
+    const caixa = rolagemRef.current;
+    const coluna = colunaStatusRef.current;
+    if (!caixa || !coluna) return;
+    // Uma folga de 120px deixa a semana anterior visível como referência.
+    caixa.scrollLeft = Math.max(0, coluna.offsetLeft - 120);
+  }, [statusIdx, data.length]);
 
   const updateCell = (colIndex: number, field: keyof HistogramPoint, value: string) => {
     const updated = data.map((p, i) =>
@@ -146,14 +167,21 @@ const HistogramSpreadsheet = () => {
           <Button size="sm" onClick={handlePaste}>Importar Dados</Button>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <div ref={rolagemRef} className="overflow-x-auto">
         <table className="border-collapse text-xs min-w-max">
           <thead>
             <tr>
               <th className="sticky left-0 z-10 bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-3 py-2 text-left font-semibold border border-border min-w-[120px]">Métrica</th>
               {data.map((point, i) => (
-                <th key={i} className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-1 text-center font-semibold border border-border min-w-[70px]">
+                <th
+                  key={i}
+                  ref={i === statusIdx ? colunaStatusRef : undefined}
+                  className={`bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-1 text-center font-semibold border border-border min-w-[70px] ${
+                    i === statusIdx ? 'ring-2 ring-inset ring-[hsl(var(--chart-cutline))]' : ''
+                  }`}
+                >
                   <input className="bg-transparent text-center text-[hsl(var(--table-header-foreground))] w-full outline-none text-xs font-semibold" value={point.date} onChange={(e) => updateCell(i, 'date', e.target.value)} placeholder="Data" />
+                  {i === statusIdx && <span className="block text-[10px] font-normal opacity-80">status</span>}
                   <button onClick={() => removeHistogramPoint(i)} className="text-destructive/70 hover:text-destructive mt-0.5"><Trash2 className="h-3 w-3 mx-auto" /></button>
                 </th>
               ))}

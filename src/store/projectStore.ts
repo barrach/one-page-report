@@ -28,6 +28,8 @@ export interface ProjectInfo {
   curvaPeriodicidade?: 'semanal' | 'diaria';
   /** Contra o que o card Prev. × Realizado Mês compara o mês. */
   mesBase?: 'linhaBase' | 'tendencia';
+  /** Recorte do Histograma MOD no relatório: obra inteira, 15 ou 30 dias. */
+  histPeriodo?: 'tudo' | '15' | '30';
   // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
   prevSemana?: number;
   realSemana?: number;

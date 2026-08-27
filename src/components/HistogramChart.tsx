@@ -1,6 +1,9 @@
-import { useCurrentProject } from '@/store/projectStore';
+import { useMemo } from 'react';
+import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { cn } from '@/lib/utils';
+import { filtrarPeriodo, ROTULO_PERIODO, type PeriodoHistograma } from '@/lib/histograma';
 import ChartInsight from '@/components/ChartInsight';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import {
@@ -10,11 +13,18 @@ import {
 
 const HistogramChart = () => {
   const { histogramData, info } = useCurrentProject();
+  const setInfo = useProjectStore((s) => s.setInfo);
   const { selectedDate, setSelectedDate } = useReportInteraction();
   const isMobile = useIsMobile();
 
-  const allData = (histogramData || []).filter(h => h.date);
-  const data = isMobile ? allData.slice(-8) : allData;
+  const periodo: PeriodoHistograma = info?.histPeriodo ?? 'tudo';
+  const allData = useMemo(
+    () => filtrarPeriodo((histogramData || []).filter(h => h.date), info?.atualizadoEm || '', periodo),
+    [histogramData, info?.atualizadoEm, periodo],
+  );
+  // No celular o recorte já é curto; sem ele, as últimas 8 semanas continuam
+  // sendo o que cabe na tela.
+  const data = isMobile && periodo === 'tudo' ? allData.slice(-8) : allData;
 
   // Boundary between last real week and first future (previsto) week
   let lastRealIdx = -1;
@@ -137,17 +147,39 @@ const HistogramChart = () => {
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
-      <div className="flex items-start justify-between mb-1">
+      <div className="flex items-start justify-between gap-2 mb-1">
         <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Histograma MOD</h3>
-        <ChartExpandModal
-          title="Histograma MOD"
-          subtitle="Mão de obra prevista × real por período"
-          expandedHeight="h-full"
-        >
-          {chartContent('h-full min-h-0')}
-        </ChartExpandModal>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Recorte fica fora do papel: no PDF vale a janela escolhida, não o seletor. */}
+          <div className="flex gap-1 print:hidden" data-html2canvas-ignore>
+            {(['tudo', '15', '30'] as PeriodoHistograma[]).map((p) => (
+              <button
+                key={p}
+                onClick={() => setInfo({ histPeriodo: p })}
+                className={cn(
+                  'px-2 py-1 rounded border text-[11px] font-medium transition-colors',
+                  periodo === p
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'text-muted-foreground border-border hover:text-foreground',
+                )}
+              >
+                {ROTULO_PERIODO[p]}
+              </button>
+            ))}
+          </div>
+          <ChartExpandModal
+            title="Histograma MOD"
+            subtitle="Mão de obra prevista × real por período"
+            expandedHeight="h-full"
+          >
+            {chartContent('h-full min-h-0')}
+          </ChartExpandModal>
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground mb-4">Mão de obra prevista × real por período</p>
+      <p className="text-xs text-muted-foreground mb-4">
+        Mão de obra prevista × real por período
+        {periodo !== 'tudo' && ` · ${ROTULO_PERIODO[periodo]} em torno da data de status`}
+      </p>
       {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
       {chartContent('flex-1 min-h-[260px] sm:min-h-[450px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
