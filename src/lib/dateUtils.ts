@@ -93,3 +93,95 @@ export const centerWeeklyWindow = <T extends { date: string }>(
   if (end > data.length) { start -= (end - data.length); end = data.length; start = Math.max(0, start); }
   return data.slice(start, end);
 };
+
+// ─── Primitivas de data usadas pela Curva S do MS Project ────────────────────
+
+/** ISO (yyyy-mm-dd) → Date no fuso local. `null` quando não dá para ler. */
+export const parseISOLocal = (iso: string): Date | null => {
+  if (!iso) return null;
+  const d = new Date(`${iso.slice(0, 10)}T00:00:00`);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+/** Nova data deslocada em `dias` — não altera a original. */
+export const somarDias = (d: Date, dias: number): Date => {
+  const out = new Date(d.getTime());
+  out.setDate(out.getDate() + dias);
+  return out;
+};
+
+/** Date → "dd/mmm" (ex.: 19/out) — o rótulo usado nos eixos dos gráficos. */
+export const formatDDmmm = (d: Date): string =>
+  `${String(d.getDate()).padStart(2, '0')}/${months[d.getMonth()]}`;
+
+export type Periodicidade = 'semanal' | 'diaria';
+
+/** Quantos dias cada ponto da curva avança. */
+export const PASSO_DIAS: Record<Periodicidade, number> = { semanal: 7, diaria: 1 };
+
+export interface JanelaItem {
+  date: string;
+  previsto: number;
+  real: number;
+  tendencia?: number;
+  isStatus?: boolean;
+}
+
+/**
+ * Janela de N períodos com a data de status SEMPRE no centro.
+ *
+ * Diferente de `centerWeeklyWindow`, que desliza a janela para dentro dos dados
+ * quando o status está perto da borda: aqui o centro é inegociável — quando a
+ * série não alcança, o período que falta entra vazio, com o rótulo calculado a
+ * partir da periodicidade. É o que a Visão de 5 Semanas precisa: duas semanas
+ * atrás, a semana de status e duas semanas à frente (o que está previsto).
+ */
+export const janelaCentradaNaData = (
+  data: JanelaItem[],
+  atualizadoEm: string,
+  opts: { size?: number; periodicidade?: Periodicidade } = {},
+): JanelaItem[] => {
+  const size = opts.size ?? 5;
+  const passo = PASSO_DIAS[opts.periodicidade ?? 'semanal'];
+  if (!data || data.length === 0) return data;
+
+  const ref = parseISOLocal(atualizadoEm);
+
+  // A semana já marcada pela importação manda: rótulos como "26-SEM29" não são
+  // datas parseáveis, então procurar pela mais próxima de `atualizadoEm` cairia
+  // sempre na primeira da série.
+  let centro = data.findIndex((w) => w.isStatus);
+  if (centro < 0) {
+    if (!ref) return data.slice(-size);
+    const anoRef = ref.getFullYear();
+    let menor = Infinity;
+    centro = 0;
+    data.forEach((row, i) => {
+      const d = parseWeekLabel(row.date, anoRef);
+      if (!d) return;
+      const diff = Math.abs(d.getTime() - ref.getTime());
+      if (diff < menor) { menor = diff; centro = i; }
+    });
+  }
+
+  const meio = Math.floor(size / 2);
+  const anoRef = (ref ?? new Date()).getFullYear();
+  const dataCentro = parseWeekLabel(data[centro]?.date ?? '', anoRef) ?? ref;
+
+  const out: JanelaItem[] = [];
+  for (let k = -meio; k <= size - meio - 1; k++) {
+    const existente = data[centro + k];
+    if (existente) {
+      out.push({ ...existente, isStatus: k === 0 });
+      continue;
+    }
+    // Fora da série: período vazio, só para manter o status no centro.
+    out.push({
+      date: dataCentro ? formatDDmmm(somarDias(dataCentro, k * passo)) : '',
+      previsto: 0,
+      real: 0,
+      isStatus: k === 0,
+    });
+  }
+  return out;
+};

@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import ClearDataButton from '@/components/ClearDataButton';
+import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -128,15 +129,13 @@ const HistogramSpreadsheet = () => {
   }, [pasteText, setHistogramData]);
 
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Histograma (MOD)</h2>
-          {histogramData.length > 0 && (
-            <ClearDataButton sectionName="Histograma MOD" onConfirm={() => setHistogramData([])} />
-          )}
-        </div>
-      </div>
+    <SecaoRecolhivel
+      id="histograma"
+      titulo="Histograma (MOD)"
+      acoes={histogramData.length > 0 ? (
+        <ClearDataButton sectionName="Histograma MOD" onConfirm={() => setHistogramData([])} />
+      ) : undefined}
+    >
       {showPaste && (
         <div className="mb-4 space-y-2 p-4 rounded-md bg-muted/50 border">
           <p className="text-sm text-muted-foreground">
@@ -178,7 +177,7 @@ const HistogramSpreadsheet = () => {
           </tbody>
         </table>
       </div>
-    </div>
+    </SecaoRecolhivel>
   );
 };
 

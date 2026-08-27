@@ -6,6 +6,9 @@ import { Textarea } from '@/components/ui/textarea';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import ClearDataButton from '@/components/ClearDataButton';
+import SecaoRecolhivel from '@/components/SecaoRecolhivel';
+import MsProjectCurveInput from '@/components/MsProjectCurveInput';
+import { cn } from '@/lib/utils';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -23,6 +26,9 @@ const SCurveSpreadsheet = () => {
   // não vem da importação, é o usuário que preenche quando existe. Revelar sozinho
   // quando havia dado deixava o botão sem efeito nenhum.
   const [showReplanejadoManual, setShowReplanejadoManual] = useState(false);
+  // Painel de entrada em HH/Custo (MS Project) — fica escondido até ser pedido,
+  // porque a maioria dos projetos já chega com a curva em percentual.
+  const [showMsProject, setShowMsProject] = useState(false);
   const showReplanejado = showReplanejadoManual;
   const showRealReplanejado = showReplanejadoManual;
   const setShowReplanejado = setShowReplanejadoManual;
@@ -138,35 +144,53 @@ const SCurveSpreadsheet = () => {
     if (newData.length > 0) { setSCurveData(newData); setShowPaste(false); setPasteText(''); }
   }, [pasteText, setSCurveData]);
 
+  const botaoCabecalho = (ativo: boolean) =>
+    cn(
+      'text-xs px-2 py-1 rounded border transition-colors',
+      ativo
+        ? 'bg-primary text-primary-foreground border-primary'
+        : 'text-muted-foreground border-border hover:text-foreground',
+    );
+
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Dados da Curva S</h2>
+    <SecaoRecolhivel
+      id="curva-s"
+      titulo="Dados da Curva S"
+      acoes={
+        <>
           {sCurveData.length > 0 && (
             <ClearDataButton sectionName="Dados da Curva S" onConfirm={() => setSCurveData([])} />
           )}
+          <button
+            onClick={() => setShowMsProject(v => !v)}
+            className={botaoCabecalho(showMsProject)}
+            title="Lançar a curva em HH ou em Custo, como o MS Project exporta"
+          >
+            {showMsProject ? '▾ Ocultar HH / Custo' : '▸ Entrada em HH / Custo'}
+          </button>
+          <button
+            onClick={() => setShowReplanejado(v => !v)}
+            className={botaoCabecalho(showReplanejadoManual)}
+            title={
+              hasReplanejadoData
+                ? 'Este projeto já tem replanejado preenchido — clique para ver e editar'
+                : 'Mostrar as linhas de Replanejado para preencher'
+            }
+          >
+            {showReplanejadoManual ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
+            {/* Aviso de que há dado escondido atrás do botão */}
+            {!showReplanejadoManual && hasReplanejadoData && (
+              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
+            )}
+          </button>
+        </>
+      }
+    >
+      {showMsProject && (
+        <div className="mb-4">
+          <MsProjectCurveInput />
         </div>
-        <button
-          onClick={() => setShowReplanejado(v => !v)}
-          className={`text-xs px-2 py-1 rounded border transition-colors ${
-            showReplanejadoManual
-              ? 'bg-primary text-primary-foreground border-primary'
-              : 'text-muted-foreground border-border hover:text-foreground'
-          }`}
-          title={
-            hasReplanejadoData
-              ? 'Este projeto já tem replanejado preenchido — clique para ver e editar'
-              : 'Mostrar as linhas de Replanejado para preencher'
-          }
-        >
-          {showReplanejadoManual ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
-          {/* Aviso de que há dado escondido atrás do botão */}
-          {!showReplanejadoManual && hasReplanejadoData && (
-            <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
-          )}
-        </button>
-      </div>
+      )}
 
       {showPaste && (
         <div className="mb-4 space-y-2 p-4 rounded-md bg-muted/50 border">
@@ -220,7 +244,7 @@ const SCurveSpreadsheet = () => {
           </tbody>
         </table>
       </div>
-    </div>
+    </SecaoRecolhivel>
   );
 };
 

@@ -6,6 +6,7 @@ import { useState, useMemo } from 'react';
 import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
 import { cn } from '@/lib/utils';
 import ClearDataButton from '@/components/ClearDataButton';
+import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 
 const ScheduleSpreadsheet = () => {
   const { scheduleData } = useCurrentProject();
@@ -45,14 +46,14 @@ const ScheduleSpreadsheet = () => {
   ];
 
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Cronograma</h2>
-          {data.length > 0 && (
-            <ClearDataButton sectionName="Cronograma" onConfirm={() => setScheduleData([])} />
-          )}
-        </div>
+    <SecaoRecolhivel
+      id="cronograma"
+      titulo="Cronograma"
+      acoes={data.length > 0 ? (
+        <ClearDataButton sectionName="Cronograma" onConfirm={() => setScheduleData([])} />
+      ) : undefined}
+    >
+      <div className="flex items-center justify-end mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">Exibir até nível:</span>
           {levelButtons.map((b) => (
@@ -166,7 +167,7 @@ const ScheduleSpreadsheet = () => {
       <p className="mt-2 text-[11px] text-muted-foreground">
         Exibindo {visible.length} de {data.length} linhas.
       </p>
-    </div>
+    </SecaoRecolhivel>
   );
 };
 

@@ -15,6 +15,7 @@ import PpcSemanalTable from '@/components/PpcSemanalTable';
 import ProjectSelector from '@/components/ProjectSelector';
 import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
+import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -127,8 +128,7 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
   };
 
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <h2 className="text-xl font-bold text-foreground mb-4">Informações do Projeto</h2>
+    <SecaoRecolhivel id="info-projeto" titulo="Informações do Projeto">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {INFO_FIELDS.map((field) => (
           <div key={field.key}>
@@ -152,7 +152,7 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
           </Button>
         )}
       </div>
-    </div>
+    </SecaoRecolhivel>
   );
 };
 
@@ -309,15 +309,14 @@ const DataInputPage = () => {
       </div>
 
       {/* Weekly Data */}
-      <div className="bg-card rounded-lg p-6 shadow-sm border">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-foreground">Resultado Semanal / Visão 5 Semanas</h2>
-            {weeklyData.length > 0 && (
-              <ClearDataButton sectionName="Resultado Semanal" onConfirm={() => setWeeklyData([])} />
-            )}
-          </div>
-        </div>
+      <SecaoRecolhivel
+        id="resultado-semanal"
+        titulo="Resultado Semanal / Visão 5 Semanas"
+        descricao="A janela do relatório sai centrada na data de “Atualizado em”: duas semanas atrás, a semana de status e duas semanas à frente."
+        acoes={weeklyData.length > 0 ? (
+          <ClearDataButton sectionName="Resultado Semanal" onConfirm={() => setWeeklyData([])} />
+        ) : undefined}
+      >
         <PasteSection show={showWeeklyPaste} text={weeklyPasteText} setText={setWeeklyPasteText} onImport={handleWeeklyPaste} label="Datas" />
         <div className="overflow-x-auto">
           <table className="border-collapse text-xs min-w-max">
@@ -350,18 +349,16 @@ const DataInputPage = () => {
           </table>
         </div>
         <ImportStamp iso={lastImports?.weekly} />
-      </div>
+      </SecaoRecolhivel>
 
       {/* Month Data */}
-      <div className="bg-card rounded-lg p-6 shadow-sm border">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold text-foreground">Prev. x Realizado Mês</h2>
-            {monthData.length > 0 && (
-              <ClearDataButton sectionName="Prev. x Realizado Mês" onConfirm={() => setMonthData([])} />
-            )}
-          </div>
-        </div>
+      <SecaoRecolhivel
+        id="prev-real-mes"
+        titulo="Prev. x Realizado Mês"
+        acoes={monthData.length > 0 ? (
+          <ClearDataButton sectionName="Prev. x Realizado Mês" onConfirm={() => setMonthData([])} />
+        ) : undefined}
+      >
         <PasteSection show={showMonthPaste} text={monthPasteText} setText={setMonthPasteText} onImport={handleMonthPaste} label="Semanas" />
         <div className="overflow-x-auto">
           <table className="border-collapse text-xs min-w-max">
@@ -393,14 +390,14 @@ const DataInputPage = () => {
           </table>
         </div>
         <ImportStamp iso={lastImports?.month} />
-      </div>
+      </SecaoRecolhivel>
 
       <div>
         <HistogramSpreadsheet />
         <ImportStamp iso={lastImports?.histogram} />
       </div>
 
-      {/* Cronograma — as tarefas vindas do "Template - Cronograma" */}
+      {/* Cronograma — as tarefas trazidas pelo "Importar Semana" */}
       <div>
         <ScheduleSpreadsheet />
         <ImportStamp iso={lastImports?.schedule} />
@@ -423,20 +420,21 @@ const ProgSemanalSection = () => {
   if (weeks.length === 0) return null;
 
   return (
-    <div className="bg-card rounded-lg p-6 shadow-sm border">
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-foreground">Programação Semanal — PPC</h2>
-          <ClearDataButton
-            sectionName="Programação Semanal"
-            onConfirm={() => clearProgramacaoSemanal(projectId!)}
-          />
-        </div>
+    <SecaoRecolhivel
+      id="prog-semanal"
+      titulo="Programação Semanal — PPC"
+      resumo={
         <span className="text-xs text-muted-foreground">
           {weeks.length} semana{weeks.length !== 1 ? 's' : ''} importada{weeks.length !== 1 ? 's' : ''}
         </span>
-      </div>
-
+      }
+      acoes={
+        <ClearDataButton
+          sectionName="Programação Semanal"
+          onConfirm={() => clearProgramacaoSemanal(projectId!)}
+        />
+      }
+    >
       <PpcSemanalTable data={weeks} showPeriodo={false} />
 
       {lastImports?.progSemanal && (
@@ -444,7 +442,7 @@ const ProgSemanalSection = () => {
           Atualizado em {formatTimestamp(lastImports.progSemanal)}
         </p>
       )}
-    </div>
+    </SecaoRecolhivel>
   );
 };
 

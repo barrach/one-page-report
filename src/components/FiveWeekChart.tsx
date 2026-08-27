@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useCurrentProject, type WeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
-import { centerWeeklyWindow } from '@/lib/dateUtils';
+import { janelaCentradaNaData } from '@/lib/dateUtils';
 import ChartInsight from '@/components/ChartInsight';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import {
@@ -48,20 +48,18 @@ const FiveWeekChart = () => {
     return out;
   }, [allWeeklyData, sCurveData]);
 
-  const weeklyData = useMemo(() => {
-    // Quando a série já vem marcada com a semana de status (importação do
-    // cronograma), a janela sai dela — o rótulo "26-SEM29" não é uma data
-    // parseável, então centralizar por `atualizadoEm` cairia sempre nas
-    // primeiras semanas.
-    const idx = sourceWeekly.findIndex((w) => w.isStatus);
-    if (idx >= 0) {
-      if (sourceWeekly.length <= 5) return sourceWeekly;
-      let inicio = Math.max(0, idx - 2);
-      if (inicio + 5 > sourceWeekly.length) inicio = sourceWeekly.length - 5;
-      return sourceWeekly.slice(inicio, inicio + 5);
-    }
-    return centerWeeklyWindow(sourceWeekly, info?.atualizadoEm || '', 5);
-  }, [sourceWeekly, info?.atualizadoEm]);
+  // A janela é sempre centrada na data de status: duas semanas atrás, a semana
+  // de status e duas à frente (o que está previsto). Quando a série não alcança
+  // um dos lados, o período entra vazio em vez de a janela deslizar — deslizar
+  // tirava o status do centro justamente no fim da obra, que é quando a
+  // comparação com o previsto mais importa.
+  const weeklyData = useMemo(
+    () => janelaCentradaNaData(sourceWeekly, info?.atualizadoEm || '', {
+      size: 5,
+      periodicidade: info?.curvaPeriodicidade ?? 'semanal',
+    }),
+    [sourceWeekly, info?.atualizadoEm, info?.curvaPeriodicidade],
+  );
 
   const hasTendencia = weeklyData.some(w => (w.tendencia ?? 0) > 0);
   const statusDate = weeklyData.find(w => w.isStatus)?.date ?? null;

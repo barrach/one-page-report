@@ -1,17 +1,17 @@
 import { FileSpreadsheet, Download } from 'lucide-react';
+import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 
 /**
  * Modelos oficiais de importação, servidos de /public/templates.
  *
  * São os mesmos arquivos que os parsers esperam — quem baixar daqui, preencher e
  * subir na importação passa pela detecção sem ajuste nenhum.
+ *
+ * O cronograma saiu daqui: a Curva S agora vem do MS Project (Trabalho ou Custo
+ * acumulado), lançada direto na seção da Curva S, e o único modelo de planilha
+ * que continua valendo é o da Programação Semanal.
  */
 const TEMPLATES = [
-  {
-    nome: 'Cronograma',
-    arquivo: '/templates/template-cronograma.xlsx',
-    descricao: 'Tarefas (15 colunas) e a Curva S — abas de linha de base, real e tendência',
-  },
   {
     nome: 'Programação Semanal',
     arquivo: '/templates/template-programacao-semanal.xlsx',
@@ -20,15 +20,11 @@ const TEMPLATES = [
 ];
 
 const TemplatesDownload = () => (
-  <div className="bg-card rounded-lg p-6 shadow-sm border">
-    <div className="mb-4">
-      <h2 className="text-xl font-bold text-foreground">Modelos de Importação</h2>
-      <p className="text-xs text-muted-foreground mt-0.5">
-        Baixe o modelo, preencha e suba em “Importar Semana”. Não altere os títulos das
-        colunas nem os nomes das abas — é por eles que a importação reconhece o arquivo.
-      </p>
-    </div>
-
+  <SecaoRecolhivel
+    id="modelos-importacao"
+    titulo="Modelos de Importação"
+    descricao="Baixe o modelo, preencha e suba em “Importar Semana”. Não altere os títulos das colunas nem os nomes das abas — é por eles que a importação reconhece o arquivo."
+  >
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {TEMPLATES.map((t) => (
         <a
@@ -48,7 +44,7 @@ const TemplatesDownload = () => (
         </a>
       ))}
     </div>
-  </div>
+  </SecaoRecolhivel>
 );
 
 export default TemplatesDownload;

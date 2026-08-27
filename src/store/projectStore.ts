@@ -19,6 +19,13 @@ export interface ProjectInfo {
   infoSavedAt?: string;
   contrato?: string;
   escopo?: string;
+  // ── Curva S vinda do MS Project (Trabalho ou Custo acumulado) ──
+  /** Em que unidade o Project exportou a curva. */
+  curvaBase?: 'trabalho' | 'custo';
+  /** Data do primeiro ponto da curva (ISO yyyy-mm-dd) — o início da obra. */
+  curvaInicio?: string;
+  /** De quanto em quanto tempo a curva avança: 7 dias ou dia a dia. */
+  curvaPeriodicidade?: 'semanal' | 'diaria';
   // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
   prevSemana?: number;
   realSemana?: number;
