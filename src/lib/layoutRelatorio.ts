@@ -128,3 +128,45 @@ export const alternarOculto = (
   id: string,
 ): ItemLayoutRelatorio[] =>
   layout.map((c) => (c.id === id ? { ...c, oculto: !c.oculto } : c));
+
+/**
+ * Agrupa os cards por LINHA da grade.
+ *
+ * Dois cards de meia largura ocupam a mesma linha; um de linha inteira ocupa a
+ * dele sozinho. É esse agrupamento que faz recolher um card recolher a seção
+ * inteira — na reunião "Visão de 5 Semanas + Prev. × Realizado Mês" é lido como
+ * um bloco só, e fechar metade dele deixava a tela torta.
+ */
+export const linhasDoLayout = (layout: ItemLayoutRelatorio[]): string[][] => {
+  const linhas: string[][] = [];
+  let atual: string[] = [];
+
+  for (const item of layout) {
+    if (item.oculto) continue;
+    if (item.largura === 'inteira') {
+      if (atual.length) { linhas.push(atual); atual = []; }
+      linhas.push([item.id]);
+      continue;
+    }
+    atual.push(item.id);
+    if (atual.length === 2) { linhas.push(atual); atual = []; }
+  }
+
+  if (atual.length) linhas.push(atual);
+  return linhas;
+};
+
+/**
+ * Chave da seção de cada card — os que dividem a linha compartilham a mesma.
+ * Card oculto fica sem grupo e responde por si, para não herdar o estado de
+ * uma seção que ele nem aparece.
+ */
+export const grupoDeCadaCard = (layout: ItemLayoutRelatorio[]): Record<string, string> => {
+  const mapa: Record<string, string> = {};
+  linhasDoLayout(layout).forEach((linha) => {
+    const chave = linha.join('+');
+    linha.forEach((id) => { mapa[id] = chave; });
+  });
+  layout.forEach((item) => { if (!mapa[item.id]) mapa[item.id] = item.id; });
+  return mapa;
+};

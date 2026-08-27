@@ -88,15 +88,19 @@ const FinanceiroCard = () => {
               <th className="px-2 py-2 text-right border border-border/30 w-32">Valor do contrato</th>
               <th className="px-2 py-2 text-right border border-border/30 w-28">Previsto no mês</th>
               <th className="px-2 py-2 text-right border border-border/30 w-28">Realizado no mês</th>
+              {/* Duas leituras diferentes do mesmo item: quanto dele andou
+                  ESTE mês, e quanto dele já foi medido no total. */}
+              <th className="px-2 py-2 text-right border border-border/30 w-20">% no mês</th>
               <th className="px-2 py-2 text-right border border-border/30 w-32">Acumulado</th>
-              <th className="px-2 py-2 text-right border border-border/30 w-20 rounded-tr-lg">% do item</th>
+              <th className="px-2 py-2 text-right border border-border/30 w-20 rounded-tr-lg">% acumulado</th>
             </tr>
           </thead>
           <tbody>
             {itens.map((it, i) => {
               const nivel = nivelDoCodigo(it.codigo);
               const folha = ehFolha(itens, i);
-              const pct = it.valorContrato > 0 ? (it.acumulado / it.valorContrato) * 100 : 0;
+              const pctAcum = it.valorContrato > 0 ? (it.acumulado / it.valorContrato) * 100 : 0;
+              const pctMes = it.valorContrato > 0 ? (it.realizadoMes / it.valorContrato) * 100 : 0;
               const abaixo = it.realizadoMes < it.previstoMes;
 
               return (
@@ -122,8 +126,9 @@ const FinanceiroCard = () => {
                   )}>
                     {fmtDinheiro(it.realizadoMes)}
                   </td>
+                  <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtPercentual(pctMes)}</td>
                   <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtDinheiro(it.acumulado)}</td>
-                  <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtPercentual(pct)}</td>
+                  <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtPercentual(pctAcum)}</td>
                 </tr>
               );
             })}
@@ -139,6 +144,7 @@ const FinanceiroCard = () => {
               )}>
                 {fmtDinheiro(totais.realizadoMes)}
               </td>
+              <td className="px-2 py-2 text-right border border-border/30 tabular-nums">{fmtPercentual(totais.percentualMes)}</td>
               <td className="px-2 py-2 text-right border border-border/30 tabular-nums">{fmtDinheiro(totais.acumulado)}</td>
               <td className="px-2 py-2 text-right border border-border/30 tabular-nums">{fmtPercentual(totais.percentualAcumulado)}</td>
             </tr>

@@ -8,6 +8,8 @@ import {
   moverCard,
   normalizarLayout,
   reordenarCard,
+  linhasDoLayout,
+  grupoDeCadaCard,
 } from '@/lib/layoutRelatorio';
 
 describe('normalizarLayout', () => {
@@ -105,5 +107,41 @@ describe('ajustarAltura', () => {
   it('não passa do teto', () => {
     const alto = [{ id: 'a', largura: 'meia' as const, altura: 1180 }];
     expect(ajustarAltura(alto, 'a', 1)[0].altura).toBe(1200);
+  });
+});
+
+describe('linhasDoLayout e grupoDeCadaCard', () => {
+  it('dois cards de meia largura dividem a linha; um inteiro fica sozinho', () => {
+    const layout = [
+      { id: 'a', largura: 'meia' as const },
+      { id: 'b', largura: 'meia' as const },
+      { id: 'c', largura: 'inteira' as const },
+      { id: 'd', largura: 'meia' as const },
+    ];
+    expect(linhasDoLayout(layout)).toEqual([['a', 'b'], ['c'], ['d']]);
+  });
+
+  it('quem divide a linha compartilha a mesma seção', () => {
+    const layout = [
+      { id: 'a', largura: 'meia' as const },
+      { id: 'b', largura: 'meia' as const },
+      { id: 'c', largura: 'inteira' as const },
+    ];
+    const grupos = grupoDeCadaCard(layout);
+    expect(grupos.a).toBe(grupos.b);
+    expect(grupos.c).not.toBe(grupos.a);
+  });
+
+  it('card oculto não entra na linha e responde por si', () => {
+    const layout = [
+      { id: 'a', largura: 'meia' as const, oculto: true },
+      { id: 'b', largura: 'meia' as const },
+      { id: 'c', largura: 'meia' as const },
+    ];
+    // Sem o oculto, b e c e que passam a dividir a linha.
+    expect(linhasDoLayout(layout)).toEqual([['b', 'c']]);
+    const grupos = grupoDeCadaCard(layout);
+    expect(grupos.b).toBe(grupos.c);
+    expect(grupos.a).toBe('a');
   });
 });

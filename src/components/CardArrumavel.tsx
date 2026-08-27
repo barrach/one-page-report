@@ -1,11 +1,10 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import {
   ArrowUp, ArrowDown, Maximize2, Minimize2, ChevronsUpDown, Eye, EyeOff, GripVertical,
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { nomeDoCard, type ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
-import { useProjectStore } from '@/store/projectStore';
 
 /**
  * Um card do relatório em modo de arrumação.
@@ -24,6 +23,13 @@ interface CardArrumavelProps {
   editando: boolean;
   primeiro: boolean;
   ultimo: boolean;
+  /**
+   * Recolhido ou não. Vem de cima porque quem manda é a SEÇÃO: cards que
+   * dividem a linha da grade abrem e fecham juntos, e um componente não teria
+   * como saber do outro guardando esse estado por conta própria.
+   */
+  fechado: boolean;
+  alternarFechado: () => void;
   children: ReactNode;
   onMover: (direcao: -1 | 1) => void;
   onLargura: () => void;
@@ -34,29 +40,11 @@ interface CardArrumavelProps {
 }
 
 const CardArrumavel = ({
-  item, editando, primeiro, ultimo, children,
+  item, editando, primeiro, ultimo, fechado, alternarFechado, children,
   onMover, onLargura, onAltura, onOculto, onArrastarInicio, onSoltarSobre,
 }: CardArrumavelProps) => {
   const colSpan = item.largura === 'inteira' ? 'lg:col-span-2' : 'lg:col-span-1';
   const estilo = item.altura ? { minHeight: `${item.altura}px` } : undefined;
-
-  // Fechar um card é conveniência de QUEM ESTÁ LENDO, não arrumação do projeto:
-  // fica no navegador de cada um, por projeto, e não mexe no que os outros veem.
-  const projetoId = useProjectStore((s) => s.selectedProjectId);
-  const chave = `opr_card_fechado_${projetoId}_${item.id}`;
-  const [fechado, setFechado] = useState(false);
-
-  useEffect(() => {
-    try { setFechado(localStorage.getItem(chave) === '1'); } catch { setFechado(false); }
-  }, [chave]);
-
-  const alternarFechado = () => {
-    setFechado((atual) => {
-      const proximo = !atual;
-      try { localStorage.setItem(chave, proximo ? '1' : '0'); } catch { /* quota */ }
-      return proximo;
-    });
-  };
 
   /**
    * Clicar no card recolhe — menos onde o clique já significa outra coisa.
@@ -89,7 +77,7 @@ const CardArrumavel = ({
       >
         {fechado ? (
           <button
-            onClick={() => alternarFechado()}
+            onClick={alternarFechado}
             data-pdf-hide
             className="w-full flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-left card-shadow hover:border-primary/40 transition-colors"
           >

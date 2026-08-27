@@ -18,6 +18,7 @@ import FinanceiroCard from '@/components/FinanceiroCard';
 import CardArrumavel from '@/components/CardArrumavel';
 import {
   normalizarLayout, moverCard, reordenarCard, alternarLargura, ajustarAltura, alternarOculto,
+  grupoDeCadaCard,
 } from '@/lib/layoutRelatorio';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
@@ -79,6 +80,35 @@ const Index = () => {
     const salvo = current?.layoutRelatorio ?? projects.find((p) => p.layoutRelatorio)?.layoutRelatorio;
     return normalizarLayout(salvo);
   }, [current?.layoutRelatorio, projects]);
+
+  // ── Seções recolhidas ──
+  // Cards que dividem a linha da grade formam uma seção e abrem e fecham
+  // juntos: na reunião "Visão de 5 Semanas + Prev. × Realizado Mês" é lido como
+  // um bloco só, e fechar metade dele deixava a tela torta.
+  //
+  // É conveniência de quem lê: fica no navegador de cada um, por projeto, e não
+  // mexe no que os outros veem.
+  const grupoDoCard = useMemo(() => grupoDeCadaCard(layout), [layout]);
+  const chaveFechados = `opr_secoes_fechadas_${selectedProjectId}`;
+  const [fechados, setFechados] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const bruto = localStorage.getItem(chaveFechados);
+      setFechados(new Set(bruto ? (JSON.parse(bruto) as string[]) : []));
+    } catch {
+      setFechados(new Set());
+    }
+  }, [chaveFechados]);
+
+  const alternarSecao = (grupo: string) => {
+    setFechados((atual) => {
+      const proximo = new Set(atual);
+      if (proximo.has(grupo)) proximo.delete(grupo); else proximo.add(grupo);
+      try { localStorage.setItem(chaveFechados, JSON.stringify([...proximo])); } catch { /* quota */ }
+      return proximo;
+    });
+  };
 
   const renderizarCard = (id: string) => {
     switch (id) {
@@ -607,6 +637,8 @@ const Index = () => {
               editando={editandoLayout}
               primeiro={i === 0}
               ultimo={i === layout.length - 1}
+              fechado={fechados.has(grupoDoCard[item.id] ?? item.id)}
+              alternarFechado={() => alternarSecao(grupoDoCard[item.id] ?? item.id)}
               onMover={(dir) => setLayoutRelatorio(moverCard(layout, item.id, dir))}
               onLargura={() => setLayoutRelatorio(alternarLargura(layout, item.id))}
               onAltura={(passos) => setLayoutRelatorio(ajustarAltura(layout, item.id, passos))}

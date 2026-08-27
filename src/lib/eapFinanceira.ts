@@ -39,8 +39,10 @@ export interface TotaisEap {
   previstoMes: number;
   realizadoMes: number;
   acumulado: number;
-  /** Quanto do contrato já foi medido. */
+  /** Quanto do contrato já foi medido, somando tudo. */
   percentualAcumulado: number;
+  /** Quanto do contrato foi medido só neste mês. */
+  percentualMes: number;
   /** Contrato menos acumulado. */
   saldo: number;
   /** Realizado menos previsto no mês: negativo é medição abaixo do planejado. */
@@ -71,6 +73,7 @@ export const totaisDaEap = (itens: ItemEapFinanceira[]): TotaisEap => {
     realizadoMes,
     acumulado,
     percentualAcumulado: valorContrato > 0 ? (acumulado / valorContrato) * 100 : 0,
+    percentualMes: valorContrato > 0 ? (realizadoMes / valorContrato) * 100 : 0,
     saldo: valorContrato - acumulado,
     desvioMes: realizadoMes - previstoMes,
   };
