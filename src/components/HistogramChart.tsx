@@ -4,7 +4,8 @@ import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-import { filtrarPeriodo, ROTULO_PERIODO, type PeriodoHistograma } from '@/lib/histograma';
+import { alinharComCurva, filtrarPeriodo, ROTULO_PERIODO, type PeriodoHistograma } from '@/lib/histograma';
+import { anoDeReferencia } from '@/lib/dateUtils';
 import ChartInsight from '@/components/ChartInsight';
 import ObservacoesDoCard from '@/components/ObservacoesDoCard';
 import ChartExpandModal from '@/components/ChartExpandModal';
@@ -57,15 +58,35 @@ const NOMES: Record<string, string> = {
 type Serie = keyof typeof CORES;
 
 const HistogramChart = () => {
-  const { histogramData, info } = useCurrentProject();
+  const { histogramData, sCurveData, info } = useCurrentProject();
   const setInfo = useProjectStore((s) => s.setInfo);
   const { selectedDate, setSelectedDate } = useReportInteraction();
   const isMobile = useIsMobile();
 
   const periodo: PeriodoHistograma = info?.histPeriodo ?? 'tudo';
+  const anoRef = anoDeReferencia(info?.atualizadoEm);
+
+  /**
+   * As colunas do relatório são as semanas da Curva S — as mesmas da planilha
+   * de Dados.
+   *
+   * Sem isto o histograma desenha os rótulos como vieram da importação
+   * ("Dez/25 S2") enquanto a Curva S desenha os dela ("08/dez"): dois gráficos
+   * lado a lado no mesmo relatório, com eixos que não batem, e ninguém consegue
+   * ler a semana de um no outro. O casamento é por DATA, não por texto.
+   *
+   * Histograma vazio segue vazio: alinhar produziria uma grade de zeros no
+   * lugar do aviso de "sem dado".
+   */
+  const alinhado = useMemo(() => {
+    const bruto = (histogramData || []).filter((h) => h.date);
+    if (bruto.length === 0) return bruto;
+    return alinharComCurva(bruto, sCurveData, anoRef);
+  }, [histogramData, sCurveData, anoRef]);
+
   const allData = useMemo(
-    () => filtrarPeriodo((histogramData || []).filter(h => h.date), info?.atualizadoEm || '', periodo),
-    [histogramData, info?.atualizadoEm, periodo],
+    () => filtrarPeriodo(alinhado, info?.atualizadoEm || '', periodo),
+    [alinhado, info?.atualizadoEm, periodo],
   );
   // No celular o recorte já é curto; sem ele, as últimas 8 semanas continuam
   // sendo o que cabe na tela.

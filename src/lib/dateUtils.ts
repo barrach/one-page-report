@@ -226,3 +226,12 @@ export const janelaCentradaNaData = (
 /** Date → yyyy-mm-dd pelos getters locais; `toISOString` jogaria o dia para trás. */
 export const formatISOLocal = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Ano que serve de referência para ler rótulos sem ano ("08/dez").
+ *
+ * A data de status manda, e não o relógio de quem abre: uma obra de 2025
+ * revisada em 2026 tem que continuar casando as mesmas semanas.
+ */
+export const anoDeReferencia = (atualizadoEm?: string): number =>
+  parseISOLocal(atualizadoEm ?? '')?.getFullYear() ?? new Date().getFullYear();

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import ClearDataButton from '@/components/ClearDataButton';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import { alinharComCurva, indiceDaSemanaDeStatus, lerColagemHistograma } from '@/lib/histograma';
+import { anoDeReferencia } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
@@ -120,9 +121,12 @@ const HistogramSpreadsheet = () => {
   // As colunas são as semanas da obra inteira, vindas da Curva S; o que já foi
   // lançado é reaproveitado casando pela data. Editar grava a série alinhada,
   // então a planilha passa a cobrir do início ao fim do projeto.
+  // Mesmo ano de referência que o gráfico do relatório usa: se os dois
+  // alinhassem por anos diferentes, a planilha e o card mostrariam colunas
+  // diferentes para o mesmo lançamento.
   const data = useMemo(
-    () => alinharComCurva(histogramData || [], sCurveData, new Date().getFullYear()),
-    [histogramData, sCurveData],
+    () => alinharComCurva(histogramData || [], sCurveData, anoDeReferencia(info?.atualizadoEm)),
+    [histogramData, sCurveData, info?.atualizadoEm],
   );
 
   // Rola até a semana de status: numa obra longa a coluna a preencher fica
