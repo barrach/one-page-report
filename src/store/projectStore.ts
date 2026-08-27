@@ -26,6 +26,8 @@ export interface ProjectInfo {
   curvaInicio?: string;
   /** De quanto em quanto tempo a curva avança: 7 dias ou dia a dia. */
   curvaPeriodicidade?: 'semanal' | 'diaria';
+  /** Contra o que o card Prev. × Realizado Mês compara o mês. */
+  mesBase?: 'linhaBase' | 'tendencia';
   // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
   prevSemana?: number;
   realSemana?: number;

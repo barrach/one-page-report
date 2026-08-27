@@ -1,6 +1,10 @@
-import { useCurrentProject, type MonthWeekData } from '@/store/projectStore';
+import { useMemo } from 'react';
+import { useCurrentProject, useProjectStore, type MonthWeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import ChartInsight from '@/components/ChartInsight';
+import { visaoMensal, ROTULO_BASE_MENSAL, type BaseMensal } from '@/lib/visaoMensal';
+import { cn } from '@/lib/utils';
+import { parseISOLocal } from '@/lib/dateUtils';
 
 /** Semanas em branco — mantêm o card com a mesma forma quando não há dados. */
 const PLACEHOLDER_MONTHS: MonthWeekData[] = [1, 2, 3, 4, 5].map((n) => ({
@@ -9,9 +13,19 @@ const PLACEHOLDER_MONTHS: MonthWeekData[] = [1, 2, 3, 4, 5].map((n) => ({
   real: 0,
 }));
 
-/** monthData do projeto, ou as semanas em branco se não houver nada importado. */
+/**
+ * As semanas do mês, tiradas da Curva S no mês do "Atualizado em".
+ *
+ * Só cai no `monthData` guardado quando a curva não cobre aquele mês — projeto
+ * antigo, que ainda tem o mês digitado à mão.
+ */
 const useMonthData = (): MonthWeekData[] => {
-  const { monthData } = useCurrentProject();
+  const { monthData, sCurveData, info } = useCurrentProject();
+  const daCurva = useMemo(
+    () => visaoMensal(sCurveData, info?.atualizadoEm || '', info?.mesBase ?? 'linhaBase'),
+    [sCurveData, info?.atualizadoEm, info?.mesBase],
+  );
+  if (daCurva.length > 0) return daCurva;
   return monthData && monthData.length > 0 ? monthData : PLACEHOLDER_MONTHS;
 };
 
@@ -150,10 +164,22 @@ const GaugeChart = ({
   );
 };
 
+const MESES_PT = [
+  'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
+  'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro',
+];
+
 const MonthChart = () => {
   const { info } = useCurrentProject();
+  const setInfo = useProjectStore((s) => s.setInfo);
   const monthData = useMonthData();
   const { selectedMonthIndex, setSelectedMonthIndex } = useReportInteraction();
+
+  const baseMensal: BaseMensal = info?.mesBase ?? 'linhaBase';
+  const mesRotulo = useMemo(() => {
+    const d = parseISOLocal(info?.atualizadoEm || '');
+    return d ? `${MESES_PT[d.getMonth()]}/${d.getFullYear()}` : 'mês';
+  }, [info?.atualizadoEm]);
 
   const totalPrev = monthData.reduce((s, d) => s + Number(d.previsto || 0), 0);
   const totalReal = monthData.reduce((s, d) => s + Number(d.real || 0), 0);
@@ -169,8 +195,32 @@ const MonthChart = () => {
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
-      <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
-      <p className="text-xs text-muted-foreground mb-4">Meta mensal por semana</p>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="min-w-0">
+          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
+          <p className="text-xs text-muted-foreground">
+            Semanas de {mesRotulo} · previsto pela {ROTULO_BASE_MENSAL[baseMensal].toLowerCase()}
+          </p>
+        </div>
+        {/* Escolha de contra o que o mês é comparado. Fora do papel: no PDF o
+            que importa é a série escolhida, não o seletor. */}
+        <div className="flex gap-1 shrink-0 print:hidden" data-html2canvas-ignore>
+          {(['linhaBase', 'tendencia'] as BaseMensal[]).map((b) => (
+            <button
+              key={b}
+              onClick={() => setInfo({ mesBase: b })}
+              className={cn(
+                'px-2 py-1 rounded border text-[11px] font-medium transition-colors',
+                baseMensal === b
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'text-muted-foreground border-border hover:text-foreground',
+              )}
+            >
+              {ROTULO_BASE_MENSAL[b]}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* O medidor ocupa a sobra vertical do card, para acompanhar a altura do
           gráfico vizinho em vez de deixar um vazio embaixo. */}

@@ -17,6 +17,8 @@ import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
+import { visaoMensal } from '@/lib/visaoMensal';
+import { formatISOLocal, parseWeekLabel } from '@/lib/dateUtils';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -184,6 +186,33 @@ const DataInputPage = () => {
     // valor logo depois de alguém corrigi-lo na mão.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avanco, setInfo]);
+  // ── Início do projeto = primeira data da Curva S ──
+  // A curva é quem define quando a obra começa; deixar o campo solto fazia o
+  // cabeçalho dizer 18/dez enquanto a curva partia de 09/dez. Não há risco de
+  // laço: o painel de HH/Custo gera as datas A PARTIR do início, então os dois
+  // convergem para o mesmo valor e o efeito para de disparar.
+  const inicioDaCurva = useMemo(() => {
+    const primeira = (sCurveData ?? []).find((p) => p.date);
+    if (!primeira) return null;
+    const d = parseWeekLabel(primeira.date, new Date().getFullYear());
+    return d ? formatISOLocal(d) : null;
+  }, [sCurveData]);
+
+  useEffect(() => {
+    if (inicioDaCurva && inicioDaCurva !== info.inicio) setInfo({ inicio: inicioDaCurva });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicioDaCurva]);
+
+  // O mês vem das semanas da Curva S que caem no mês do "Atualizado em". O
+  // `monthData` guardado só aparece em projeto antigo, que ainda tem o mês
+  // digitado à mão e nenhuma curva cobrindo aquele período.
+  const janelaMensal = useMemo(
+    () => visaoMensal(sCurveData, info?.atualizadoEm || '', info?.mesBase ?? 'linhaBase'),
+    [sCurveData, info?.atualizadoEm, info?.mesBase],
+  );
+  const mesDerivado = janelaMensal.length > 0;
+  const mesData = mesDerivado ? janelaMensal : monthData;
+
   const [showMonthPaste, setShowMonthPaste] = useState(false);
   const [monthPasteText, setMonthPasteText] = useState('');
   const [importOpen, setImportOpen] = useState(false);
@@ -302,9 +331,13 @@ const DataInputPage = () => {
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-3 py-2 text-left font-semibold border border-border min-w-[120px]">Métrica</th>
-                {monthData.map((m, i) => (
+                {mesData.map((m, i) => (
                   <th key={i} className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-1 text-center font-semibold border border-border min-w-[90px]">
-                    <input className="bg-transparent text-center text-[hsl(var(--table-header-foreground))] w-full outline-none text-xs font-semibold" value={m.label} onChange={(e) => updateMonth(i, 'label', e.target.value)} placeholder="Semana" />
+                    {mesDerivado ? (
+                      m.label
+                    ) : (
+                      <input className="bg-transparent text-center text-[hsl(var(--table-header-foreground))] w-full outline-none text-xs font-semibold" value={m.label} onChange={(e) => updateMonth(i, 'label', e.target.value)} placeholder="Semana" />
+                    )}
                   </th>
                 ))}
               </tr>
@@ -316,9 +349,13 @@ const DataInputPage = () => {
               ].map(({ label, field }) => (
                 <tr key={field}>
                   <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
-                  {monthData.map((m, i) => (
-                    <td key={i} className="border border-border px-1 py-1">
-                      <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(m as any)[field]} onChange={(e) => updateMonth(i, field, e.target.value)} />
+                  {mesData.map((m, i) => (
+                    <td key={i} className={cn('border border-border px-1 py-1', mesDerivado && 'text-center bg-muted/30 tabular-nums')}>
+                      {mesDerivado ? (
+                        ((m as any)[field] || 0) > 0 ? (m as any)[field] : '—'
+                      ) : (
+                        <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(m as any)[field]} onChange={(e) => updateMonth(i, field, e.target.value)} />
+                      )}
                     </td>
                   ))}
                 </tr>
