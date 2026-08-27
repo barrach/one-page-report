@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import {
   ArrowUp, ArrowDown, Maximize2, Minimize2, ChevronsUpDown, Eye, EyeOff, GripVertical,
-  ChevronRight, ChevronUp,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { nomeDoCard, type ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
@@ -78,12 +78,13 @@ const CardArrumavel = ({
     // Card oculto some do relatório e do papel.
     if (item.oculto) return null;
 
-    // `empty:hidden` cobre o card que decide não desenhar nada — o Clima sem
-    // cidade, por exemplo. Sem isso o invólucro continuaria ocupando meia linha
-    // da grade e abriria um buraco no meio do relatório.
+    // `card-do-relatorio` é o gancho da regra em index.css que some com o card
+    // que decide não desenhar nada — o Clima sem cidade, por exemplo. Sem ela o
+    // invólucro continuaria ocupando meia linha da grade e abriria um buraco no
+    // meio do relatório.
     return (
       <div
-        className={cn(colSpan, 'card-do-relatorio group relative flex flex-col')}
+        className={cn(colSpan, 'card-do-relatorio relative flex flex-col')}
         style={fechado ? undefined : estilo}
       >
         {fechado ? (
@@ -97,16 +98,7 @@ const CardArrumavel = ({
               {nomeDoCard(item.id)}
             </span>
           </button>
-        ) : (
-          <button
-            onClick={() => alternarFechado()}
-            data-pdf-hide
-            title="Fechar este item"
-            className="absolute -top-2 -right-2 z-10 h-6 w-6 flex items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-60 hover:opacity-100 hover:text-foreground transition-opacity card-shadow"
-          >
-            <ChevronUp className="h-3.5 w-3.5" />
-          </button>
-        )}
+        ) : null}
 
         {/* Fechado é conveniência de leitura, não decisão sobre o relatório: o
             papel continua saindo com o card inteiro. Esconder no PDF é o que o
