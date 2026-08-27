@@ -5,6 +5,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import ChartInsight from '@/components/ChartInsight';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import { useMemo } from 'react';
+import { limitarAoTermino, indiceDoStatus } from '@/lib/avancoCurva';
 import {
   LineChart,
   Line,
@@ -29,19 +30,29 @@ const SCurveChart = () => {
   const labelInterval = isMobile ? 6 : 3;
   const labelFontSize = isMobile ? 9 : 11;
 
-  const cutIndex = Math.min(statusDateIndex, sCurveData.length - 1);
-  const statusDate = sCurveData[cutIndex]?.date || null;
+  // O gráfico para no Término Previsto; a série guardada continua inteira.
+  const curva = useMemo(
+    () => limitarAoTermino(sCurveData, info?.terminoPrev || ''),
+    [sCurveData, info?.terminoPrev],
+  );
+  // O índice de status é recalculado sobre a curva já cortada — o índice antigo
+  // apontava para a série inteira e cairia na semana errada depois do corte.
+  const cutIndex = Math.max(
+    0,
+    Math.min(indiceDoStatus(curva, info?.atualizadoEm || '', statusDateIndex), curva.length - 1),
+  );
+  const statusDate = curva[cutIndex]?.date || null;
   // Real no status: prefere Real Replanejado (row16) quando > 0, senão Real (row12).
   // Usa checagem > 0 (não ??) porque real=0 nas semanas replanejadas.
   const statusReal = (() => {
-    const p = sCurveData[cutIndex];
+    const p = curva[cutIndex];
     if (!p) return null;
     if ((p.realReplanejado ?? 0) > 0) return p.realReplanejado!;
     if (p.real > 0) return p.real;
     return null;
   })();
-  const hasReplanejado = sCurveData.some(p => (p.replanejado ?? 0) > 0);
-  const hasRealReplanejado = sCurveData.some(p => (p.realReplanejado ?? 0) > 0);
+  const hasReplanejado = curva.some(p => (p.replanejado ?? 0) > 0);
+  const hasRealReplanejado = curva.some(p => (p.realReplanejado ?? 0) > 0);
 
   const COLORS = {
     previsto: 'hsl(var(--chart-previsto))', // azul escuro
@@ -60,7 +71,7 @@ const SCurveChart = () => {
   ];
 
   const chartData = useMemo(() => {
-    return sCurveData.map((point) => ({
+    return curva.map((point) => ({
       ...point,
       previsto: point.previsto > 0 ? point.previsto : undefined,
       real: point.real > 0 ? point.real : undefined,
@@ -68,7 +79,7 @@ const SCurveChart = () => {
       replanejado: (point.replanejado ?? 0) > 0 ? point.replanejado : undefined,
       realReplanejado: (point.realReplanejado ?? 0) > 0 ? point.realReplanejado : undefined,
     }));
-  }, [sCurveData]);
+  }, [curva]);
 
   // Find last index with a value for each series
   const lastIdx = useMemo(() => {
@@ -175,7 +186,7 @@ const SCurveChart = () => {
             </ReferenceLine>
           )}
 
-          {selectedDate && sCurveData.some(p => p.date === selectedDate) && (
+          {selectedDate && curva.some(p => p.date === selectedDate) && (
             <ReferenceLine x={selectedDate} stroke="hsl(var(--primary))" strokeWidth={2} strokeOpacity={0.5} />
           )}
 
@@ -242,7 +253,7 @@ const SCurveChart = () => {
           ✕ Limpar seleção: {selectedDate}
         </button>
       )}
-      <ChartInsight chartType="scurve" data={sCurveData} projectInfo={info} />
+      <ChartInsight chartType="scurve" data={curva} projectInfo={info} />
     </div>
   );
 };

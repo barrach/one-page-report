@@ -27,6 +27,31 @@ export interface Avanco {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /**
+ * Corta a curva no Término Previsto.
+ *
+ * O MS Project entrega a escala de tempo inteira, e o rabo depois do término
+ * previsto é só a curva repetindo o último valor — no gráfico virava uma reta
+ * comprida que achatava a parte que interessa. O corte é só de exibição: a série
+ * guardada continua completa, e a tela de Dados mostra tudo.
+ */
+export const limitarAoTermino = <T extends { date: string }>(
+  sCurve: T[] | undefined,
+  terminoPrev: string,
+): T[] => {
+  const pontos = sCurve ?? [];
+  const fim = parseISOLocal(terminoPrev);
+  if (!fim || pontos.length === 0) return pontos;
+
+  const anoRef = fim.getFullYear();
+  const dentro = pontos.filter((p) => {
+    const d = parseWeekLabel(p.date, anoRef);
+    // Ponto sem data legível fica: sumir com ele seria pior que mostrá-lo.
+    return d == null || d.getTime() <= fim.getTime();
+  });
+  return dentro.length > 0 ? dentro : pontos;
+};
+
+/**
  * Qual coluna da Curva S é a data de status.
  *
  * Quem manda é o "Atualizado em": ele é uma data de verdade, enquanto o índice

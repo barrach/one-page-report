@@ -17,6 +17,7 @@ import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
+import { useAuth, type AppRole } from '@/context/AuthContext';
 import { visaoMensal } from '@/lib/visaoMensal';
 import { formatISOLocal, parseWeekLabel } from '@/lib/dateUtils';
 
@@ -88,10 +89,28 @@ const fmtSavedAt = (iso?: string): string => {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} às ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-const INFO_FIELDS: { label: string; key: keyof ProjectInfo; type: 'text' | 'date' | 'number' }[] = [
+/**
+ * Campos das Informações do Projeto.
+ *
+ * `papeis` restringe quem vê o campo. Sem `papeis`, todo mundo vê.
+ *
+ * ATENÇÃO: isto esconde o campo da TELA, não protege o dado. O projeto inteiro
+ * viaja num único JSON para o navegador, então quem souber abrir o DevTools
+ * ainda enxerga o custo. Proteger de verdade exige separar o campo em outra
+ * tabela com RLS — hoje o RLS está desligado no banco.
+ */
+const INFO_FIELDS: {
+  label: string;
+  key: keyof ProjectInfo;
+  type: 'text' | 'date' | 'number';
+  papeis?: AppRole[];
+}[] = [
   { label: 'Projeto', key: 'projeto', type: 'text' },
   { label: 'Cliente', key: 'cliente', type: 'text' },
   { label: 'Gestor', key: 'gestor', type: 'text' },
+  { label: 'Planejador', key: 'planejador', type: 'text' },
+  { label: 'Tipo de obra', key: 'tipoObra', type: 'text' },
+  { label: 'Custo da obra (R$)', key: 'custoObra', type: 'number', papeis: ['admin', 'gestor', 'planejador'] },
   { label: 'Início', key: 'inicio', type: 'date' },
   { label: 'Término LB', key: 'terminoLB', type: 'date' },
   { label: 'Término Prev.', key: 'terminoPrev', type: 'date' },
@@ -100,15 +119,20 @@ const INFO_FIELDS: { label: string; key: keyof ProjectInfo; type: 'text' | 'date
   { label: 'Atualizado em', key: 'atualizadoEm', type: 'date' },
 ];
 
+const camposVisiveis = (papel: AppRole | null) =>
+  INFO_FIELDS.filter((f) => !f.papeis || (papel != null && f.papeis.includes(papel)));
+
 const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (patch: Partial<ProjectInfo>) => void }) => {
   const [draft, setDraft] = useState<ProjectInfo>(info);
+  const { role } = useAuth();
+  const campos = useMemo(() => camposVisiveis(role), [role]);
 
   // Ressincroniza quando o projeto muda (ex.: troca de projeto ou import)
   useEffect(() => { setDraft(info); }, [info]);
 
   const dirty = useMemo(
-    () => INFO_FIELDS.some(f => String(draft[f.key] ?? '') !== String(info[f.key] ?? '')),
-    [draft, info]
+    () => campos.some(f => String(draft[f.key] ?? '') !== String(info[f.key] ?? '')),
+    [campos, draft, info]
   );
 
   // Aviso de alterações não salvas (fechar/recarregar a aba)
@@ -125,7 +149,9 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
 
   const handleSave = () => {
     const patch: Partial<ProjectInfo> = {};
-    INFO_FIELDS.forEach(f => { (patch as Record<string, unknown>)[f.key] = draft[f.key]; });
+    // Só os campos que a pessoa enxerga entram no patch: incluir os escondidos
+    // faria quem não vê o custo gravá-lo de volta com o valor do próprio draft.
+    campos.forEach(f => { (patch as Record<string, unknown>)[f.key] = draft[f.key]; });
     patch.infoSavedAt = new Date().toISOString();
     setInfo(patch);
   };
@@ -133,7 +159,7 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
   return (
     <SecaoRecolhivel id="info-projeto" titulo="Informações do Projeto">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {INFO_FIELDS.map((field) => (
+        {campos.map((field) => (
           <div key={field.key}>
             <label className="text-sm font-medium text-muted-foreground mb-1 block">{field.label}</label>
             <Input

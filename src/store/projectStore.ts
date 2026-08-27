@@ -19,6 +19,12 @@ export interface ProjectInfo {
   infoSavedAt?: string;
   contrato?: string;
   escopo?: string;
+  /** Quem planeja a obra. */
+  planejador?: string;
+  /** Natureza da obra (montagem eletromecânica, caldeiraria, parada...). */
+  tipoObra?: string;
+  /** Custo da obra em R$ — só admin, gestor e planejador enxergam. */
+  custoObra?: number;
   // ── Curva S vinda do MS Project (Trabalho ou Custo acumulado) ──
   /** Em que unidade o Project exportou a curva. */
   curvaBase?: 'trabalho' | 'custo';
