@@ -12,6 +12,7 @@ import ExecutiveSummary from '@/components/ExecutiveSummary';
 import ActionsTable from '@/components/ActionsTable';
 import ScheduleTable from '@/components/ScheduleTable';
 import ParetoCausas from '@/components/ParetoCausas';
+import ClimaCard from '@/components/ClimaCard';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
@@ -559,6 +560,9 @@ const Index = () => {
         {/* Cronograma — largura total: são as 15 colunas do template. Vem antes
             dos cards de acompanhamento da semana. */}
         <ScheduleTable />
+
+        {/* Clima — só aparece quando a cidade da obra foi escolhida em Dados. */}
+        <ClimaCard />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ActionsTable />

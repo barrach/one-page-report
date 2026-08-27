@@ -16,6 +16,7 @@ import ProjectSelector from '@/components/ProjectSelector';
 import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
+import ClimaConfig from '@/components/ClimaConfig';
 import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
 import { useAuth, type AppRole } from '@/context/AuthContext';
 import { visaoMensal } from '@/lib/visaoMensal';
@@ -337,6 +338,8 @@ const DataInputPage = () => {
 
       {/* Project Info */}
       <ProjectInfoEditor info={info} setInfo={setInfo} />
+
+      <ClimaConfig />
 
       <div>
         <SCurveSpreadsheet />

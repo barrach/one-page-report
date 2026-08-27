@@ -36,6 +36,11 @@ export interface ProjectInfo {
   mesBase?: 'linhaBase' | 'tendencia';
   /** Recorte do Histograma MOD no relatório: obra inteira, 15 ou 30 dias. */
   histPeriodo?: 'tudo' | '15' | '30';
+  // ── Clima da obra ──
+  /** Cidade escolhida, como aparece no card. */
+  climaLocal?: string;
+  climaLat?: number;
+  climaLon?: number;
   // FORMATO D — autoritative KPI values (em % already, ex.: 87 = 87%)
   prevSemana?: number;
   realSemana?: number;
