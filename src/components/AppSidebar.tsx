@@ -75,13 +75,15 @@ export default function AppSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        <Link to="/" className={itemClass(isActive('/'))} title="Relatório">
-          <FileText className="h-4 w-4 shrink-0" />
-          {!collapsed && 'Relatório'}
-        </Link>
+        {/* O consolidado vem primeiro: a leitura começa no cliente — quais obras
+            estão em risco — e só depois desce para a obra escolhida. */}
         <Link to="/consolidado" className={itemClass(isActive('/consolidado'))} title="Consolidado por cliente">
           <Layers className="h-4 w-4 shrink-0" />
           {!collapsed && 'Consolidado'}
+        </Link>
+        <Link to="/" className={itemClass(isActive('/'))} title="Relatório">
+          <FileText className="h-4 w-4 shrink-0" />
+          {!collapsed && 'Relatório'}
         </Link>
         {/* Dados é de quem lança: visualizador e cliente não têm o que fazer lá. */}
         {canEdit && (
