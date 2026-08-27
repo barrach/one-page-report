@@ -21,6 +21,8 @@ export interface ProjectInfo {
   escopo?: string;
   /** Quem planeja a obra. */
   planejador?: string;
+  /** Semana de análise da reunião — ex.: "SEM 32" ou "26-SEM32". */
+  semanaAnalise?: string;
   /** Natureza da obra (montagem eletromecânica, caldeiraria, parada...). */
   tipoObra?: string;
   /** Custo da obra em R$ — só admin, gestor e planejador enxergam. */

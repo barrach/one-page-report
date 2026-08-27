@@ -118,6 +118,7 @@ const INFO_FIELDS: {
   { label: 'Avanço Prev. (%)', key: 'avancoPrev', type: 'number' },
   { label: 'Avanço Real (%)', key: 'avancoReal', type: 'number' },
   { label: 'Atualizado em', key: 'atualizadoEm', type: 'date' },
+  { label: 'Semana de análise', key: 'semanaAnalise', type: 'text' },
 ];
 
 const camposVisiveis = (papel: AppRole | null) =>

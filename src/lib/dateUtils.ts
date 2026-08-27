@@ -24,6 +24,24 @@ export const formatDateShort = (dateStr: string): string => {
   return `${String(d.getDate()).padStart(2, '0')}/${months[d.getMonth()]}`;
 };
 
+/**
+ * Semana ISO ("SEM 32") da data.
+ *
+ * ISO e não "dias desde 1º de janeiro dividido por 7": a semana ISO começa na
+ * segunda e é a numeração que o planejamento usa para conversar com o cliente.
+ */
+export const semanaISO = (iso: string): string => {
+  const d = parseISOLocal(iso);
+  if (!d) return '';
+  // Quinta-feira da mesma semana define o ano ISO.
+  const quinta = somarDias(d, 3 - ((d.getDay() + 6) % 7));
+  const primeiraQuinta = new Date(quinta.getFullYear(), 0, 4);
+  const deslocamento = (primeiraQuinta.getDay() + 6) % 7;
+  const semana1 = somarDias(primeiraQuinta, -deslocamento);
+  const numero = Math.round((quinta.getTime() - semana1.getTime()) / (7 * 86_400_000)) + 1;
+  return `SEM ${String(numero).padStart(2, '0')}`;
+};
+
 /** Calcula semana do ano */
 export const getWeekOfYear = (dateStr: string): string => {
   if (!dateStr) return '';

@@ -1,9 +1,9 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, CalendarClock, CalendarRange, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
+import { formatDateBR, formatDateShort, semanaISO } from '@/lib/dateUtils';
 import { useContractPerformance } from '@/hooks/use-contract-performance';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import { ppcDaSemana, ultimaSemana } from '@/lib/ppc';
@@ -162,15 +162,14 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
               Limpar Filtro
             </Button>
           )}
-          <div className="text-right">
-            <div className="text-[10px] text-primary-foreground/50 uppercase tracking-wider">Atualizado em</div>
-            <div className="text-xs font-semibold text-primary-foreground">{formatDateBR(info.atualizadoEm)}</div>
-          </div>
+          {/* "Atualizado em" saiu daqui: passou para a faixa de informações, ao
+              lado da semana de análise. A mesma data duas vezes no mesmo
+              cabeçalho só disputava a atenção de quem lê. */}
         </div>
       </div>
 
       {/* Info strip */}
-      <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 divide-x divide-border">
+      <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 divide-x divide-border">
         {([
           // Cliente entra aqui, no lugar da linha que havia sob o título; o número do
           // contrato vem como segunda linha da mesma célula.
@@ -179,6 +178,16 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
           { label: 'Início', value: formatDateBR(info.inicio), icon: Calendar },
           { label: 'Término LB', value: formatDateBR(info.terminoLB), icon: Calendar },
           { label: 'Término Prev.', value: formatDateBR(info.terminoPrev), icon: Calendar },
+          // A data de status e a semana da reunião: quem lê o relatório precisa
+          // saber a que momento os números se referem.
+          { label: 'Atualizado em', value: formatDateBR(info.atualizadoEm), icon: CalendarClock },
+          {
+            label: 'Semana de análise',
+            // Sem a semana digitada, mostra a semana ISO da data de status — é
+            // melhor que uma célula vazia, e é a semana que se estaria analisando.
+            value: info.semanaAnalise?.trim() || semanaISO(info.atualizadoEm),
+            icon: CalendarRange,
+          },
         ] as { label: string; value?: string; sub?: string; icon: React.ElementType }[]).map(({ label, value, sub, icon: Icon }) => (
           <div key={label} className="flex items-center gap-2 px-4 py-2 min-w-0">
             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
