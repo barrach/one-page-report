@@ -32,14 +32,14 @@ const SCurveChart = () => {
 
   // O gráfico para no Término Previsto; a série guardada continua inteira.
   const curva = useMemo(
-    () => limitarAoTermino(sCurveData, info?.terminoPrev || ''),
-    [sCurveData, info?.terminoPrev],
+    () => limitarAoTermino(sCurveData, info?.terminoPrev || '', { inicio: info?.inicio, periodicidade: info?.curvaPeriodicidade }),
+    [sCurveData, info?.terminoPrev, info?.inicio, info?.curvaPeriodicidade],
   );
   // O índice de status é recalculado sobre a curva já cortada — o índice antigo
   // apontava para a série inteira e cairia na semana errada depois do corte.
   const cutIndex = Math.max(
     0,
-    Math.min(indiceDoStatus(curva, info?.atualizadoEm || '', statusDateIndex), curva.length - 1),
+    Math.min(indiceDoStatus(curva, info?.atualizadoEm || '', statusDateIndex, { inicio: info?.inicio, periodicidade: info?.curvaPeriodicidade }), curva.length - 1),
   );
   const statusDate = curva[cutIndex]?.date || null;
   // Real no status: prefere Real Replanejado (row16) quando > 0, senão Real (row12).

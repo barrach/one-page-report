@@ -22,8 +22,8 @@ const PLACEHOLDER_MONTHS: MonthWeekData[] = [1, 2, 3, 4, 5].map((n) => ({
 const useMonthData = (): MonthWeekData[] => {
   const { monthData, sCurveData, info } = useCurrentProject();
   const daCurva = useMemo(
-    () => visaoMensal(sCurveData, info?.atualizadoEm || '', info?.mesBase ?? 'linhaBase'),
-    [sCurveData, info?.atualizadoEm, info?.mesBase],
+    () => visaoMensal(sCurveData, info?.atualizadoEm || '', info?.mesBase ?? 'linhaBase', { inicio: info?.inicio, periodicidade: info?.curvaPeriodicidade }),
+    [sCurveData, info?.atualizadoEm, info?.mesBase, info?.inicio, info?.curvaPeriodicidade],
   );
   if (daCurva.length > 0) return daCurva;
   return monthData && monthData.length > 0 ? monthData : PLACEHOLDER_MONTHS;

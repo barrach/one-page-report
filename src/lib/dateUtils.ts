@@ -119,6 +119,25 @@ export type Periodicidade = 'semanal' | 'diaria';
 /** Quantos dias cada ponto da curva avança. */
 export const PASSO_DIAS: Record<Periodicidade, number> = { semanal: 7, diaria: 1 };
 
+/**
+ * A data real de cada ponto da curva, pela POSIÇÃO.
+ *
+ * Os rótulos da curva são "03/ago", sem ano. Numa obra que atravessa o
+ * ano-novo, "03/ago" de 2026 e de 2027 são o mesmo texto, e qualquer conversão
+ * a partir do rótulo tem de adivinhar — foi o que fez o card do mês mostrar dez
+ * colunas em vez de quatro. Contando do início da obra não há o que adivinhar.
+ */
+export const datasDaCurva = (
+  quantidade: number,
+  inicioISO: string,
+  periodicidade: Periodicidade = 'semanal',
+): (Date | null)[] => {
+  const inicio = parseISOLocal(inicioISO);
+  if (!inicio) return Array.from({ length: quantidade }, () => null);
+  const passo = PASSO_DIAS[periodicidade];
+  return Array.from({ length: quantidade }, (_, i) => somarDias(inicio, i * passo));
+};
+
 export interface JanelaItem {
   date: string;
   previsto: number;

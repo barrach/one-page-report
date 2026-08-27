@@ -38,4 +38,38 @@ describe('visaoMensal', () => {
     expect(visaoMensal([], '2026-05-20')).toEqual([]);
     expect(visaoMensal(CURVA, '')).toEqual([]);
   });
+
+  it('numa obra de mais de um ano, não mistura o mesmo mês de anos diferentes', () => {
+    // O bug: os rótulos não têm ano, então "03/ago" de 2026 e de 2027 viravam a
+    // mesma coisa e o card mostrava dez colunas. Com o início da obra, a data de
+    // cada ponto vem da posição na curva e a ambiguidade some.
+    const doisAnos = Array.from({ length: 105 }, (_, i) => ({
+      date: `sem${i}`,
+      previsto: i,
+      real: 0,
+      tendencia: i,
+    }));
+    // Início numa segunda: 03/08/2026 é a primeira segunda de agosto/2026.
+    const mes = visaoMensal(doisAnos, '2026-08-20', 'linhaBase', {
+      inicio: '2026-08-03',
+      periodicidade: 'semanal',
+    });
+    // Agosto/2026 tem 5 segundas a partir do dia 3: 3, 10, 17, 24 e 31.
+    expect(mes).toHaveLength(5);
+    expect(mes[0].label).toBe('sem0');
+    expect(mes[4].label).toBe('sem4');
+  });
+
+  it('a primeira semana do mês é a primeira segunda-feira dele', () => {
+    const semanal = Array.from({ length: 60 }, (_, i) => ({
+      date: `s${i}`, previsto: i, real: 0, tendencia: i,
+    }));
+    // Obra começa em 05/01/2026 (segunda). Em maio/2026 as segundas são
+    // 4, 11, 18 e 25 — quatro semanas.
+    const mes = visaoMensal(semanal, '2026-05-20', 'linhaBase', {
+      inicio: '2026-01-05',
+      periodicidade: 'semanal',
+    });
+    expect(mes).toHaveLength(4);
+  });
 });

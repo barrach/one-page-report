@@ -1,4 +1,4 @@
-import { parseISOLocal, parseWeekLabel } from '@/lib/dateUtils';
+import { datasDaCurva, parseISOLocal, parseWeekLabel, type Periodicidade } from '@/lib/dateUtils';
 
 /**
  * Prev. × Realizado do mês, tirado da Curva S.
@@ -34,11 +34,22 @@ export interface SemanaDoMes {
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** As semanas da Curva S que caem no mês do "Atualizado em". */
+/**
+ * As semanas da Curva S que caem no mês do "Atualizado em".
+ *
+ * Quando o início da obra é conhecido, a data de cada ponto vem da POSIÇÃO na
+ * curva (início + n períodos) e não do rótulo. Os rótulos não têm ano, e numa
+ * obra de mais de um ano isso trazia agosto de dois anos diferentes para o mesmo
+ * card. Sem o início, cai na leitura do rótulo, que é o melhor possível ali.
+ *
+ * Numa curva semanal que começa numa segunda, as semanas do mês são exatamente
+ * as segundas — a primeira delas é a primeira segunda-feira do mês.
+ */
 export const visaoMensal = (
   sCurve: PontoMensal[] | undefined,
   atualizadoEm: string,
   base: BaseMensal = 'linhaBase',
+  opts: { inicio?: string; periodicidade?: Periodicidade } = {},
 ): SemanaDoMes[] => {
   const pontos = sCurve ?? [];
   const ref = parseISOLocal(atualizadoEm);
@@ -46,9 +57,12 @@ export const visaoMensal = (
 
   const anoRef = ref.getFullYear();
   const mes = ref.getMonth();
+  const porPosicao = opts.inicio
+    ? datasDaCurva(pontos.length, opts.inicio, opts.periodicidade ?? 'semanal')
+    : null;
 
   return pontos
-    .map((p) => ({ ponto: p, data: parseWeekLabel(p.date, anoRef) }))
+    .map((p, i) => ({ ponto: p, data: porPosicao ? porPosicao[i] : parseWeekLabel(p.date, anoRef) }))
     .filter(({ data }) => data != null && data.getMonth() === mes && data.getFullYear() === anoRef)
     .map(({ ponto }) => ({
       label: ponto.date,

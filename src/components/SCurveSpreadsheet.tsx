@@ -150,7 +150,7 @@ const SCurveSpreadsheet = () => {
   // "Atualizado em". Marcar uma coluna aqui move o "Atualizado em" para a data
   // daquela coluna, e o índice guardado segue junto para os gráficos que ainda
   // o leem.
-  const statusIdx = indiceDoStatus(sCurveData, info?.atualizadoEm || '', statusDateIndex);
+  const statusIdx = indiceDoStatus(sCurveData, info?.atualizadoEm || '', statusDateIndex, { inicio: info?.inicio, periodicidade: info?.curvaPeriodicidade });
 
   useEffect(() => {
     if (statusIdx >= 0 && statusIdx !== statusDateIndex) setStatusDateIndex(statusIdx);

@@ -196,7 +196,7 @@ const DataInputPage = () => {
   const avanco = useMemo(
     () => avancoDaCurva(
       sCurveData,
-      indiceDoStatus(sCurveData, info?.atualizadoEm || '', statusDateIndex),
+      indiceDoStatus(sCurveData, info?.atualizadoEm || '', statusDateIndex, { inicio: info?.inicio, periodicidade: info?.curvaPeriodicidade }),
     ),
     [sCurveData, info?.atualizadoEm, statusDateIndex],
   );
@@ -233,7 +233,7 @@ const DataInputPage = () => {
   // `monthData` guardado só aparece em projeto antigo, que ainda tem o mês
   // digitado à mão e nenhuma curva cobrindo aquele período.
   const janelaMensal = useMemo(
-    () => visaoMensal(sCurveData, info?.atualizadoEm || '', info?.mesBase ?? 'linhaBase'),
+    () => visaoMensal(sCurveData, info?.atualizadoEm || '', info?.mesBase ?? 'linhaBase', { inicio: info?.inicio, periodicidade: info?.curvaPeriodicidade }),
     [sCurveData, info?.atualizadoEm, info?.mesBase],
   );
   const mesDerivado = janelaMensal.length > 0;

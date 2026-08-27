@@ -1,4 +1,4 @@
-import { parseISOLocal, parseWeekLabel } from '@/lib/dateUtils';
+import { datasDaCurva, parseISOLocal, parseWeekLabel, type Periodicidade } from '@/lib/dateUtils';
 
 /**
  * Avanço previsto e real do cabeçalho, lidos da Curva S.
@@ -37,14 +37,21 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 export const limitarAoTermino = <T extends { date: string }>(
   sCurve: T[] | undefined,
   terminoPrev: string,
+  opts: { inicio?: string; periodicidade?: Periodicidade } = {},
 ): T[] => {
   const pontos = sCurve ?? [];
   const fim = parseISOLocal(terminoPrev);
   if (!fim || pontos.length === 0) return pontos;
 
+  // Pela posição quando o início é conhecido: o rótulo não tem ano, e numa obra
+  // de mais de um ano o corte cairia na volta errada do calendário.
   const anoRef = fim.getFullYear();
-  const dentro = pontos.filter((p) => {
-    const d = parseWeekLabel(p.date, anoRef);
+  const porPosicao = opts.inicio
+    ? datasDaCurva(pontos.length, opts.inicio, opts.periodicidade ?? 'semanal')
+    : null;
+
+  const dentro = pontos.filter((p, i) => {
+    const d = porPosicao ? porPosicao[i] : parseWeekLabel(p.date, anoRef);
     // Ponto sem data legível fica: sumir com ele seria pior que mostrá-lo.
     return d == null || d.getTime() <= fim.getTime();
   });
@@ -66,6 +73,7 @@ export const indiceDoStatus = (
   sCurve: { date: string }[] | undefined,
   atualizadoEm: string,
   padrao = 0,
+  opts: { inicio?: string; periodicidade?: Periodicidade } = {},
 ): number => {
   const pontos = sCurve ?? [];
   if (pontos.length === 0) return padrao;
@@ -74,12 +82,15 @@ export const indiceDoStatus = (
   if (!ref) return Math.min(padrao, pontos.length - 1);
 
   const anoRef = ref.getFullYear();
+  const porPosicao = opts.inicio
+    ? datasDaCurva(pontos.length, opts.inicio, opts.periodicidade ?? 'semanal')
+    : null;
   let melhor = -1;
   let menorDif = Infinity;
   let ultimaPassada = -1;
 
   pontos.forEach((p, i) => {
-    const d = parseWeekLabel(p.date, anoRef);
+    const d = porPosicao ? porPosicao[i] : parseWeekLabel(p.date, anoRef);
     if (!d) return;
     const dif = d.getTime() - ref.getTime();
     if (Math.abs(dif) < menorDif) { menorDif = Math.abs(dif); melhor = i; }
