@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReportHeader from '@/components/ReportHeader';
 import SCurveChart from '@/components/SCurveChart';
@@ -13,12 +13,16 @@ import ActionsTable from '@/components/ActionsTable';
 import ScheduleTable from '@/components/ScheduleTable';
 import ParetoCausas from '@/components/ParetoCausas';
 import ClimaCard from '@/components/ClimaCard';
+import CardArrumavel from '@/components/CardArrumavel';
+import {
+  normalizarLayout, moverCard, reordenarCard, alternarLargura, ajustarAltura, alternarOculto,
+} from '@/lib/layoutRelatorio';
 import { useProjectStore, useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import AppSidebar from '@/components/AppSidebar';
-import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical } from 'lucide-react';
+import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical, LayoutGrid } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
@@ -58,6 +62,34 @@ const Index = () => {
   const isMobile = useIsMobile();
   const current = useCurrentProject();
   const { isAdmin } = useAuth();
+
+  // ── Arrumação dos cards (só administrador) ──
+  const setLayoutRelatorio = useProjectStore((s) => s.setLayoutRelatorio);
+  const [editandoLayout, setEditandoLayout] = useState(false);
+  const arrastando = useRef<string | null>(null);
+  // Normaliza sempre: card novo criado depois entra no fim em vez de sumir do
+  // relatório de quem já tinha layout salvo.
+  const layout = useMemo(() => normalizarLayout(current?.layoutRelatorio), [current?.layoutRelatorio]);
+
+  const renderizarCard = (id: string) => {
+    switch (id) {
+      case 'scurve': return <SCurveChart />;
+      case 'fiveweek': return <FiveWeekChart />;
+      case 'month': return <MonthChart />;
+      case 'histogram': return <HistogramChart />;
+      case 'schedule': return <ScheduleTable />;
+      case 'clima': return <ClimaCard />;
+      case 'actions': return <ActionsTable />;
+      case 'progsemanal': return (
+        <ProgramacaoSemanalCard
+          data={current?.programacaoSemanal ?? []}
+          histogramData={current?.histogramData}
+        />
+      );
+      case 'pareto': return <ParetoCausas />;
+      default: return null;
+    }
+  };
 
   const togglePresentation = () => {
     if (!presentationMode) {
@@ -364,6 +396,14 @@ const Index = () => {
           <DropdownMenuItem onClick={toggleTvMode}>
             <Tv className="h-4 w-4 mr-2" /> Modo TV
           </DropdownMenuItem>
+          {/* Arrumar o relatório é do administrador: o layout vale para todos
+              que abrirem o projeto. */}
+          {isAdmin && (
+            <DropdownMenuItem onClick={() => setEditandoLayout((v) => !v)}>
+              <LayoutGrid className="h-4 w-4 mr-2" />
+              {editandoLayout ? 'Concluir arrumação' : 'Arrumar relatório'}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={toggleTheme}>
             {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
             {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
@@ -545,35 +585,52 @@ const Index = () => {
         <ReportHeader actions={presentationMode ? undefined : reportActions} />
         <ExecutiveSummary />
 
-        {/* O layout é fixo: os seis cards aparecem sempre, zerados quando não
-            houver dados importados para o projeto selecionado. */}
+        {/* Uma única grade de duas colunas: a ordem, a largura e a altura de
+            cada card vêm do layout salvo no projeto. O export em PDF percorre os
+            filhos da grade, então o papel sai na mesma ordem da tela. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <SCurveChart />
-          <FiveWeekChart />
+          {layout.map((item, i) => (
+            <CardArrumavel
+              key={item.id}
+              item={item}
+              editando={editandoLayout}
+              primeiro={i === 0}
+              ultimo={i === layout.length - 1}
+              onMover={(dir) => setLayoutRelatorio(moverCard(layout, item.id, dir))}
+              onLargura={() => setLayoutRelatorio(alternarLargura(layout, item.id))}
+              onAltura={(passos) => setLayoutRelatorio(ajustarAltura(layout, item.id, passos))}
+              onOculto={() => setLayoutRelatorio(alternarOculto(layout, item.id))}
+              onArrastarInicio={() => { arrastando.current = item.id; }}
+              onSoltarSobre={() => {
+                if (arrastando.current) {
+                  setLayoutRelatorio(reordenarCard(layout, arrastando.current, item.id));
+                }
+                arrastando.current = null;
+              }}
+            >
+              {renderizarCard(item.id)}
+            </CardArrumavel>
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <MonthChart />
-          <HistogramChart />
-        </div>
-
-        {/* Cronograma — largura total: são as 15 colunas do template. Vem antes
-            dos cards de acompanhamento da semana. */}
-        <ScheduleTable />
-
-        {/* Clima — só aparece quando a cidade da obra foi escolhida em Dados. */}
-        <ClimaCard />
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ActionsTable />
-          <ProgramacaoSemanalCard
-            data={current?.programacaoSemanal ?? []}
-            histogramData={current?.histogramData}
-          />
-        </div>
-
-        {/* Pareto 6M — largura total, fecha o relatório com as causas */}
-        <ParetoCausas />
+        {editandoLayout && (
+          <div
+            data-pdf-skip
+            data-html2canvas-ignore
+            className="flex items-center justify-between gap-3 flex-wrap rounded-xl border border-primary/40 bg-primary/5 px-4 py-3 print:hidden"
+          >
+            <p className="text-xs text-muted-foreground">
+              Arraste os cards ou use as setas para reordenar. A arrumação vale para
+              <strong className="text-foreground"> todo mundo que abrir este projeto</strong>.
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setLayoutRelatorio(null)}>
+                Restaurar padrão
+              </Button>
+              <Button size="sm" onClick={() => setEditandoLayout(false)}>Concluir</Button>
+            </div>
+          </div>
+        )}
 
         <motion.div
           initial={{ opacity: 0 }}

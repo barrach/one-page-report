@@ -2,6 +2,7 @@ import { create } from 'zustand';
 // DADOS do OPR vêm do projeto original bxmvz (FRIGO, NTS, OXICORTE, GUAXE...).
 // A autenticação fica no client principal (rlpmw); aqui é só leitura/escrita de dados.
 import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
+import type { ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
@@ -197,6 +198,8 @@ export interface Project {
   scheduleData: ScheduleRow[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
+  /** Arrumação dos cards do relatório — do projeto, não de quem olha. */
+  layoutRelatorio?: ItemLayoutRelatorio[];
   /** Anotações de reunião por card do relatório: chave do card → histórico. */
   observacoesCards?: Record<string, ObservacaoCard[]>;
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; schedule?: string; curvaSFinanceira?: string; progSemanal?: string };
@@ -328,6 +331,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     observacoesCards: (d.observacoesCards as Record<string, ObservacaoCard[]>) ?? {},
+    layoutRelatorio: (d.layoutRelatorio as ItemLayoutRelatorio[]) ?? undefined,
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
     programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
     desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
@@ -351,6 +355,7 @@ const projectToDb = (p: Project): any => ({
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     observacoesCards: p.observacoesCards || {},
+    layoutRelatorio: p.layoutRelatorio || null,
     lastImports: p.lastImports || {},
     programacaoSemanal: p.programacaoSemanal || [],
     desvioAnalise: p.desvioAnalise || null,
@@ -404,6 +409,8 @@ interface ProjectStoreState {
   removeScheduleRow: (index: number) => void;
   setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
   setAiInsight: (chartType: string, insight: string) => void;
+  /** Arrumação dos cards do relatório. `null` volta ao padrão. */
+  setLayoutRelatorio: (layout: ItemLayoutRelatorio[] | null) => void;
   /** Anota num card do relatório, carimbando a data. */
   addObservacaoCard: (card: string, texto: string, autor?: string) => void;
   removeObservacaoCard: (card: string, id: string) => void;
@@ -670,6 +677,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   setAiInsight: (chartType, insight) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       aiInsights: { ...(p.aiInsights || {}), [chartType]: insight },
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setLayoutRelatorio: (layout) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({
+      layoutRelatorio: layout ?? undefined,
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
