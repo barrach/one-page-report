@@ -44,23 +44,72 @@ const chaveDoDia = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate(
 export interface PontoHistograma {
   date: string;
   semana: string;
+  /** MOD prevista. */
   previsto: number;
+  /** MOD real. */
   real: number;
   /** MOD replanejada — preenchida à mão quando há replanejamento. */
   replanejado?: number;
+  /** MOI — a indireta: encarregado, segurança, apontador, almoxarife. */
+  moiPrevisto?: number;
+  moiReal?: number;
+  moiReplanejado?: number;
 }
 
+/** As seis séries que a planilha pode trazer. */
+export type SerieHistograma =
+  | 'previsto' | 'real' | 'replanejado'
+  | 'moiPrevisto' | 'moiReal' | 'moiReplanejado';
+
+export type SeriesColadas = Partial<Record<SerieHistograma, number[]>>;
+
 /**
- * Colagem do Excel no histograma: uma linha por série, na ordem
- * previsto → real → replanejado.
+ * Qual série é a linha, pelo rótulo da primeira célula.
+ *
+ * A ordem dos testes importa: "replanejado" é checado antes de "previsto"
+ * porque na planilha a linha costuma vir como "MOD Previsto Replanejado", e
+ * quem manda ali é o replanejamento.
+ */
+export const serieDoRotulo = (rotulo: string): SerieHistograma | null => {
+  const t = String(rotulo ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .trim().toLowerCase();
+  if (!t) return null;
+
+  const indireta = /\bmoi\b|indiret/.test(t);
+  const direta = /\bmod\b|diret/.test(t);
+  // Sem MOD nem MOI escrito, a linha é da direta: era o único conteúdo do
+  // histograma antes de a MOI existir, e nenhuma planilha antiga muda de
+  // significado por causa desta versão.
+  if (!indireta && !direta && !/prev|real|replan/.test(t)) return null;
+
+  const qual = /replan/.test(t) ? 'replanejado' : /real/.test(t) ? 'real' : /prev/.test(t) ? 'previsto' : null;
+  if (!qual) return null;
+
+  if (!indireta) return qual;
+  return qual === 'previsto' ? 'moiPrevisto' : qual === 'real' ? 'moiReal' : 'moiReplanejado';
+};
+
+/** Ordem posicional de quando a colagem não traz rótulo nenhum. */
+const ORDEM_SEM_ROTULO: SerieHistograma[] = ['previsto', 'real', 'replanejado'];
+
+/**
+ * Colagem do Excel no histograma.
+ *
+ * Duas formas, e a escolha é da planilha:
+ *
+ * — Com rótulo na primeira célula ("MOD Previsto", "MOI Real", "Replanejado"),
+ *   cada linha vai para a série que o rótulo nomeia, em qualquer ordem. É o
+ *   único jeito de colar MOI, porque seis séries em posição fixa ninguém
+ *   memoriza.
+ * — Sem rótulo nenhum, vale a ordem de sempre: previsto, real, replanejado.
+ *   Mantida exatamente como era para não mudar o significado de uma colagem
+ *   que já funcionava.
  *
  * Os valores caem nas colunas que já estão na tela, pela posição — as semanas
  * vêm da Curva S, então a planilha de origem só precisa estar na mesma ordem.
- * Uma primeira célula de texto é rótulo e sai fora.
  */
-export const lerColagemHistograma = (
-  texto: string,
-): { previsto: number[]; real: number[]; replanejado: number[] } => {
+export const lerColagemHistograma = (texto: string): SeriesColadas => {
   const numero = (c: string): number | null => {
     const t = String(c ?? '').trim();
     if (!t) return null;
@@ -74,15 +123,25 @@ export const lerColagemHistograma = (
     .map((l) => (l.includes('\t') ? l.split('\t') : l.trim().split(/\s+/)))
     .filter((c) => c.some((v) => numero(v) != null))
     .map((celulas) => {
-      const semRotulo = numero(celulas[0]) == null ? celulas.slice(1) : celulas;
-      return semRotulo.map((c) => numero(c) ?? 0);
+      const temRotulo = numero(celulas[0]) == null;
+      return {
+        serie: temRotulo ? serieDoRotulo(celulas[0]) : null,
+        valores: (temRotulo ? celulas.slice(1) : celulas).map((c) => numero(c) ?? 0),
+      };
     });
 
-  return {
-    previsto: linhas[0] ?? [],
-    real: linhas[1] ?? [],
-    replanejado: linhas[2] ?? [],
-  };
+  const saida: SeriesColadas = {};
+  const comRotulo = linhas.some((l) => l.serie != null);
+
+  linhas.forEach((l, i) => {
+    // Basta UMA linha rotulada para a colagem inteira passar a ser por rótulo:
+    // misturar os dois critérios na mesma colagem escreveria série errada sem
+    // ninguém perceber.
+    const destino = comRotulo ? l.serie : ORDEM_SEM_ROTULO[i];
+    if (destino) saida[destino] = l.valores;
+  });
+
+  return saida;
 };
 
 /**

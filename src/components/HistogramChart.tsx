@@ -13,6 +13,49 @@ import {
   ResponsiveContainer, LabelList, Cell, ReferenceLine,
 } from 'recharts';
 
+/**
+ * Histograma de mão de obra.
+ *
+ * Com MOI lançada, cada período vira DUAS colunas empilhadas: previsto
+ * (MOD + MOI) e real (MOD + MOI). O empilhamento é o ponto — o que se compara
+ * é o efetivo total de cada semana, e dentro da mesma coluna dá para ver quanto
+ * dele é indireta. Quatro barras soltas lado a lado obrigariam a somar de
+ * cabeça justamente o número que decide a conversa.
+ *
+ * Sem MOI lançada nada muda: continuam as barras simples de antes.
+ */
+
+const CORES = {
+  previsto: 'hsl(var(--chart-previsto))',
+  real: 'hsl(var(--chart-real))',
+  replanejado: '#f97316',
+  // A MOI é o mesmo tom da sua dupla, mais claro: dentro da coluna a leitura é
+  // "quanto disto é indireta", e não uma terceira série concorrendo por atenção.
+  moiPrevisto: 'hsl(var(--chart-previsto) / 0.45)',
+  moiReal: 'hsl(var(--chart-real) / 0.45)',
+  moiReplanejado: '#f9731777',
+} as const;
+
+const APAGADAS = {
+  previsto: 'hsl(var(--chart-previsto) / 0.3)',
+  real: 'hsl(var(--chart-real) / 0.3)',
+  replanejado: '#f9731740',
+  moiPrevisto: 'hsl(var(--chart-previsto) / 0.14)',
+  moiReal: 'hsl(var(--chart-real) / 0.14)',
+  moiReplanejado: '#f9731722',
+} as const;
+
+const NOMES: Record<string, string> = {
+  previsto: 'MOD Prevista',
+  real: 'MOD Real',
+  replanejado: 'MOD Replanejada',
+  moiPrevisto: 'MOI Prevista',
+  moiReal: 'MOI Real',
+  moiReplanejado: 'MOI Replanejada',
+};
+
+type Serie = keyof typeof CORES;
+
 const HistogramChart = () => {
   const { histogramData, info } = useCurrentProject();
   const setInfo = useProjectStore((s) => s.setInfo);
@@ -26,13 +69,27 @@ const HistogramChart = () => {
   );
   // No celular o recorte já é curto; sem ele, as últimas 8 semanas continuam
   // sendo o que cabe na tela.
-  const data = isMobile && periodo === 'tudo' ? allData.slice(-8) : allData;
-  const temReplanejado = data.some((d) => (d.replanejado ?? 0) > 0);
+  const recorte = isMobile && periodo === 'tudo' ? allData.slice(-8) : allData;
 
-  // Boundary between last real week and first future (previsto) week
+  // Os totais entram nos dados porque é neles que vai o rótulo do topo da
+  // pilha: o recharts rotula segmento a segmento, e quem lê quer o efetivo.
+  const data = useMemo(
+    () => recorte.map((d) => ({
+      ...d,
+      totalPrev: (d.previsto ?? 0) + (d.moiPrevisto ?? 0),
+      totalReal: (d.real ?? 0) + (d.moiReal ?? 0),
+      totalReplan: (d.replanejado ?? 0) + (d.moiReplanejado ?? 0),
+    })),
+    [recorte],
+  );
+
+  const temReplanejado = data.some((d) => d.totalReplan > 0);
+  const temMoi = data.some((d) => (d.moiPrevisto ?? 0) > 0 || (d.moiReal ?? 0) > 0);
+
+  // Fronteira entre a última semana com apontamento e a primeira futura.
   let lastRealIdx = -1;
-  data.forEach((d, i) => { if ((d.real ?? 0) > 0) lastRealIdx = i; });
-  const firstFutureIdx = data.findIndex((d, i) => i > lastRealIdx && (d.previsto ?? 0) > 0);
+  data.forEach((d, i) => { if (d.totalReal > 0) lastRealIdx = i; });
+  const firstFutureIdx = data.findIndex((d, i) => i > lastRealIdx && d.totalPrev > 0);
   const boundaryLabel =
     lastRealIdx >= 0 && firstFutureIdx > lastRealIdx ? data[firstFutureIdx].date : null;
 
@@ -48,6 +105,44 @@ const HistogramChart = () => {
       </div>
     );
   }
+
+  const titulo = temMoi ? 'Histograma MOD + MOI' : 'Histograma MOD';
+  const legenda = temMoi
+    ? 'Efetivo previsto × real por período — cada coluna empilha MOD e MOI'
+    : 'Mão de obra prevista × real por período';
+
+  /**
+   * Uma série do gráfico.
+   *
+   * `pilha` só é passada quando há MOI: sem ela o recharts volta sozinho ao
+   * lado-a-lado de antes. O canto arredondado fica no segmento de cima da
+   * pilha, senão o arredondado do meio abriria uma fresta entre as duas partes.
+   */
+  const barra = (serie: Serie, pilha: string | undefined, topo: boolean, rotulo?: string) => (
+    <Bar
+      key={serie}
+      dataKey={serie}
+      name={serie}
+      stackId={pilha}
+      radius={topo ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+    >
+      {rotulo && (
+        <LabelList
+          dataKey={rotulo}
+          position="top"
+          fontSize={11}
+          fill={CORES[serie]}
+          formatter={(v: number) => (v > 0 ? v : '')}
+        />
+      )}
+      {data.map((entry, i) => (
+        <Cell
+          key={i}
+          fill={selectedDate === null || selectedDate === entry.date ? CORES[serie] : APAGADAS[serie]}
+        />
+      ))}
+    </Bar>
+  );
 
   const chartContent = (height: string) => (
     <div className={height}>
@@ -77,37 +172,31 @@ const HistogramChart = () => {
               borderRadius: 8,
               fontSize: 12,
             }}
-            formatter={(value: number, name: string) => [value, name === 'previsto' ? 'MOD Previsto' : 'MOD Real']}
+            formatter={(value: number, name: string) => [value, NOMES[name] ?? name]}
             labelFormatter={(label) => {
               const item = data.find(d => d.date === label);
-              return `${label}${item?.semana ? ` (Sem. ${item.semana})` : ''}`;
+              const sufixo = item?.semana ? ` (Sem. ${item.semana})` : '';
+              // Com pilha, o total é o número da conversa — e o tooltip só
+              // mostraria as partes.
+              const total = temMoi && item
+                ? ` · prev. ${item.totalPrev} / real ${item.totalReal}`
+                : '';
+              return `${label}${sufixo}${total}`;
             }}
           />
           <Legend
-            formatter={(value) => (
-              <span style={{ fontSize: 12 }}>
-                {value === 'previsto' ? 'MOD Prevista' : 'MOD Real'}
-              </span>
-            )}
             wrapperStyle={{ paddingTop: 8 }}
             content={({ payload }) => (
-              <div className="flex gap-4 justify-center pt-2">
+              <div className="flex gap-x-4 gap-y-1 justify-center pt-2 flex-wrap">
                 {(payload || []).map((entry, i) => {
-                  const cores: Record<string, string> = {
-                    real: 'hsl(var(--chart-real))',
-                    previsto: 'hsl(var(--chart-previsto))',
-                    replanejado: '#f97316',
-                  };
-                  const nomes: Record<string, string> = {
-                    real: 'MOD Real',
-                    previsto: 'MOD Prevista',
-                    replanejado: 'MOD Replanejada',
-                  };
                   const chave = String(entry.dataKey ?? 'previsto');
                   return (
                     <div key={i} className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: cores[chave] ?? cores.previsto }} />
-                      <span className="text-xs text-muted-foreground">{nomes[chave] ?? chave}</span>
+                      <div
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: CORES[chave as Serie] ?? CORES.previsto }}
+                      />
+                      <span className="text-xs text-muted-foreground">{NOMES[chave] ?? chave}</span>
                     </div>
                   );
                 })}
@@ -128,38 +217,17 @@ const HistogramChart = () => {
             />
           )}
 
-          <Bar dataKey="previsto" name="previsto" radius={[4, 4, 0, 0]}>
-            <LabelList dataKey="previsto" position="top" fontSize={11} fill="hsl(var(--chart-previsto))" />
-            {data.map((entry, i) => (
-              <Cell key={i}
-                fill={selectedDate === null || selectedDate === entry.date
-                  ? 'hsl(var(--chart-previsto))'
-                  : 'hsl(var(--chart-previsto) / 0.3)'}
-              />
-            ))}
-          </Bar>
-          <Bar dataKey="real" name="real" radius={[4, 4, 0, 0]}>
-            <LabelList dataKey="real" position="top" fontSize={11} fill="hsl(var(--chart-real))" formatter={(v: number) => v > 0 ? v : ''} />
-            {data.map((entry, i) => (
-              <Cell key={i}
-                fill={selectedDate === null || selectedDate === entry.date
-                  ? 'hsl(var(--chart-real))'
-                  : 'hsl(var(--chart-real) / 0.3)'}
-              />
-            ))}
-          </Bar>
+          {/* Previsto: MOD embaixo, MOI em cima, rótulo com o efetivo total. */}
+          {barra('previsto', temMoi ? 'prev' : undefined, !temMoi, temMoi ? undefined : 'previsto')}
+          {temMoi && barra('moiPrevisto', 'prev', true, 'totalPrev')}
+
+          {barra('real', temMoi ? 'real' : undefined, !temMoi, temMoi ? undefined : 'real')}
+          {temMoi && barra('moiReal', 'real', true, 'totalReal')}
+
           {/* Só aparece quando existe replanejamento — barra vazia em toda semana
               só polui o gráfico de quem não replanejou. */}
-          {temReplanejado && (
-            <Bar dataKey="replanejado" name="replanejado" radius={[4, 4, 0, 0]}>
-              <LabelList dataKey="replanejado" position="top" fontSize={11} fill="#f97316" formatter={(v: number) => v > 0 ? v : ''} />
-              {data.map((entry, i) => (
-                <Cell key={i}
-                  fill={selectedDate === null || selectedDate === entry.date ? '#f97316' : '#f9731640'}
-                />
-              ))}
-            </Bar>
-          )}
+          {temReplanejado && barra('replanejado', temMoi ? 'replan' : undefined, !temMoi, temMoi ? undefined : 'replanejado')}
+          {temReplanejado && temMoi && barra('moiReplanejado', 'replan', true, 'totalReplan')}
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -169,7 +237,7 @@ const HistogramChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Histograma MOD</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{titulo}</h3>
           <SeloDeFrescor secao="histogram" />
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -191,8 +259,8 @@ const HistogramChart = () => {
             ))}
           </div>
           <ChartExpandModal
-            title="Histograma MOD"
-            subtitle="Mão de obra prevista × real por período"
+            title={titulo}
+            subtitle={legenda}
             expandedHeight="h-full"
           >
             {chartContent('h-full min-h-0')}
@@ -200,7 +268,7 @@ const HistogramChart = () => {
         </div>
       </div>
       <p className="text-xs text-muted-foreground mb-4">
-        Mão de obra prevista × real por período
+        {legenda}
         {periodo !== 'tudo' && ` · ${ROTULO_PERIODO[periodo]} em torno da data de status`}
       </p>
       {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
@@ -212,4 +280,3 @@ const HistogramChart = () => {
 };
 
 export default HistogramChart;
-

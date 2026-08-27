@@ -125,10 +125,16 @@ export interface ObservacaoCard {
 export interface HistogramPoint {
   date: string;
   semana: string;
+  /** MOD prevista. O nome ficou curto por compatibilidade com o que já está salvo. */
   previsto: number;
+  /** MOD real. */
   real: number;
   /** MOD replanejada — série separada, preenchida quando há replanejamento. */
   replanejado?: number;
+  /** MOI — indireta: encarregado, técnico de segurança, apontador, almoxarife. */
+  moiPrevisto?: number;
+  moiReal?: number;
+  moiReplanejado?: number;
 }
 
 export interface CurvaSFinanceiraPoint {

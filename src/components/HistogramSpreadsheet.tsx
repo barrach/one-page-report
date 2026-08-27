@@ -30,10 +30,20 @@ const HistogramSpreadsheet = () => {
   const { setHistogramData, addHistogramPoint, removeHistogramPoint } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [mostrarReplanejado, setMostrarReplanejado] = useState(false);
+  const [abriuReplanejado, setAbriuReplanejado] = useState(false);
+  const [abriuMoi, setAbriuMoi] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const temReplanejado = (histogramData ?? []).some((h) => (h.replanejado ?? 0) > 0);
+  const algum = (campo: keyof HistogramPoint) =>
+    (histogramData ?? []).some((h) => Number(h[campo] ?? 0) > 0);
+
+  // Linha com dado aparece sempre: esconder número já lançado atrás de um botão
+  // é a forma mais fácil de alguém achar que a MOI se perdeu. O botão só existe
+  // enquanto a série está vazia, para abrir espaço de digitação.
+  const temReplanejado = algum('replanejado') || algum('moiReplanejado');
+  const temMoi = algum('moiPrevisto') || algum('moiReal');
+  const mostrarReplanejado = abriuReplanejado || temReplanejado;
+  const mostrarMoi = abriuMoi || temMoi;
 
   const botaoCabecalho = (ativo: boolean) =>
     cn(
@@ -137,22 +147,32 @@ const HistogramSpreadsheet = () => {
    * os valores, como se estivesse digitando mais rápido.
    */
   const aplicarColagemSeries = () => {
-    const { previsto, real, replanejado } = lerColagemHistograma(pasteText);
-    if (previsto.length === 0 && real.length === 0) {
+    const series = lerColagemHistograma(pasteText);
+    const nomes = Object.keys(series) as (keyof typeof series)[];
+    if (nomes.length === 0) {
       toast.error('Não consegui ler nenhuma linha de números na colagem.');
       return;
     }
-    const atualizado = data.map((p, i) => ({
-      ...p,
-      previsto: previsto[i] ?? p.previsto,
-      real: real[i] ?? p.real,
-      ...(replanejado.length > 0 ? { replanejado: replanejado[i] ?? p.replanejado } : {}),
-    }));
+
+    // Só as séries que vieram na colagem são tocadas: colar a MOI não pode
+    // zerar a MOD que já estava lançada.
+    const atualizado = data.map((p, i) => {
+      const novo = { ...p } as HistogramPoint;
+      nomes.forEach((s) => {
+        const valor = series[s]?.[i];
+        if (valor != null) (novo as Record<string, unknown>)[s] = valor;
+      });
+      return novo;
+    });
+
     setHistogramData(atualizado);
-    if (replanejado.length > 0) setMostrarReplanejado(true);
+    if (series.replanejado || series.moiReplanejado) setAbriuReplanejado(true);
+    if (series.moiPrevisto || series.moiReal || series.moiReplanejado) setAbriuMoi(true);
     setShowPaste(false);
     setPasteText('');
-    toast.success(`✓ ${Math.max(previsto.length, real.length)} colunas preenchidas`);
+
+    const colunas = Math.max(...nomes.map((s) => series[s]?.length ?? 0));
+    toast.success(`✓ ${nomes.length} série(s) · ${colunas} colunas preenchidas`);
   };
 
   const updateCell = (colIndex: number, field: keyof HistogramPoint, value: string) => {
@@ -190,28 +210,38 @@ const HistogramSpreadsheet = () => {
   return (
     <SecaoRecolhivel
       id="histograma"
-      titulo="Histograma (MOD)"
+      titulo="Histograma (MOD e MOI)"
       acoes={
         <>
           <button
             onClick={() => setShowPaste((v) => !v)}
             className={botaoCabecalho(showPaste)}
-            title="Colar do Excel: 1ª linha Previsto, 2ª Real, 3ª Replanejado"
+            title="Colar do Excel: rotule as linhas para trazer MOD e MOI"
           >
             {showPaste ? '▾ Fechar colagem' : '▸ Colar do Excel'}
           </button>
-          <button
-            onClick={() => setMostrarReplanejado((v) => !v)}
-            className={botaoCabecalho(mostrarReplanejado)}
-            title="Mostrar a linha de MOD replanejada"
-          >
-            {mostrarReplanejado ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
-            {!mostrarReplanejado && temReplanejado && (
-              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
-            )}
-          </button>
+          {/* Os botões somem quando a série já tem número: aí a linha aparece
+              sozinha e não há o que abrir. */}
+          {!temMoi && (
+            <button
+              onClick={() => setAbriuMoi((v) => !v)}
+              className={botaoCabecalho(abriuMoi)}
+              title="Mostrar as linhas de mão de obra indireta"
+            >
+              {abriuMoi ? '▾ Ocultar MOI' : '▸ Mostrar MOI'}
+            </button>
+          )}
+          {!temReplanejado && (
+            <button
+              onClick={() => setAbriuReplanejado((v) => !v)}
+              className={botaoCabecalho(abriuReplanejado)}
+              title="Mostrar as linhas de mão de obra replanejada"
+            >
+              {abriuReplanejado ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
+            </button>
+          )}
           {histogramData.length > 0 && (
-            <ClearDataButton sectionName="Histograma MOD" onConfirm={() => setHistogramData([])} />
+            <ClearDataButton sectionName="Histograma" onConfirm={() => setHistogramData([])} />
           )}
         </>
       }
@@ -219,10 +249,16 @@ const HistogramSpreadsheet = () => {
       {showPaste && (
         <div className="mb-4 space-y-2 p-4 rounded-md bg-muted/50 border">
           <p className="text-sm text-muted-foreground">
-            Cole do Excel uma linha por série, na ordem: <strong>1ª linha Previsto</strong>,{' '}
-            <strong>2ª linha Real</strong> e, se houver, <strong>3ª linha Replanejado</strong>.
-            Os valores caem nas colunas que já estão na tela, pela ordem — um rótulo na
-            primeira célula é ignorado.
+            <strong>Com MOI:</strong> ponha um rótulo na primeira célula de cada linha —{' '}
+            <code className="text-xs">MOD Previsto</code>, <code className="text-xs">MOD Real</code>,{' '}
+            <code className="text-xs">MOI Previsto</code>, <code className="text-xs">MOI Real</code>,{' '}
+            <code className="text-xs">MOD Replanejado</code>, <code className="text-xs">MOI Replanejado</code>.
+            A ordem das linhas não importa e só as séries que você colar são alteradas.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            <strong>Só MOD, sem rótulo:</strong> continua valendo a ordem de sempre —
+            1ª linha Previsto, 2ª Real, 3ª Replanejado. Em qualquer um dos casos os valores
+            caem nas colunas que já estão na tela, pela ordem.
           </p>
           <Textarea rows={4} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Cole aqui os dados copiados do Excel..." className="font-mono text-xs" />
           <Button size="sm" onClick={aplicarColagemSeries}>Aplicar nas colunas</Button>
@@ -249,17 +285,27 @@ const HistogramSpreadsheet = () => {
             </tr>
           </thead>
           <tbody>
+            {/* Agrupadas como o gráfico empilha: primeiro a coluna do previsto
+                (MOD + MOI), depois a do real. */}
             {[
-              { label: 'Semana', field: 'semana' as const, type: 'text', sempre: true },
-              { label: 'Previsto', field: 'previsto' as const, type: 'number', sempre: true },
-              { label: 'Real', field: 'real' as const, type: 'number', sempre: true },
-              { label: 'Replanejado', field: 'replanejado' as const, type: 'number', sempre: mostrarReplanejado },
-            ].filter((r) => r.sempre).map(({ label, field, type }) => (
+              { label: 'Semana', field: 'semana' as const, type: 'text', sempre: true, recuo: false },
+              { label: 'MOD Previsto', field: 'previsto' as const, type: 'number', sempre: true, recuo: false },
+              { label: 'MOI Previsto', field: 'moiPrevisto' as const, type: 'number', sempre: mostrarMoi, recuo: true },
+              { label: 'MOD Real', field: 'real' as const, type: 'number', sempre: true, recuo: false },
+              { label: 'MOI Real', field: 'moiReal' as const, type: 'number', sempre: mostrarMoi, recuo: true },
+              { label: 'MOD Replanejado', field: 'replanejado' as const, type: 'number', sempre: mostrarReplanejado, recuo: false },
+              { label: 'MOI Replanejado', field: 'moiReplanejado' as const, type: 'number', sempre: mostrarReplanejado && mostrarMoi, recuo: true },
+            ].filter((r) => r.sempre).map(({ label, field, type, recuo }) => (
               <tr key={field}>
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
+                <td className={cn(
+                  'sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground',
+                  recuo && 'pl-6 font-normal text-muted-foreground',
+                )}>{label}</td>
                 {data.map((point, i) => (
                   <td key={i} className="border border-border px-1 py-1">
-                    <input type={type} className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(point as any)[field]} onChange={(e) => updateCell(i, field, e.target.value)} />
+                    {/* ?? '' porque MOI e replanejado só existem depois de
+                        preenchidos — sem isso o input nasce descontrolado. */}
+                    <input type={type} className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(point as any)[field] ?? ''} onChange={(e) => updateCell(i, field, e.target.value)} />
                   </td>
                 ))}
               </tr>
