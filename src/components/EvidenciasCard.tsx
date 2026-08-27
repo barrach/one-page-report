@@ -25,6 +25,31 @@ import {
 
 const VALIDADE_URL_S = 60 * 60; // 1 hora — cobre a reunião e a geração do PDF
 
+/**
+ * Teto de fotos por obra.
+ *
+ * O relatório é de UMA página: passando disso as evidências viram um álbum e
+ * empurram o resto do relatório para longe no PDF.
+ */
+const MAX_FOTOS = 10;
+
+/**
+ * O Storage responde "Bucket not found" quando a migration ainda não rodou.
+ * Repassar essa frase crua deixa quem está na obra sem saber o que fazer.
+ */
+const explicarErro = (mensagem: string): string => {
+  if (/bucket not found/i.test(mensagem)) {
+    return 'O espaço de armazenamento ainda não foi criado no Supabase — peça para rodar a migration "evidencias_storage".';
+  }
+  if (/row-level security|not authorized|permission/i.test(mensagem)) {
+    return 'Sem permissão para enviar fotos. Só administrador, gestor e planejador podem.';
+  }
+  if (/exceeded the maximum allowed size|payload too large/i.test(mensagem)) {
+    return 'Foto grande demais mesmo depois de reduzida. Tente uma imagem menor.';
+  }
+  return mensagem;
+};
+
 const fmtQuando = (iso: string): string => {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
@@ -69,10 +94,26 @@ const EvidenciasCard = () => {
 
   const enviar = async (arquivos: FileList | null) => {
     if (!arquivos || arquivos.length === 0) return;
+
+    const espaco = MAX_FOTOS - fotos.length;
+    if (espaco <= 0) {
+      toast.error(`Limite de ${MAX_FOTOS} fotos por obra. Apague alguma para abrir espaço.`);
+      if (entradaRef.current) entradaRef.current.value = '';
+      return;
+    }
+
+    // Corta o excedente em vez de recusar tudo: quem selecionou 15 fotos de uma
+    // vez prefere ver as 10 primeiras entrarem a ter de escolher de novo.
+    const escolhidos = Array.from(arquivos);
+    const aEnviar = escolhidos.slice(0, espaco);
+    if (escolhidos.length > espaco) {
+      toast.error(`Cabem mais ${espaco} foto(s) — as outras ${escolhidos.length - espaco} ficaram de fora.`);
+    }
+
     setEnviando(true);
     let enviadas = 0;
 
-    for (const arquivo of Array.from(arquivos)) {
+    for (const arquivo of aEnviar) {
       if (!arquivo.type.startsWith('image/')) {
         toast.error(`${arquivo.name} não é uma imagem.`);
         continue;
@@ -87,10 +128,9 @@ const EvidenciasCard = () => {
           .upload(caminho, reduzida, { contentType: 'image/jpeg', upsert: false });
 
         if (error) {
-          // O erro do Storage é específico o bastante para valer na tela: sem
-          // ele, "não foi possível enviar" não diz se falta o bucket, se falta
-          // permissão ou se a foto é grande demais.
-          toast.error(`${arquivo.name}: ${error.message}`);
+          // A causa do Storage é específica o bastante para valer na tela — o
+          // que não valia era a frase crua em inglês, que não diz o que fazer.
+          toast.error(explicarErro(error.message));
           continue;
         }
 
@@ -131,7 +171,7 @@ const EvidenciasCard = () => {
         <div>
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Evidências</h3>
           <p className="text-xs text-muted-foreground">
-            Fotos da obra na semana{fotos.length > 0 ? ` · ${fotos.length}` : ''}
+            Fotos da obra na semana{canEdit || fotos.length > 0 ? ` · ${fotos.length} de ${MAX_FOTOS}` : ''}
           </p>
         </div>
         {canEdit && (
@@ -148,10 +188,11 @@ const EvidenciasCard = () => {
               size="sm"
               className="gap-1.5"
               onClick={() => entradaRef.current?.click()}
-              disabled={enviando}
+              disabled={enviando || fotos.length >= MAX_FOTOS}
+              title={fotos.length >= MAX_FOTOS ? `Limite de ${MAX_FOTOS} fotos por obra` : undefined}
             >
               {enviando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-              {enviando ? 'Enviando…' : 'Adicionar fotos'}
+              {enviando ? 'Enviando…' : fotos.length >= MAX_FOTOS ? 'Limite atingido' : 'Adicionar fotos'}
             </Button>
           </div>
         )}
