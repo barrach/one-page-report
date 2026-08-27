@@ -1,0 +1,99 @@
+import { describe, it, expect } from 'vitest';
+import {
+  lerCronogramaColado,
+  lerDataCronograma,
+  lerPercentual,
+} from '@/lib/parseCronogramaColado';
+
+describe('lerDataCronograma', () => {
+  it('lê o formato que o Project cola, com dia da semana na frente', () => {
+    const d = lerDataCronograma('Seg 01/06/26');
+    expect(d?.getFullYear()).toBe(2026);
+    expect(d?.getMonth()).toBe(5);
+    expect(d?.getDate()).toBe(1);
+  });
+
+  it('lê dd/mm/aaaa, dd/mmm/aa e ISO', () => {
+    expect(lerDataCronograma('01/06/2026')?.getFullYear()).toBe(2026);
+    expect(lerDataCronograma('01/jun/26')?.getMonth()).toBe(5);
+    expect(lerDataCronograma('2026-06-01')?.getDate()).toBe(1);
+  });
+
+  it('"ND" e vazio não são data', () => {
+    expect(lerDataCronograma('ND')).toBeNull();
+    expect(lerDataCronograma('')).toBeNull();
+  });
+});
+
+describe('lerPercentual', () => {
+  it('lê com e sem o sinal', () => {
+    expect(lerPercentual('45%')).toBe(45);
+    expect(lerPercentual('45')).toBe(45);
+  });
+
+  it('fração vira percentual', () => {
+    expect(lerPercentual('0,45')).toBe(45);
+  });
+
+  it('vazio é zero', () => {
+    expect(lerPercentual('')).toBe(0);
+  });
+});
+
+describe('lerCronogramaColado', () => {
+  const COLAGEM = [
+    'Nível\tEDT\tNome da tarefa\t% Concluída\tInício\tTérmino\tInício da linha de base\tTérmino da linha de base',
+    '1\t1\tMONTAGEM ELETROMECÂNICA\t45%\tSeg 01/06/26\tSex 31/07/26\tSeg 01/06/26\tSex 24/07/26',
+    '2\t1.1\tTubulação\t60%\tSeg 01/06/26\tSex 03/07/26\tSeg 01/06/26\tSex 26/06/26',
+    '3\t1.1.1\tPré-fabricação\t80%\tSeg 01/06/26\tSex 19/06/26\tSeg 01/06/26\tSex 12/06/26',
+  ].join('\n');
+
+  it('reconhece as colunas pelo cabeçalho, em qualquer ordem', () => {
+    const { linhas, mapeamento, faltando } = lerCronogramaColado(COLAGEM);
+    expect(linhas).toHaveLength(3);
+    expect(faltando).toEqual([]);
+    expect(mapeamento.map((m) => m.campo).sort()).toContain('terminoBase');
+  });
+
+  it('traz nome, avanço e datas de cada tarefa', () => {
+    const { linhas } = lerCronogramaColado(COLAGEM);
+    expect(linhas[0].tarefa).toBe('MONTAGEM ELETROMECÂNICA');
+    expect(linhas[0].previsto).toBe(45);
+    expect(linhas[0].inicio).toBe('Seg 01/06/26');
+    expect(linhas[0].terminoBase).toBe('Sex 24/07/26');
+  });
+
+  it('lê o nível da coluna de nível', () => {
+    const { linhas } = lerCronogramaColado(COLAGEM);
+    expect(linhas.map((l) => l.outlineLevel)).toEqual([1, 2, 3]);
+  });
+
+  it('sem coluna de nível, deduz pela EDT', () => {
+    const semNivel = [
+      'EDT\tNome da tarefa\t% Concluída\tInício\tTérmino',
+      '1\tMontagem\t10%\t01/06/26\t31/07/26',
+      '1.2\tTubulação\t20%\t01/06/26\t03/07/26',
+      '1.2.3\tPré-fabricação\t30%\t01/06/26\t19/06/26',
+    ].join('\n');
+    expect(lerCronogramaColado(semNivel).linhas.map((l) => l.outlineLevel)).toEqual([1, 2, 3]);
+  });
+
+  it('pula o que vem antes do cabeçalho e as linhas sem tarefa', () => {
+    const comLixo = ['Projeto GUAXE', '', COLAGEM, '\t\t\t\t\t\t\t'].join('\n');
+    expect(lerCronogramaColado(comLixo).linhas).toHaveLength(3);
+  });
+
+  it('linha de base ausente vira ND, e não data vazia', () => {
+    const semBase = [
+      'Nome da tarefa\t% Concluída\tInício\tTérmino',
+      'Montagem\t10%\t01/06/26\t31/07/26',
+    ].join('\n');
+    const { linhas, faltando } = lerCronogramaColado(semBase);
+    expect(linhas[0].inicioBase).toBe('ND');
+    expect(faltando).toContain('inicioBase');
+  });
+
+  it('colagem sem cabeçalho reconhecível não vira cronograma', () => {
+    expect(lerCronogramaColado('a\tb\nc\td').linhas).toEqual([]);
+  });
+});

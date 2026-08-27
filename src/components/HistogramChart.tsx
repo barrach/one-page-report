@@ -25,6 +25,7 @@ const HistogramChart = () => {
   // No celular o recorte já é curto; sem ele, as últimas 8 semanas continuam
   // sendo o que cabe na tela.
   const data = isMobile && periodo === 'tudo' ? allData.slice(-8) : allData;
+  const temReplanejado = data.some((d) => (d.replanejado ?? 0) > 0);
 
   // Boundary between last real week and first future (previsto) week
   let lastRealIdx = -1;
@@ -90,16 +91,21 @@ const HistogramChart = () => {
             content={({ payload }) => (
               <div className="flex gap-4 justify-center pt-2">
                 {(payload || []).map((entry, i) => {
-                  const isReal = entry.dataKey === 'real';
-                  const color = isReal
-                    ? 'hsl(var(--chart-real))'
-                    : 'hsl(var(--chart-previsto))';
+                  const cores: Record<string, string> = {
+                    real: 'hsl(var(--chart-real))',
+                    previsto: 'hsl(var(--chart-previsto))',
+                    replanejado: '#f97316',
+                  };
+                  const nomes: Record<string, string> = {
+                    real: 'MOD Real',
+                    previsto: 'MOD Prevista',
+                    replanejado: 'MOD Replanejada',
+                  };
+                  const chave = String(entry.dataKey ?? 'previsto');
                   return (
                     <div key={i} className="flex items-center gap-1.5">
-                      <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: color }} />
-                      <span className="text-xs text-muted-foreground">
-                        {isReal ? 'MOD Real' : 'MOD Prevista'}
-                      </span>
+                      <div className="w-3 h-3 rounded-sm flex-shrink-0" style={{ backgroundColor: cores[chave] ?? cores.previsto }} />
+                      <span className="text-xs text-muted-foreground">{nomes[chave] ?? chave}</span>
                     </div>
                   );
                 })}
@@ -140,6 +146,18 @@ const HistogramChart = () => {
               />
             ))}
           </Bar>
+          {/* Só aparece quando existe replanejamento — barra vazia em toda semana
+              só polui o gráfico de quem não replanejou. */}
+          {temReplanejado && (
+            <Bar dataKey="replanejado" name="replanejado" radius={[4, 4, 0, 0]}>
+              <LabelList dataKey="replanejado" position="top" fontSize={11} fill="#f97316" formatter={(v: number) => v > 0 ? v : ''} />
+              {data.map((entry, i) => (
+                <Cell key={i}
+                  fill={selectedDate === null || selectedDate === entry.date ? '#f97316' : '#f9731640'}
+                />
+              ))}
+            </Bar>
+          )}
         </BarChart>
       </ResponsiveContainer>
     </div>

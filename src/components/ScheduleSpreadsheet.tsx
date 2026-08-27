@@ -3,10 +3,13 @@ import { Button } from '@/components/ui/button';
 
 import { Trash2, ChevronRight, ChevronDown } from 'lucide-react';
 import { useState, useMemo } from 'react';
-import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
+import { computeVisibleIndices, rowHasChildren, computeOutlineNumbers } from '@/lib/scheduleHierarchy';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+import { Textarea } from '@/components/ui/textarea';
 import ClearDataButton from '@/components/ClearDataButton';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
+import { lerCronogramaColado, type LeituraCronograma } from '@/lib/parseCronogramaColado';
 
 const ScheduleSpreadsheet = () => {
   const { scheduleData } = useCurrentProject();
@@ -15,6 +18,9 @@ const ScheduleSpreadsheet = () => {
 
   const [maxLevel, setMaxLevel] = useState<number>(4);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [mostrarColagem, setMostrarColagem] = useState(false);
+  const [colagem, setColagem] = useState('');
+  const [leitura, setLeitura] = useState<LeituraCronograma | null>(null);
 
   const visible = useMemo(
     () => computeVisibleIndices(data, maxLevel, collapsed),
@@ -45,14 +51,93 @@ const ScheduleSpreadsheet = () => {
     { label: '4', value: 4 }, { label: '5', value: 5 }, { label: 'Todos', value: 99 },
   ];
 
+  // ── Colagem direta do MS Project ──
+  // Ler não aplica de imediato: o mapeamento das colunas é adivinhado pelo
+  // cabeçalho, e trocar o cronograma inteiro por um palpite errado custa caro.
+  const lerColagem = () => {
+    const lida = lerCronogramaColado(colagem);
+    if (lida.linhas.length === 0) {
+      toast.error('Não achei o cabeçalho do cronograma na colagem. Copie do Project incluindo a linha de títulos das colunas.');
+      return;
+    }
+    setLeitura(lida);
+  };
+
+  const aplicarColagem = () => {
+    if (!leitura) return;
+    setScheduleData(computeOutlineNumbers(leitura.linhas));
+    toast.success(`✓ Cronograma aplicado — ${leitura.linhas.length} tarefas`);
+    setLeitura(null);
+    setColagem('');
+    setMostrarColagem(false);
+  };
+
   return (
     <SecaoRecolhivel
       id="cronograma"
       titulo="Cronograma"
-      acoes={data.length > 0 ? (
-        <ClearDataButton sectionName="Cronograma" onConfirm={() => setScheduleData([])} />
-      ) : undefined}
+      acoes={
+        <>
+          <button
+            onClick={() => setMostrarColagem((v) => !v)}
+            className={cn(
+              'text-xs px-2 py-1 rounded border transition-colors',
+              mostrarColagem
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'text-muted-foreground border-border hover:text-foreground',
+            )}
+            title="Copiar as colunas no MS Project e colar aqui"
+          >
+            {mostrarColagem ? '▾ Fechar colagem' : '▸ Colar do MS Project'}
+          </button>
+          {data.length > 0 && (
+            <ClearDataButton sectionName="Cronograma" onConfirm={() => setScheduleData([])} />
+          )}
+        </>
+      }
     >
+      {mostrarColagem && (
+        <div className="mb-4 space-y-2 p-3 rounded-md bg-card border">
+          <p className="text-xs text-muted-foreground">
+            No MS Project, selecione as colunas <strong>com a linha de títulos</strong> e cole aqui.
+            A ordem não importa — as colunas são reconhecidas pelo nome. Inclua a coluna de
+            <strong> Nível</strong> (ou a EDT) para o relatório poder filtrar por nível.
+          </p>
+          <Textarea
+            rows={5}
+            value={colagem}
+            onChange={(e) => setColagem(e.target.value)}
+            placeholder="Cole aqui as linhas copiadas do MS Project..."
+            className="font-mono text-xs"
+          />
+          <Button size="sm" onClick={lerColagem}>Ler colagem</Button>
+        </div>
+      )}
+
+      {leitura && (
+        <div className="mb-4 space-y-3 p-3 rounded-md bg-card border border-primary/40">
+          <p className="text-xs text-foreground/80">
+            Reconheci <strong>{leitura.linhas.length} tarefas</strong> e estas colunas:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {leitura.mapeamento.map((m) => (
+              <span key={m.campo} className="text-[11px] rounded border border-border bg-muted/40 px-1.5 py-0.5">
+                <strong>{m.campo}</strong> ← {m.cabecalho}
+              </span>
+            ))}
+          </div>
+          {leitura.faltando.length > 0 && (
+            <p className="text-[11px] text-destructive">
+              Sem coluna para: {leitura.faltando.join(', ')}. Esses campos entram vazios.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <Button size="sm" onClick={aplicarColagem}>Aplicar cronograma</Button>
+            <Button size="sm" variant="outline" onClick={() => setLeitura(null)}>Cancelar</Button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-end mb-4 flex-wrap gap-2">
         <div className="flex items-center gap-2 text-xs">
           <span className="text-muted-foreground">Exibir até nível:</span>

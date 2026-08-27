@@ -4,6 +4,7 @@ import {
   dataDoRotulo,
   filtrarPeriodo,
   indiceDaSemanaDeStatus,
+  lerColagemHistograma,
   type PontoHistograma,
 } from '@/lib/histograma';
 
@@ -77,6 +78,34 @@ describe('filtrarPeriodo', () => {
 
   it('recorte que não sobra nada devolve tudo, em vez de card vazio', () => {
     expect(filtrarPeriodo(dados, '2026-06-01', '15')).toHaveLength(5);
+  });
+});
+
+describe('lerColagemHistograma', () => {
+  it('primeira linha é previsto, segunda é real', () => {
+    const { previsto, real, replanejado } = lerColagemHistograma('10\t20\t30\n8\t18\t25');
+    expect(previsto).toEqual([10, 20, 30]);
+    expect(real).toEqual([8, 18, 25]);
+    expect(replanejado).toEqual([]);
+  });
+
+  it('terceira linha é o replanejado', () => {
+    const { replanejado } = lerColagemHistograma('10\t20\n8\t18\n12\t22');
+    expect(replanejado).toEqual([12, 22]);
+  });
+
+  it('rótulo na primeira célula é ignorado', () => {
+    const { previsto, real } = lerColagemHistograma('Previsto\t10\t20\nReal\t8\t18');
+    expect(previsto).toEqual([10, 20]);
+    expect(real).toEqual([8, 18]);
+  });
+
+  it('lê número no formato brasileiro', () => {
+    expect(lerColagemHistograma('1.250,5\t2.000').previsto).toEqual([1250.5, 2000]);
+  });
+
+  it('colagem sem número nenhum devolve séries vazias', () => {
+    expect(lerColagemHistograma('só texto')).toEqual({ previsto: [], real: [], replanejado: [] });
   });
 });
 

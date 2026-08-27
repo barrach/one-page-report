@@ -7,7 +7,8 @@ import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import ClearDataButton from '@/components/ClearDataButton';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
-import { alinharComCurva, indiceDaSemanaDeStatus } from '@/lib/histograma';
+import { alinharComCurva, indiceDaSemanaDeStatus, lerColagemHistograma } from '@/lib/histograma';
+import { cn } from '@/lib/utils';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -29,7 +30,18 @@ const HistogramSpreadsheet = () => {
   const { setHistogramData, addHistogramPoint, removeHistogramPoint } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
+  const [mostrarReplanejado, setMostrarReplanejado] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const temReplanejado = (histogramData ?? []).some((h) => (h.replanejado ?? 0) > 0);
+
+  const botaoCabecalho = (ativo: boolean) =>
+    cn(
+      'text-xs px-2 py-1 rounded border transition-colors',
+      ativo
+        ? 'bg-primary text-primary-foreground border-primary'
+        : 'text-muted-foreground border-border hover:text-foreground',
+    );
 
   const handleExcelImport = useCallback(async (file: File) => {
     try {
@@ -117,6 +129,32 @@ const HistogramSpreadsheet = () => {
     caixa.scrollLeft = Math.max(0, coluna.offsetLeft - 120);
   }, [statusIdx, data.length]);
 
+  /**
+   * Aplica a colagem sobre as colunas já existentes, pela ordem.
+   *
+   * Diferente do importador antigo, que trocava as colunas pelas da colagem:
+   * aqui as semanas são as da obra (vindas da Curva S) e o que se cola são só
+   * os valores, como se estivesse digitando mais rápido.
+   */
+  const aplicarColagemSeries = () => {
+    const { previsto, real, replanejado } = lerColagemHistograma(pasteText);
+    if (previsto.length === 0 && real.length === 0) {
+      toast.error('Não consegui ler nenhuma linha de números na colagem.');
+      return;
+    }
+    const atualizado = data.map((p, i) => ({
+      ...p,
+      previsto: previsto[i] ?? p.previsto,
+      real: real[i] ?? p.real,
+      ...(replanejado.length > 0 ? { replanejado: replanejado[i] ?? p.replanejado } : {}),
+    }));
+    setHistogramData(atualizado);
+    if (replanejado.length > 0) setMostrarReplanejado(true);
+    setShowPaste(false);
+    setPasteText('');
+    toast.success(`✓ ${Math.max(previsto.length, real.length)} colunas preenchidas`);
+  };
+
   const updateCell = (colIndex: number, field: keyof HistogramPoint, value: string) => {
     const updated = data.map((p, i) =>
       i === colIndex ? { ...p, [field]: (field === 'date' || field === 'semana') ? value : parseFloat(value) || 0 } : p
@@ -153,18 +191,41 @@ const HistogramSpreadsheet = () => {
     <SecaoRecolhivel
       id="histograma"
       titulo="Histograma (MOD)"
-      acoes={histogramData.length > 0 ? (
-        <ClearDataButton sectionName="Histograma MOD" onConfirm={() => setHistogramData([])} />
-      ) : undefined}
+      acoes={
+        <>
+          <button
+            onClick={() => setShowPaste((v) => !v)}
+            className={botaoCabecalho(showPaste)}
+            title="Colar do Excel: 1ª linha Previsto, 2ª Real, 3ª Replanejado"
+          >
+            {showPaste ? '▾ Fechar colagem' : '▸ Colar do Excel'}
+          </button>
+          <button
+            onClick={() => setMostrarReplanejado((v) => !v)}
+            className={botaoCabecalho(mostrarReplanejado)}
+            title="Mostrar a linha de MOD replanejada"
+          >
+            {mostrarReplanejado ? '▾ Ocultar Replanj.' : '▸ Mostrar Replanj.'}
+            {!mostrarReplanejado && temReplanejado && (
+              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-primary align-middle" />
+            )}
+          </button>
+          {histogramData.length > 0 && (
+            <ClearDataButton sectionName="Histograma MOD" onConfirm={() => setHistogramData([])} />
+          )}
+        </>
+      }
     >
       {showPaste && (
         <div className="mb-4 space-y-2 p-4 rounded-md bg-muted/50 border">
           <p className="text-sm text-muted-foreground">
-            Cole os dados do Excel (separados por tab):<br />
-            <strong>Linha 1:</strong> Datas | <strong>Linha 2:</strong> Semana (opcional) | <strong>Linha 3:</strong> Previsto | <strong>Linha 4:</strong> Real
+            Cole do Excel uma linha por série, na ordem: <strong>1ª linha Previsto</strong>,{' '}
+            <strong>2ª linha Real</strong> e, se houver, <strong>3ª linha Replanejado</strong>.
+            Os valores caem nas colunas que já estão na tela, pela ordem — um rótulo na
+            primeira célula é ignorado.
           </p>
-          <Textarea rows={5} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Cole aqui os dados copiados do Excel..." className="font-mono text-xs" />
-          <Button size="sm" onClick={handlePaste}>Importar Dados</Button>
+          <Textarea rows={4} value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Cole aqui os dados copiados do Excel..." className="font-mono text-xs" />
+          <Button size="sm" onClick={aplicarColagemSeries}>Aplicar nas colunas</Button>
         </div>
       )}
       <div ref={rolagemRef} className="overflow-x-auto">
@@ -189,10 +250,11 @@ const HistogramSpreadsheet = () => {
           </thead>
           <tbody>
             {[
-              { label: 'Semana', field: 'semana' as const, type: 'text' },
-              { label: 'Previsto', field: 'previsto' as const, type: 'number' },
-              { label: 'Real', field: 'real' as const, type: 'number' },
-            ].map(({ label, field, type }) => (
+              { label: 'Semana', field: 'semana' as const, type: 'text', sempre: true },
+              { label: 'Previsto', field: 'previsto' as const, type: 'number', sempre: true },
+              { label: 'Real', field: 'real' as const, type: 'number', sempre: true },
+              { label: 'Replanejado', field: 'replanejado' as const, type: 'number', sempre: mostrarReplanejado },
+            ].filter((r) => r.sempre).map(({ label, field, type }) => (
               <tr key={field}>
                 <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
                 {data.map((point, i) => (

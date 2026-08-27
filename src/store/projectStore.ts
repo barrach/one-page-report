@@ -95,6 +95,8 @@ export interface HistogramPoint {
   semana: string;
   previsto: number;
   real: number;
+  /** MOD replanejada — série separada, preenchida quando há replanejamento. */
+  replanejado?: number;
 }
 
 export interface CurvaSFinanceiraPoint {

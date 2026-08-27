@@ -46,7 +46,44 @@ export interface PontoHistograma {
   semana: string;
   previsto: number;
   real: number;
+  /** MOD replanejada — preenchida à mão quando há replanejamento. */
+  replanejado?: number;
 }
+
+/**
+ * Colagem do Excel no histograma: uma linha por série, na ordem
+ * previsto → real → replanejado.
+ *
+ * Os valores caem nas colunas que já estão na tela, pela posição — as semanas
+ * vêm da Curva S, então a planilha de origem só precisa estar na mesma ordem.
+ * Uma primeira célula de texto é rótulo e sai fora.
+ */
+export const lerColagemHistograma = (
+  texto: string,
+): { previsto: number[]; real: number[]; replanejado: number[] } => {
+  const numero = (c: string): number | null => {
+    const t = String(c ?? '').trim();
+    if (!t) return null;
+    const n = parseFloat(t.replace(/\./g, '').replace(',', '.').replace(/[^0-9.-]/g, ''));
+    return isFinite(n) ? n : null;
+  };
+
+  const linhas = String(texto ?? '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map((l) => (l.includes('\t') ? l.split('\t') : l.trim().split(/\s+/)))
+    .filter((c) => c.some((v) => numero(v) != null))
+    .map((celulas) => {
+      const semRotulo = numero(celulas[0]) == null ? celulas.slice(1) : celulas;
+      return semRotulo.map((c) => numero(c) ?? 0);
+    });
+
+  return {
+    previsto: linhas[0] ?? [],
+    real: linhas[1] ?? [],
+    replanejado: linhas[2] ?? [],
+  };
+};
 
 /**
  * Estende o histograma para todas as semanas da obra.
