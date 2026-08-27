@@ -58,6 +58,22 @@ const CardArrumavel = ({
     });
   };
 
+  /**
+   * Clicar no card recolhe — menos onde o clique já significa outra coisa.
+   *
+   * Sem essa exceção, clicar numa barra do gráfico para filtrar por data, num
+   * campo do Pontos de Atenção ou num filtro do cronograma fecharia o card
+   * junto. A regra é: clique em área "morta" do card alterna; clique em algo
+   * interativo faz só o que aquilo faz.
+   */
+  const INTERATIVOS = 'button, a, input, select, textarea, label, table, [role="button"], .recharts-wrapper, svg';
+
+  const aoClicarNoCard = (e: React.MouseEvent<HTMLDivElement>) => {
+    const alvo = e.target as HTMLElement | null;
+    if (alvo?.closest(INTERATIVOS)) return;
+    alternarFechado();
+  };
+
   if (!editando) {
     // Card oculto some do relatório e do papel.
     if (item.oculto) return null;
@@ -102,7 +118,8 @@ const CardArrumavel = ({
             vazio no meio. Antes do layout arrastável o card era filho direto da
             grade e herdava a altura da linha. */}
         <div
-          className={cn('conteudo-do-card flex-1 min-h-0', fechado && 'hidden')}
+          className={cn('conteudo-do-card flex-1 min-h-0 cursor-pointer', fechado && 'hidden')}
+          onClick={aoClicarNoCard}
           data-pdf-show
         >
           {children}

@@ -17,6 +17,7 @@ import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import ClimaConfig from '@/components/ClimaConfig';
+import EapFinanceiraInput from '@/components/EapFinanceiraInput';
 import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
 import { useAuth, type AppRole } from '@/context/AuthContext';
 import { visaoMensal } from '@/lib/visaoMensal';
@@ -341,6 +342,8 @@ const DataInputPage = () => {
       <ProjectInfoEditor info={info} setInfo={setInfo} />
 
       <ClimaConfig />
+
+      <EapFinanceiraInput />
 
       <div>
         <SCurveSpreadsheet />

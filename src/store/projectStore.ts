@@ -5,6 +5,7 @@ import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient
 import type { ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
 import type { ColunaCronograma } from '@/lib/parseCronogramaColado';
 import type { Evidencia } from '@/lib/evidencias';
+import type { ItemEapFinanceira } from '@/lib/eapFinanceira';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
@@ -204,6 +205,8 @@ export interface Project {
   scheduleColunas?: ColunaCronograma[];
   /** Fotos de evidencia da obra — ponteiro para o Storage + legenda. */
   evidencias?: Evidencia[];
+  /** EAP financeira do contrato: valor, previsto, realizado e acumulado. */
+  eapFinanceira?: ItemEapFinanceira[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
   /** Arrumação dos cards do relatório — do projeto, não de quem olha. */
@@ -338,6 +341,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
     scheduleColunas: (d.scheduleColunas as ColunaCronograma[]) ?? undefined,
     evidencias: (d.evidencias as Evidencia[]) ?? [],
+    eapFinanceira: (d.eapFinanceira as ItemEapFinanceira[]) ?? [],
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     observacoesCards: (d.observacoesCards as Record<string, ObservacaoCard[]>) ?? {},
@@ -364,6 +368,7 @@ const projectToDb = (p: Project): any => ({
     scheduleData: p.scheduleData,
     scheduleColunas: p.scheduleColunas || null,
     evidencias: p.evidencias || [],
+    eapFinanceira: p.eapFinanceira || [],
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     observacoesCards: p.observacoesCards || {},
@@ -421,6 +426,8 @@ interface ProjectStoreState {
   setCronograma: (linhas: ScheduleRow[], colunas: ColunaCronograma[]) => void;
   /** Registra a foto ja enviada ao Storage. */
   addEvidencia: (evidencia: Evidencia) => void;
+  /** EAP financeira — so admin, gestor e planejador enxergam. */
+  setEapFinanceira: (itens: ItemEapFinanceira[]) => void;
   removeEvidencia: (id: string) => void;
   setLegendaEvidencia: (id: string, legenda: string) => void;
   addScheduleRow: () => void;
@@ -652,6 +659,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   removeHistogramPoint: (index) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       histogramData: (p.histogramData || []).filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setEapFinanceira: (itens) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({
+      eapFinanceira: itens,
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);

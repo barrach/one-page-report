@@ -31,6 +31,7 @@ export const CARDS_RELATORIO: { id: string; nome: string; larguraPadrao: Largura
   { id: 'actions', nome: 'Pontos de Atenção', larguraPadrao: 'meia' },
   { id: 'progsemanal', nome: 'Programação Semanal', larguraPadrao: 'meia' },
   { id: 'pareto', nome: 'Pareto de Causas', larguraPadrao: 'inteira' },
+  { id: 'financeiro', nome: 'Financeiro', larguraPadrao: 'inteira' },
   { id: 'evidencias', nome: 'Evidências', larguraPadrao: 'inteira' },
 ];
 

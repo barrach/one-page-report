@@ -165,7 +165,7 @@ const CronogramaParaImpressao = ({
  * vieram.
  */
 const TabelaImportada = ({
-  rows, indices, colunas, collapsed, onToggle, semBusca,
+  rows, indices, colunas, collapsed, onToggle, semBusca, filtros, onFiltro, opcoesPorColuna,
 }: {
   rows: ScheduleRow[];
   indices: number[];
@@ -173,6 +173,9 @@ const TabelaImportada = ({
   collapsed: Set<number>;
   onToggle: (i: number) => void;
   semBusca: boolean;
+  filtros: Record<string, string>;
+  onFiltro: (chave: string, valor: string) => void;
+  opcoesPorColuna: Record<string, string[]>;
 }) => (
   <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
     <table className="w-full text-[10px] sm:text-xs border-collapse">
@@ -193,6 +196,37 @@ const TabelaImportada = ({
               {c.titulo}
             </th>
           ))}
+        </tr>
+
+        {/* Filtro por coluna — sem restrição de papel: filtrar é ler.
+            Coluna com poucos valores distintos (Status, Crítica) vira lista;
+            as demais viram busca por trecho, que é o que serve para nome de
+            tarefa e data. */}
+        <tr className="bg-table-header/90" data-pdf-hide>
+          {colunas.map((c) => {
+            const opcoes = opcoesPorColuna[c.chave];
+            return (
+              <th key={c.chave} className="px-1 py-1 border border-border/30">
+                {opcoes ? (
+                  <select
+                    value={filtros[c.chave] ?? ''}
+                    onChange={(e) => onFiltro(c.chave, e.target.value)}
+                    className="w-full h-6 rounded border border-border/40 bg-background text-foreground text-[10px] px-1"
+                  >
+                    <option value="">Todos</option>
+                    {opcoes.map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input
+                    value={filtros[c.chave] ?? ''}
+                    onChange={(e) => onFiltro(c.chave, e.target.value)}
+                    placeholder="filtrar"
+                    className="w-full h-6 rounded border border-border/40 bg-background text-foreground text-[10px] px-1 placeholder:text-muted-foreground/60"
+                  />
+                )}
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>
@@ -257,6 +291,42 @@ const ScheduleTable = () => {
     ? (scheduleColunas ?? [])
     : [];
 
+  // ── Filtros por coluna ──
+  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const temFiltro = Object.values(filtros).some((v) => v.trim() !== '');
+  const limparFiltros = () => setFiltros({});
+
+  /**
+   * Coluna com poucos valores distintos vira lista de seleção.
+   *
+   * Status e Crítica repetem meia dúzia de valores e escolher da lista é mais
+   * rápido e não erra a grafia; nome de tarefa e data têm valor quase único por
+   * linha, e ali uma lista seria maior que a própria tabela.
+   */
+  const opcoesPorColuna = useMemo(() => {
+    const mapa: Record<string, string[]> = {};
+    colunasImportadas.forEach((c) => {
+      if (c.campo === 'tarefa') return;
+      const vistos = new Set<string>();
+      for (const r of all) {
+        const v = (r.celulas?.[c.chave] ?? '').trim();
+        if (v) vistos.add(v);
+        if (vistos.size > 12) return; // muitos valores: fica como busca por trecho
+      }
+      if (vistos.size > 0) mapa[c.chave] = [...vistos].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    });
+    return mapa;
+  }, [colunasImportadas, all]);
+
+  const casaFiltros = (r: ScheduleRow): boolean =>
+    Object.entries(filtros).every(([chave, alvo]) => {
+      const busca = alvo.trim().toLowerCase();
+      if (!busca) return true;
+      const valor = (r.celulas?.[chave] ?? '').toLowerCase();
+      // Lista de seleção compara exato; campo de texto compara por trecho.
+      return opcoesPorColuna[chave] ? valor === busca : valor.includes(busca);
+    });
+
   const toggleCollapse = (idx: number) =>
     setCollapsed((s) => {
       const next = new Set(s);
@@ -266,19 +336,25 @@ const ScheduleTable = () => {
 
   // Visibility: when searching, ignore the hierarchical filter (show every match).
   const visibleIdx = useMemo(() => {
-    if (search) {
+    // Busca ou filtro de coluna ignoram a hierarquia e mostram toda linha que
+    // casa: quem filtra por "Atrasada" quer ver as atrasadas, não as que estão
+    // dentro do nível escolhido.
+    if (search || temFiltro) {
       const q = search.toLowerCase();
       return all
         .map((r, i) => ({ r, i }))
         .filter(({ r }) =>
-          r.tarefa.toLowerCase().includes(q) ||
-          String(r.id ?? '').includes(search) ||
-          (r.outlineNumber || '').includes(search),
+          (!q ||
+            r.tarefa.toLowerCase().includes(q) ||
+            String(r.id ?? '').includes(search) ||
+            (r.outlineNumber || '').includes(search)) &&
+          casaFiltros(r),
         )
         .map(({ i }) => i);
     }
     return computeVisibleIndices(all, maxLevel, collapsed);
-  }, [all, maxLevel, collapsed, search]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, maxLevel, collapsed, search, filtros, temFiltro, opcoesPorColuna]);
 
   if (exportando) {
     return (
@@ -407,7 +483,10 @@ const ScheduleTable = () => {
           colunas={colunasImportadas}
           collapsed={collapsed}
           onToggle={toggleCollapse}
-          semBusca={!search}
+          semBusca={!search && !temFiltro}
+          filtros={filtros}
+          onFiltro={(chave, valor) => setFiltros((f) => ({ ...f, [chave]: valor }))}
+          opcoesPorColuna={opcoesPorColuna}
         />
       ) : (
         /* Desktop: as 15 colunas do "Template - Cronograma", para o cronograma
@@ -509,9 +588,21 @@ const ScheduleTable = () => {
         </div>
       )}
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Exibindo {visibleIdx.length} de {all.length} linhas.
-      </p>
+      <div className="mt-2 flex items-center gap-3 flex-wrap">
+        <p className="text-[11px] text-muted-foreground">
+          Exibindo {visibleIdx.length} de {all.length} linhas
+          {temFiltro && ' · filtro ativo'}.
+        </p>
+        {temFiltro && (
+          <button
+            onClick={limparFiltros}
+            data-pdf-hide
+            className="text-[11px] text-primary hover:underline"
+          >
+            Limpar filtros
+          </button>
+        )}
+      </div>
     </div>
   );
 };
