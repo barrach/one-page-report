@@ -66,7 +66,10 @@ const CardArrumavel = ({
     // cidade, por exemplo. Sem isso o invólucro continuaria ocupando meia linha
     // da grade e abriria um buraco no meio do relatório.
     return (
-      <div className={cn(colSpan, 'card-do-relatorio group relative')} style={fechado ? undefined : estilo}>
+      <div
+        className={cn(colSpan, 'card-do-relatorio group relative flex flex-col')}
+        style={fechado ? undefined : estilo}
+      >
         {fechado ? (
           <button
             onClick={() => alternarFechado()}
@@ -92,7 +95,16 @@ const CardArrumavel = ({
         {/* Fechado é conveniência de leitura, não decisão sobre o relatório: o
             papel continua saindo com o card inteiro. Esconder no PDF é o que o
             botão do olho (oculto) faz, e esse é do administrador. */}
-        <div className={cn('conteudo-do-card', fechado && 'hidden')} data-pdf-show>
+        {/* `flex-1 min-h-0` repõe a cadeia de altura que o invólucro quebrou.
+            O card usa `h-full` e os gráficos usam `flex-1`, e o recharts só
+            desenha quando a altura do pai é DEFINIDA — com o conteúdo em altura
+            automática ele media zero e o card ficava com título, rodapé e um
+            vazio no meio. Antes do layout arrastável o card era filho direto da
+            grade e herdava a altura da linha. */}
+        <div
+          className={cn('conteudo-do-card flex-1 min-h-0', fechado && 'hidden')}
+          data-pdf-show
+        >
           {children}
         </div>
       </div>
@@ -103,7 +115,7 @@ const CardArrumavel = ({
 
   return (
     <div
-      className={cn(colSpan, 'relative rounded-xl ring-2 ring-primary/40 ring-offset-2 ring-offset-background')}
+      className={cn(colSpan, 'relative rounded-xl ring-2 ring-primary/40 ring-offset-2 ring-offset-background flex flex-col')}
       draggable
       onDragStart={onArrastarInicio}
       onDragOver={(e) => e.preventDefault()}
@@ -142,7 +154,7 @@ const CardArrumavel = ({
 
       {/* Card oculto continua visível NA EDIÇÃO, apagado: some do relatório, mas
           quem está arrumando precisa poder trazê-lo de volta. */}
-      <div className={cn(item.oculto && 'opacity-40 grayscale')}>{children}</div>
+      <div className={cn('flex-1 min-h-0', item.oculto && 'opacity-40 grayscale')}>{children}</div>
     </div>
   );
 };

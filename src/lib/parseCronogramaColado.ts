@@ -86,7 +86,10 @@ const normalizar = (v: string): string =>
  */
 const RECONHECEDORES: Array<{ campo: CampoCronograma; casa: (h: string) => boolean }> = [
   { campo: 'tarefa', casa: (h) => /nome.*tarefa|task\s*name|^tarefa$|^atividade$|^descricao$|^name$/.test(h) },
-  { campo: 'nivel', casa: (h) => /^(nivel|nivel de topico|level|outline\s*level)$/.test(h) },
+  // O nome real da coluna no MS Project pt-BR é "Nível da estrutura de
+  // tópicos" — casar só com "Nível" exato deixava o nível sem ser lido, todas
+  // as tarefas caíam no nível 1 e o filtro "Exibir até nível" não recolhia nada.
+  { campo: 'nivel', casa: (h) => /^(nivel|level)\b/.test(h) || /outline\s*level/.test(h) },
   { campo: 'inicioBase', casa: (h) => (h.includes('base') || h.includes('linha')) && (h.includes('inicio') || h.includes('start')) },
   { campo: 'terminoBase', casa: (h) => (h.includes('base') || h.includes('linha')) && (h.includes('termino') || h.includes('fim') || h.includes('finish')) },
   { campo: 'trabalhoConcluido', casa: (h) => (h.includes('trabalho') || h.includes('work')) && (h.includes('%') || h.includes('conclu')) },
@@ -216,8 +219,10 @@ export const lerCronogramaColado = (texto: string): LeituraCronograma => {
     }
 
     const id = valor(celulas, 'id');
+    // Zero é nível válido: é a tarefa-resumo do projeto no MS Project. Exigir
+    // maior que zero jogava a linha do projeto para o nível 1, junto das fases.
     const nivelBruto = parseInt(valor(celulas, 'nivel'), 10);
-    const nivel = isFinite(nivelBruto) && nivelBruto > 0
+    const nivel = isFinite(nivelBruto) && nivelBruto >= 0
       ? nivelBruto
       : (nivelPelaEdt(id) ?? 1);
 

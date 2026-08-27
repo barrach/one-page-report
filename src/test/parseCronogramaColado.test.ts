@@ -135,3 +135,27 @@ describe('colunas importadas', () => {
       .toEqual(['Nome da tarefa', '% Concluída']);
   });
 });
+
+describe('nivel da estrutura de topicos', () => {
+  it('reconhece o nome real da coluna no MS Project pt-BR', () => {
+    const colagem = [
+      'Nível da estrutura de tópicos\tNome da tarefa\t% Concluída',
+      '0\tUNIPAR_PROJETO_SPCI\t53%',
+      '1\tMARCOS CONTRATUAIS\t0%',
+      '2\tCWA (ÁREA 2)\t93%',
+    ].join('\n');
+    const { linhas, colunas } = lerCronogramaColado(colagem);
+    expect(colunas.find((c) => c.campo === 'nivel')?.titulo).toBe('Nível da estrutura de tópicos');
+    expect(linhas.map((l) => l.outlineLevel)).toEqual([0, 1, 2]);
+  });
+
+  it('nivel zero e a tarefa-resumo do projeto, nao vira nivel 1', () => {
+    const colagem = ['Nível\tNome da tarefa', '0\tProjeto', '1\tFase'].join('\n');
+    expect(lerCronogramaColado(colagem).linhas[0].outlineLevel).toBe(0);
+  });
+
+  it('ainda aceita a coluna chamada so "Nível"', () => {
+    const colagem = ['Nível\tNome da tarefa', '2\tTubulação'].join('\n');
+    expect(lerCronogramaColado(colagem).linhas[0].outlineLevel).toBe(2);
+  });
+});
