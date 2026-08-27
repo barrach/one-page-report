@@ -3,8 +3,13 @@ import {
   descreverTempo,
   interpretarLocais,
   interpretarPrevisao,
+  interpretarHoras,
   riscoDeChuva,
+  riscoDaHora,
+  horasDoDia,
+  resumoDoTurno,
   type DiaPrevisao,
+  type HoraPrevisao,
 } from '@/lib/clima';
 
 const dia = (p: Partial<DiaPrevisao>): DiaPrevisao => ({
@@ -80,5 +85,92 @@ describe('descreverTempo', () => {
 
   it('código desconhecido não quebra', () => {
     expect(descreverTempo(999)).toEqual({ texto: '—', icone: 'nuvem' });
+  });
+});
+
+describe('interpretarHoras', () => {
+  it('le a serie horaria da Open-Meteo', () => {
+    const json = {
+      hourly: {
+        time: ['2026-09-01T00:00', '2026-09-01T01:00'],
+        weather_code: [3, 61],
+        temperature_2m: [17.4, 16.8],
+        precipitation: [0, 2.46],
+        precipitation_probability: [10, 88],
+      },
+    };
+    expect(interpretarHoras(json)).toEqual([
+      { hora: '2026-09-01T00:00', codigo: 3, temp: 17, chuvaMm: 0, chuvaProb: 10 },
+      { hora: '2026-09-01T01:00', codigo: 61, temp: 17, chuvaMm: 2.5, chuvaProb: 88 },
+    ]);
+  });
+
+  it('resposta sem "hourly" nao quebra o detalhe', () => {
+    expect(interpretarHoras({})).toEqual([]);
+    expect(interpretarHoras(null)).toEqual([]);
+  });
+});
+
+const hora = (h: string, p: Partial<HoraPrevisao> = {}): HoraPrevisao => ({
+  hora: `2026-09-01T${h}`, codigo: 0, temp: 20, chuvaMm: 0, chuvaProb: 0, ...p,
+});
+
+describe('horasDoDia', () => {
+  it('recorta pelo carimbo, sem depender de fuso', () => {
+    const horas = [hora('23:00'), { ...hora('00:00'), hora: '2026-09-02T00:00' }];
+    expect(horasDoDia(horas, '2026-09-01')).toHaveLength(1);
+    expect(horasDoDia(horas, '2026-09-02')).toHaveLength(1);
+  });
+});
+
+describe('riscoDaHora', () => {
+  it('4 mm numa hora so ja e parada, mesmo com o dia inteiro seco', () => {
+    expect(riscoDaHora(hora('10:00', { chuvaMm: 4, chuvaProb: 60 }))).toBe('alto');
+  });
+
+  it('chance alta com volume relevante tambem', () => {
+    expect(riscoDaHora(hora('10:00', { chuvaMm: 1.2, chuvaProb: 75 }))).toBe('alto');
+  });
+
+  it('garoa de meio milimetro e atencao, nao parada', () => {
+    expect(riscoDaHora(hora('10:00', { chuvaMm: 0.6, chuvaProb: 40 }))).toBe('medio');
+  });
+
+  it('hora firme e risco baixo', () => {
+    expect(riscoDaHora(hora('10:00'))).toBe('baixo');
+  });
+});
+
+describe('resumoDoTurno', () => {
+  it('ignora a chuva fora do horario de trabalho', () => {
+    // O dia tem 12 mm, mas todos de madrugada: nao custa hora-homem nenhuma.
+    const horas = [
+      hora('02:00', { chuvaMm: 6, chuvaProb: 95 }),
+      hora('04:00', { chuvaMm: 6, chuvaProb: 95 }),
+      hora('09:00'),
+      hora('14:00'),
+    ];
+    const r = resumoDoTurno(horas);
+    expect(r.chuvaMm).toBe(0);
+    expect(r.horasComChuva).toBe(0);
+    expect(r.primeiraCritica).toBeNull();
+  });
+
+  it('aponta a primeira hora critica do turno', () => {
+    const horas = [
+      hora('08:00', { chuvaMm: 0.8, chuvaProb: 40 }),
+      hora('10:00', { chuvaMm: 5, chuvaProb: 90 }),
+      hora('11:00', { chuvaMm: 5, chuvaProb: 90 }),
+    ];
+    const r = resumoDoTurno(horas);
+    expect(r.chuvaMm).toBe(10.8);
+    expect(r.maiorProb).toBe(90);
+    expect(r.horasComChuva).toBe(3);
+    expect(r.primeiraCritica).toBe('10:00');
+  });
+
+  it('a hora do fim do turno ja esta fora dele', () => {
+    // 17h e a hora de encerrar: a chuva dessa hora nao entra na conta.
+    expect(resumoDoTurno([hora('17:00', { chuvaMm: 9, chuvaProb: 99 })]).chuvaMm).toBe(0);
   });
 });
