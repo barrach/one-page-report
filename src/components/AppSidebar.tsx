@@ -14,7 +14,7 @@ const DARK = '#002054';
 
 export default function AppSidebar() {
   const location = useLocation();
-  const { user, isAdmin, canManageProjects, signOut } = useAuth();
+  const { user, isAdmin, canManageProjects, canEdit, signOut } = useAuth();
   const addProject = useProjectStore((s) => s.addProject);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('opr_sidebar_collapsed') === '1');
   const [newOpen, setNewOpen] = useState(false);
@@ -79,10 +79,13 @@ export default function AppSidebar() {
           <FileText className="h-4 w-4 shrink-0" />
           {!collapsed && 'Relatório'}
         </Link>
-        <Link to="/dados" className={itemClass(isActive('/dados'))} title="Dados">
-          <Database className="h-4 w-4 shrink-0" />
-          {!collapsed && 'Dados'}
-        </Link>
+        {/* Dados é de quem lança: visualizador e cliente não têm o que fazer lá. */}
+        {canEdit && (
+          <Link to="/dados" className={itemClass(isActive('/dados'))} title="Dados">
+            <Database className="h-4 w-4 shrink-0" />
+            {!collapsed && 'Dados'}
+          </Link>
+        )}
         <Link to="/configuracoes" className={itemClass(isActive('/configuracoes'))} title="Configurações">
           <Settings className="h-4 w-4 shrink-0" />
           {!collapsed && 'Configurações'}

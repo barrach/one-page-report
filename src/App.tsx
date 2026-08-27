@@ -15,6 +15,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Configuracoes from "./pages/Configuracoes";
 import AdminRoute from "./components/AdminRoute";
+import EditorRoute from "./components/EditorRoute";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { useNotifications } from "./hooks/useNotifications";
 
@@ -52,7 +53,8 @@ const AppContent = () => {
 
         {/* One Page Report */}
         <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-        <Route path="/dados" element={<ProtectedRoute><DadosPage /></ProtectedRoute>} />
+        {/* Lançar dados é de quem edita: visualizador e cliente entram só para ler. */}
+        <Route path="/dados" element={<EditorRoute><DadosPage /></EditorRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute>{suspense(<Admin />)}</AdminRoute>} />
         <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />

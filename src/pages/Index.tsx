@@ -61,7 +61,7 @@ const Index = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isMobile = useIsMobile();
   const current = useCurrentProject();
-  const { isAdmin } = useAuth();
+  const { isAdmin, canEdit } = useAuth();
 
   // ── Arrumação dos cards (só administrador) ──
   const setLayoutRelatorio = useProjectStore((s) => s.setLayoutRelatorio);
@@ -650,10 +650,12 @@ const Index = () => {
             <FileText className="h-5 w-5" />
             <span className="text-[10px] font-semibold">Relatório</span>
           </Link>
-          <Link to="/dados" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
-            <Database className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Dados</span>
-          </Link>
+          {canEdit && (
+            <Link to="/dados" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
+              <Database className="h-5 w-5" />
+              <span className="text-[10px] font-medium">Dados</span>
+            </Link>
+          )}
           {isAdmin && (
             <Link to="/admin" className="flex flex-col items-center justify-center flex-1 gap-0.5 text-muted-foreground">
               <Shield className="h-5 w-5" />

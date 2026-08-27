@@ -15,6 +15,7 @@ import type { ProgramacaoSemanal, Causa6M } from "@/lib/parseProgramacaoSemanal"
 import PpcSemanalTable from "@/components/PpcSemanalTable";
 import { ppcDaSemana, ultimaSemana } from "@/lib/ppc";
 import Causa6MSelect from "@/components/Causa6MSelect";
+import { useAuth } from "@/context/AuthContext";
 import { useProjectStore } from "@/store/projectStore";
 import { exigeJustificativa, COR_CAUSA as CAUSA_COLORS, CAUSAS_6M as ALL_CAUSAS } from "@/lib/causas6m";
 
@@ -78,6 +79,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
 
   const [activeTab, setActiveTab] = useState<TabId>("atividades");
   const { selectedProjectId, setAtividadeJustificativa } = useProjectStore();
+  const { canEdit } = useAuth();
   const [resolvedIds, setResolvedIds] = useState<Set<string>>(new Set());
   const [responsavelMap, setResponsavelMap] = useState<Map<string, string>>(new Map());
 
@@ -293,7 +295,14 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
                           {/* Causa 6M — só faz sentido para quem ficou abaixo de 90%,
                               que é a regra do próprio template. */}
                           <td rowSpan={2} className="px-2 py-1 align-middle border-b border-border">
-                            {exigeJustificativa(a) ? (
+                            {exigeJustificativa(a) && !canEdit ? (
+                              // Quem só lê enxerga a justificativa como texto —
+                              // o seletor abriria um formulário que não grava.
+                              <span className="text-[10px] text-foreground">
+                                {(a.causas6M ?? []).join(', ') || '—'}
+                                {a.planoAcao ? ` · ${a.planoAcao}` : ''}
+                              </span>
+                            ) : exigeJustificativa(a) ? (
                               <Causa6MSelect
                                 compacto
                                 causas={a.causas6M}

@@ -8,11 +8,22 @@ export type AppRole = 'admin' | 'planejador' | 'gestor' | 'visualizador' | 'clie
 // primeiro desta lista.
 const ROLE_PRIORITY: AppRole[] = ['admin', 'planejador', 'gestor', 'visualizador', 'cliente'];
 
+/** Quem lança número no app: administrador, gestor e planejador. */
+const PAPEIS_QUE_EDITAM: AppRole[] = ['admin', 'gestor', 'planejador'];
+
 interface AuthState {
   user: User | null;
   role: AppRole | null;
   /** Criar e excluir projetos — só administrador. */
   canManageProjects: boolean;
+  /**
+   * Editar os dados do projeto — números, ações, observações, importações.
+   *
+   * `visualizador` e `cliente` entram só para ler. Até aqui QUALQUER usuário
+   * logado podia alterar e até limpar os dados de qualquer projeto, inclusive o
+   * cliente externo.
+   */
+  canEdit: boolean;
   loading: boolean;
   isAdmin: boolean;
   signOut: () => Promise<void>;
@@ -72,6 +83,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // O planejador faz tudo no projeto (importar, lançar, editar), menos criar ou
     // excluir projetos — essa é a única diferença em relação ao administrador.
     canManageProjects: role === 'admin',
+    // Enquanto o papel não chegou, ninguém edita: liberar por padrão daria uma
+    // janela em que o cliente enxerga os campos abertos.
+    canEdit: role != null && PAPEIS_QUE_EDITAM.includes(role),
     signOut: async () => {
       setUser(null);
       setRole(null);

@@ -29,7 +29,7 @@ const ObservacoesDoCard = ({ card }: { card: string }) => {
   const { observacoesCards } = useCurrentProject();
   const addObservacao = useProjectStore((s) => s.addObservacaoCard);
   const removeObservacao = useProjectStore((s) => s.removeObservacaoCard);
-  const { user } = useAuth();
+  const { user, canEdit } = useAuth();
   const { tvMode } = useTvMode();
 
   const [aberto, setAberto] = useState(false);
@@ -40,6 +40,8 @@ const ObservacoesDoCard = ({ card }: { card: string }) => {
 
   // Na TV o painel é só para olhar de longe — anotação ali só rouba espaço.
   if (tvMode) return null;
+  // Quem só lê e não tem o que ler: o bloco inteiro sai do card.
+  if (!canEdit && anotacoes.length === 0) return null;
 
   const registrar = () => {
     if (!texto.trim()) return;
@@ -70,14 +72,16 @@ const ObservacoesDoCard = ({ card }: { card: string }) => {
             <li key={o.id} className="text-xs rounded-md bg-muted/40 border border-border px-2.5 py-1.5">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-foreground whitespace-pre-wrap break-words min-w-0">{o.texto}</p>
-                <button
-                  onClick={() => removeObservacao(card, o.id)}
-                  className="text-destructive/60 hover:text-destructive shrink-0"
-                  title="Apagar anotação"
-                  data-pdf-hide
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={() => removeObservacao(card, o.id)}
+                    className="text-destructive/60 hover:text-destructive shrink-0"
+                    title="Apagar anotação"
+                    data-pdf-hide
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                )}
               </div>
               <p className="text-[10px] text-muted-foreground mt-1">
                 {fmtQuando(o.data)}{o.autor ? ` · ${o.autor}` : ''}
@@ -87,7 +91,7 @@ const ObservacoesDoCard = ({ card }: { card: string }) => {
         </ul>
       )}
 
-      {aberto && (
+      {aberto && canEdit && (
         <div className="mt-2 space-y-1.5" data-pdf-hide>
           <Textarea
             rows={2}

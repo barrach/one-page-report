@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import ResponsavelSelect from '@/components/ResponsavelSelect';
 import { situacaoDoPrazo, corDoPrazo, paraInputDate } from '@/lib/prazoUtils';
 import { useExportMode } from '@/hooks/use-export-mode';
+import { useAuth } from '@/context/AuthContext';
 
 const statusOptions: ActionStatus[] = ['EM ANDAMENTO', 'CONCLUÍDO', 'CANCELADO', 'ATRASADO'];
 
@@ -41,20 +42,28 @@ const Campo = ({
   value,
   onChange,
   type = 'text',
+  somenteLeitura,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: 'text' | 'date';
+  somenteLeitura?: boolean;
 }) => (
   <label className="flex flex-col gap-1 min-w-0">
     <Rotulo>{label}</Rotulo>
     <input
       type={type}
-      className="w-full bg-transparent border-b border-border focus:border-primary outline-none text-sm font-medium text-foreground placeholder:text-muted-foreground/60 placeholder:font-normal pb-1 transition-colors"
+      // `readOnly` e não `disabled`: o texto continua selecionável e copiável,
+      // que é o que quem só lê o relatório precisa poder fazer.
+      readOnly={somenteLeitura}
+      className={cn(
+        'w-full bg-transparent border-b outline-none text-sm font-medium text-foreground placeholder:text-muted-foreground/60 placeholder:font-normal pb-1 transition-colors',
+        somenteLeitura ? 'border-transparent cursor-default' : 'border-border focus:border-primary',
+      )}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      placeholder="preencher"
+      placeholder={somenteLeitura ? '—' : 'preencher'}
     />
   </label>
 );
@@ -65,16 +74,19 @@ const CampoLongo = ({
   value,
   onChange,
   destaque,
+  somenteLeitura,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   destaque?: boolean;
+  somenteLeitura?: boolean;
 }) => (
   <label className="flex flex-col gap-1 min-w-0">
     <Rotulo>{label}</Rotulo>
     <textarea
       rows={1}
+      readOnly={somenteLeitura}
       className={cn(
         'w-full bg-transparent border-none outline-none resize-none overflow-hidden rounded px-1 -mx-1 py-0.5 focus:ring-1 focus:ring-primary placeholder:text-muted-foreground/60 placeholder:font-normal',
         destaque
@@ -169,6 +181,8 @@ const ActionsTable = () => {
   const { actions } = useCurrentProject();
   const { setActions, addAction, removeAction } = useProjectStore();
   const { exportando } = useExportMode();
+  const { canEdit } = useAuth();
+  const soLeitura = !canEdit;
   const [aberto, setAberto] = useState<number | null>(0);
 
   const updateAction = (index: number, field: string, value: string) => {
@@ -184,14 +198,16 @@ const ActionsTable = () => {
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
           <p className="text-xs text-muted-foreground">Restrições e ações corretivas</p>
         </div>
-        <button
-          onClick={() => { addAction(); setAberto(actions.length); }}
-          data-pdf-hide
-          className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shrink-0 font-semibold"
-        >
-          <Plus className="h-3 w-3" />
-          Adicionar
-        </button>
+        {canEdit && (
+          <button
+            onClick={() => { addAction(); setAberto(actions.length); }}
+            data-pdf-hide
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90 transition-opacity shrink-0 font-semibold"
+          >
+            <Plus className="h-3 w-3" />
+            Adicionar
+          </button>
+        )}
       </div>
 
       {actions.length === 0 ? (
@@ -266,8 +282,10 @@ const ActionsTable = () => {
                   )}
 
                   <select
+                    disabled={soLeitura}
                     className={cn(
-                      'text-[10px] font-bold px-2 py-1 rounded-full border-none outline-none cursor-pointer shrink-0',
+                      'text-[10px] font-bold px-2 py-1 rounded-full border-none outline-none shrink-0',
+                      soLeitura ? 'cursor-default appearance-none' : 'cursor-pointer',
                       a.status ? statusPill[a.status] : 'bg-white/15 text-white',
                     )}
                     value={a.status || ''}
@@ -280,13 +298,15 @@ const ActionsTable = () => {
                       <option key={s} value={s} style={{ color: '#111827', background: '#ffffff' }}>{s}</option>
                     ))}
                   </select>
-                  <button
-                    onClick={() => removeAction(i)}
-                    className="text-white/50 hover:text-white transition-colors shrink-0 p-1"
-                    title="Excluir"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {canEdit && (
+                    <button
+                      onClick={() => removeAction(i)}
+                      className="text-white/50 hover:text-white transition-colors shrink-0 p-1"
+                      title="Excluir"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Corpo — só quando a gaveta está aberta */}
@@ -297,12 +317,13 @@ const ActionsTable = () => {
                       value={val(a, 'problema')}
                       onChange={(v) => updateAction(i, 'problema', v)}
                       destaque
+                      somenteLeitura={soLeitura}
                     />
 
                     <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2.5 pt-1">
-                      <Campo label="Causa raiz" value={val(a, 'causa')} onChange={(v) => updateAction(i, 'causa', v)} />
-                      <Campo label="Atividade" value={val(a, 'atividade')} onChange={(v) => updateAction(i, 'atividade', v)} />
-                      <Campo label="Impacto (SSMA/prazo)" value={val(a, 'impacto')} onChange={(v) => updateAction(i, 'impacto', v)} />
+                      <Campo label="Causa raiz" value={val(a, 'causa')} onChange={(v) => updateAction(i, 'causa', v)} somenteLeitura={soLeitura} />
+                      <Campo label="Atividade" value={val(a, 'atividade')} onChange={(v) => updateAction(i, 'atividade', v)} somenteLeitura={soLeitura} />
+                      <Campo label="Impacto (SSMA/prazo)" value={val(a, 'impacto')} onChange={(v) => updateAction(i, 'impacto', v)} somenteLeitura={soLeitura} />
                     </div>
 
                     {/* Ação corretiva — a saída do ponto de atenção */}
@@ -311,14 +332,21 @@ const ActionsTable = () => {
                         label="Ação corretiva"
                         value={val(a, 'necessidade')}
                         onChange={(v) => updateAction(i, 'necessidade', v)}
+                        somenteLeitura={soLeitura}
                       />
                       <div className="grid grid-cols-2 gap-x-4 items-end">
                         <label className="flex flex-col gap-1 min-w-0">
                           <Rotulo>Responsável</Rotulo>
-                          <ResponsavelSelect
-                            value={val(a, 'responsavel')}
-                            onChange={(v) => updateAction(i, 'responsavel', v)}
-                          />
+                          {soLeitura ? (
+                            <span className="text-sm font-medium text-foreground pb-1">
+                              {val(a, 'responsavel') || '—'}
+                            </span>
+                          ) : (
+                            <ResponsavelSelect
+                              value={val(a, 'responsavel')}
+                              onChange={(v) => updateAction(i, 'responsavel', v)}
+                            />
+                          )}
                         </label>
                         <div className="flex items-end gap-2 min-w-0">
                           <div className="min-w-0 flex-1">
@@ -327,6 +355,7 @@ const ActionsTable = () => {
                               type="date"
                               value={paraInputDate(val(a, 'prazo'))}
                               onChange={(v) => updateAction(i, 'prazo', v)}
+                              somenteLeitura={soLeitura}
                             />
                           </div>
                           {prazo.situacao !== 'sem_prazo' && (
