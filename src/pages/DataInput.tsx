@@ -1,7 +1,7 @@
 import { useProjectStore, useCurrentProject, type ProjectInfo } from '@/store/projectStore';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Trash2, Plus, ClipboardPaste, Upload, Save } from 'lucide-react';
+import { Upload, Save } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import * as XLSX from 'xlsx';
@@ -16,6 +16,8 @@ import ProjectSelector from '@/components/ProjectSelector';
 import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
+import { visaoCincoSemanas } from '@/lib/visaoSemanal';
+import { avancoDaCurva } from '@/lib/avancoCurva';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -157,8 +159,29 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
 };
 
 const DataInputPage = () => {
-  const { info, weeklyData, monthData, lastImports } = useCurrentProject();
-  const { setInfo, setWeeklyData, addWeek, removeWeek, setMonthData, setHistogramData, setScheduleData } = useProjectStore();
+  const { info, weeklyData, monthData, lastImports, sCurveData, statusDateIndex } = useCurrentProject();
+  const { setInfo, setWeeklyData, setMonthData, setHistogramData, setScheduleData } = useProjectStore();
+
+  // ── Avanço Prev./Real seguem a Curva S ──
+  // O efeito dispara quando o PONTO da curva muda, não a cada render: assim o
+  // cabeçalho acompanha a curva sozinho e, ao mesmo tempo, uma correção feita à
+  // mão sobrevive até a curva mudar de novo.
+  const avanco = useMemo(
+    () => avancoDaCurva(sCurveData, statusDateIndex),
+    [sCurveData, statusDateIndex],
+  );
+  const ultimoAvanco = useRef<string>('');
+  useEffect(() => {
+    if (!avanco) return;
+    const assinatura = `${avanco.previsto}|${avanco.real}`;
+    if (ultimoAvanco.current === assinatura) return;
+    ultimoAvanco.current = assinatura;
+    if (info.avancoPrev === avanco.previsto && info.avancoReal === avanco.real) return;
+    setInfo({ avancoPrev: avanco.previsto, avancoReal: avanco.real });
+    // `info` fora das dependências de propósito: reagir a ele reescreveria o
+    // valor logo depois de alguém corrigi-lo na mão.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avanco, setInfo]);
   const [showWeeklyPaste, setShowWeeklyPaste] = useState(false);
   const [weeklyPasteText, setWeeklyPasteText] = useState('');
   const [showMonthPaste, setShowMonthPaste] = useState(false);
@@ -217,11 +240,34 @@ const DataInputPage = () => {
     toast.success(`✓ Prev. x Realizado Mês importado — ${newData.length} meses`);
   }, [setMonthData]);
 
-  const updateWeekly = (index: number, field: string, value: string) => {
-    const updated = weeklyData.map((w, i) =>
-      i === index ? { ...w, [field]: field === 'date' ? value : parseFloat(value) || 0 } : w
+  // A janela é a mesma que o relatório desenha — a tabela aqui deixou de ser a
+  // série crua para não haver duas verdades sobre quais são as 5 semanas.
+  const janelaSemanal = useMemo(
+    () => visaoCincoSemanas(
+      weeklyData ?? [],
+      sCurveData ?? [],
+      info?.atualizadoEm || '',
+      info?.curvaPeriodicidade ?? 'semanal',
+    ),
+    [weeklyData, sCurveData, info?.atualizadoEm, info?.curvaPeriodicidade],
+  );
+
+  /**
+   * Lança o Real de uma semana da janela.
+   *
+   * A janela pode mostrar semanas que ainda não existem na série (os períodos
+   * completados à frente da data de status), então lançar cria a semana quando
+   * ela falta, em vez de escrever num índice que não existe.
+   */
+  const setRealDaSemana = (date: string, valor: string) => {
+    if (!date) return;
+    const real = parseFloat(valor) || 0;
+    const existe = (weeklyData ?? []).some((w) => w.date === date);
+    setWeeklyData(
+      existe
+        ? weeklyData.map((w) => (w.date === date ? { ...w, real } : w))
+        : [...(weeklyData ?? []), { date, previsto: 0, real }],
     );
-    setWeeklyData(updated);
   };
 
   const updateMonth = (index: number, field: string, value: string) => {
@@ -312,7 +358,7 @@ const DataInputPage = () => {
       <SecaoRecolhivel
         id="resultado-semanal"
         titulo="Resultado Semanal / Visão 5 Semanas"
-        descricao="A janela do relatório sai centrada na data de “Atualizado em”: duas semanas atrás, a semana de status e duas semanas à frente."
+        descricao="Janela centrada na data de “Atualizado em”: duas semanas atrás, a semana de status e duas à frente. O Previsto vem da Tendência % da Curva S na data correspondente — só o Real é lançado aqui."
         acoes={weeklyData.length > 0 ? (
           <ClearDataButton sectionName="Resultado Semanal" onConfirm={() => setWeeklyData([])} />
         ) : undefined}
@@ -323,28 +369,49 @@ const DataInputPage = () => {
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-3 py-2 text-left font-semibold border border-border min-w-[120px]">Métrica</th>
-                {weeklyData.map((w, i) => (
-                  <th key={i} className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-1 text-center font-semibold border border-border min-w-[90px]">
-                    <input className="bg-transparent text-center text-[hsl(var(--table-header-foreground))] w-full outline-none text-xs font-semibold" value={w.date} onChange={(e) => updateWeekly(i, 'date', e.target.value)} placeholder="Data" />
-                    <button onClick={() => removeWeek(i)} className="text-destructive/70 hover:text-destructive mt-0.5"><Trash2 className="h-3 w-3 mx-auto" /></button>
+                {janelaSemanal.map((w, i) => (
+                  <th
+                    key={i}
+                    className={cn(
+                      'bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-1 text-center font-semibold border border-border min-w-[90px]',
+                      w.isStatus && 'ring-2 ring-inset ring-[hsl(var(--chart-cutline))]',
+                    )}
+                  >
+                    {w.date || '—'}
+                    {w.isStatus && <span className="block text-[10px] font-normal opacity-80">status</span>}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {[
-                { label: 'Previsto %', field: 'previsto' },
-                { label: 'Real %', field: 'real' },
-              ].map(({ label, field }) => (
-                <tr key={field}>
-                  <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">{label}</td>
-                  {weeklyData.map((w, i) => (
-                    <td key={i} className="border border-border px-1 py-1">
-                      <input type="number" step="0.01" className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5" value={(w as any)[field]} onChange={(e) => updateWeekly(i, field, e.target.value)} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {/* Previsto é derivado da Curva S: editar aqui seria escrever num
+                  valor que a próxima renderização sobrescreve. */}
+              <tr>
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">
+                  Previsto %
+                  <span className="block text-[10px] font-normal text-muted-foreground">Tendência da Curva S</span>
+                </td>
+                {janelaSemanal.map((w, i) => (
+                  <td key={i} className="border border-border px-1 py-1 text-center bg-muted/30 tabular-nums text-[hsl(var(--chart-previsto))]">
+                    {w.previsto > 0 ? w.previsto.toLocaleString('pt-BR') : '—'}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">Real %</td>
+                {janelaSemanal.map((w, i) => (
+                  <td key={i} className="border border-border px-1 py-1">
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5"
+                      value={w.real || ''}
+                      onChange={(e) => setRealDaSemana(w.date, e.target.value)}
+                      disabled={!w.date}
+                    />
+                  </td>
+                ))}
+              </tr>
             </tbody>
           </table>
         </div>

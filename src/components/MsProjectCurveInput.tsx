@@ -13,9 +13,13 @@ import {
   gerarDatas,
   lerColagem,
   lerNumero,
+  montarPontos,
   ROTULO_BASE,
+  ROTULO_PAPEL,
   totalReferencia,
   type BaseCurva,
+  type LeituraColagem,
+  type PapelSerie,
   type PontoAcumulado,
 } from '@/lib/msProjectCurve';
 
@@ -52,13 +56,21 @@ const MsProjectCurveInput = () => {
   const { setSCurveData, setStatusDateIndex, setInfo, setLastImport } = useProjectStore();
 
   const [base, setBase] = useState<BaseCurva>(info.curvaBase ?? 'trabalho');
-  const [inicio, setInicio] = useState<string>(info.curvaInicio ?? info.inicio ?? '');
   const [periodicidade, setPeriodicidade] = useState<Periodicidade>(info.curvaPeriodicidade ?? 'semanal');
+
+  // "Início da obra" e o "Início" das Informações do Projeto são o MESMO dado.
+  // Guardá-los em campos separados deixava os dois se contradizerem na tela —
+  // aqui o valor vem e vai direto para `info.inicio`, então alterar um lado
+  // altera o outro. `curvaInicio` só é lido para não perder projeto antigo.
+  const inicio = info.inicio || info.curvaInicio || '';
+  const setInicio = (valor: string) => setInfo({ inicio: valor });
   const [linhas, setLinhas] = useState<LinhaBruta[]>(
     () => Array.from({ length: PERIODOS_INICIAIS }, () => ({ ...LINHA_VAZIA })),
   );
   const [mostrarColagem, setMostrarColagem] = useState(false);
   const [colagem, setColagem] = useState('');
+  /** Colagem já lida, aguardando a conferência do mapeamento das séries. */
+  const [leitura, setLeitura] = useState<LeituraColagem | null>(null);
 
   const datas = useMemo(
     () => gerarDatas(inicio, periodicidade, linhas.length),
@@ -82,20 +94,44 @@ const MsProjectCurveInput = () => {
     setLinhas((prev) => prev.map((l, k) => (k === i ? { ...l, [campo]: valor } : l)));
   };
 
-  const aplicarColagem = () => {
-    const lidos = lerColagem(colagem);
-    if (lidos.length === 0) {
-      toast.error('Não consegui ler nenhum número na colagem.');
+  /**
+   * Ler não aplica direto: colagem sem rótulo (o normal, porque a pessoa
+   * seleciona só o bloco de números no Project) não dá para mapear com certeza.
+   * A leitura sugere, e a conferência abaixo deixa corrigir num clique.
+   */
+  const lerAgora = () => {
+    const lida = lerColagem(colagem);
+    if (lida.series.length === 0) {
+      toast.error('Não consegui identificar nenhuma série na colagem.');
       return;
     }
-    setLinhas(lidos.map((p) => ({
+    setLeitura(lida);
+  };
+
+  const trocarPapel = (indice: number, papel: PapelSerie) => {
+    setLeitura((prev) =>
+      prev ? { ...prev, series: prev.series.map((s, i) => (i === indice ? { ...s, papel } : s)) } : prev,
+    );
+  };
+
+  const aplicarLeitura = () => {
+    if (!leitura) return;
+    const pontos = montarPontos(leitura.series, leitura.periodos);
+    if (pontos.length === 0) { toast.error('Nenhum período para aplicar.'); return; }
+
+    setLinhas(pontos.map((p) => ({
       lb: p.linhaBase == null ? '' : String(p.linhaBase),
       real: p.real == null ? '' : String(p.real),
       acum: p.acumulado == null ? '' : String(p.acumulado),
     })));
+    // A linha de datas do Project, quando vem junto, já responde início e passo.
+    if (leitura.inicio) setInicio(leitura.inicio);
+    if (leitura.periodicidade) setPeriodicidade(leitura.periodicidade);
+
+    setLeitura(null);
     setColagem('');
     setMostrarColagem(false);
-    toast.success(`✓ ${lidos.length} períodos lidos da colagem`);
+    toast.success(`✓ ${pontos.length} períodos aplicados`);
   };
 
   const gerar = () => {
@@ -110,7 +146,7 @@ const MsProjectCurveInput = () => {
 
     const patch: Parameters<typeof setInfo>[0] = {
       curvaBase: base,
-      curvaInicio: inicio,
+      inicio,
       curvaPeriodicidade: periodicidade,
     };
     if (statusIndex >= 0 && statusIndex < validos.length) {
@@ -198,9 +234,10 @@ const MsProjectCurveInput = () => {
       {mostrarColagem && (
         <div className="space-y-2 p-3 rounded-md bg-card border">
           <p className="text-xs text-muted-foreground">
-            Cole do Excel com uma <strong>linha por série</strong> (o rótulo na primeira célula:
-            “Linha de Base Acumulado”, “Real Acumulado”, “Acumulado”) ou três colunas na ordem
-            <strong> Linha de Base | Real | Acumulado</strong>.
+            Copie do MS Project o bloco da escala de tempo — <strong>uma linha por série</strong>,
+            uma coluna por período. Pode incluir a coluna de nomes e a linha de datas: com as datas
+            junto, o início e a periodicidade vêm preenchidos. Colagem em pé (uma linha por período)
+            também funciona.
           </p>
           <Textarea
             rows={4}
@@ -209,7 +246,55 @@ const MsProjectCurveInput = () => {
             placeholder="Cole aqui os acumulados copiados do MS Project ou do Excel..."
             className="font-mono text-xs"
           />
-          <Button size="sm" onClick={aplicarColagem}>Ler colagem</Button>
+          <Button size="sm" onClick={lerAgora}>Ler colagem</Button>
+        </div>
+      )}
+
+      {/* ── Conferência do mapeamento ───────────────────────────────────────
+          Sem rótulo não há como ter certeza de qual linha é qual série, então a
+          leitura sugere e quem confirma é quem colou. */}
+      {leitura && (
+        <div className="space-y-3 p-3 rounded-md bg-card border border-primary/40">
+          <p className="text-xs text-foreground/80">
+            Li <strong>{leitura.series.length} série(s)</strong> e{' '}
+            <strong>{leitura.periodos} período(s)</strong>, no sentido{' '}
+            {leitura.orientacao === 'linhas' ? 'deitado (padrão do MS Project)' : 'em pé'}.
+            {leitura.inicio && (
+              <> Datas lidas do cabeçalho: início em{' '}
+                <strong>{gerarDatas(leitura.inicio, leitura.periodicidade ?? 'semanal', 1)[0]}</strong>,
+                avanço <strong>{leitura.periodicidade === 'diaria' ? 'diário' : 'semanal'}</strong>.
+              </>
+            )}{' '}
+            Confira o que é cada uma antes de aplicar.
+          </p>
+
+          <div className="space-y-1.5">
+            {leitura.series.map((s, i) => (
+              <div key={i} className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-foreground min-w-[130px]">
+                  {s.rotulo ?? `Série ${i + 1}`}
+                </span>
+                <span className="text-[11px] text-muted-foreground font-mono flex-1 min-w-[140px] truncate">
+                  {s.valores.slice(0, 5).map((v) => (v == null ? '—' : v.toLocaleString('pt-BR'))).join('   ')}
+                  {s.valores.length > 5 ? '  …' : ''}
+                </span>
+                <select
+                  value={s.papel}
+                  onChange={(e) => trocarPapel(i, e.target.value as PapelSerie)}
+                  className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                >
+                  {(['linhaBase', 'acumulado', 'real', 'ignorar'] as PapelSerie[]).map((p) => (
+                    <option key={p} value={p}>{ROTULO_PAPEL[p]}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" onClick={aplicarLeitura}>Aplicar</Button>
+            <Button size="sm" variant="outline" onClick={() => setLeitura(null)}>Cancelar</Button>
+          </div>
         </div>
       )}
 

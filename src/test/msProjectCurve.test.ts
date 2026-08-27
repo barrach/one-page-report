@@ -5,6 +5,7 @@ import {
   gerarDatas,
   lerColagem,
   lerNumero,
+  montarPontos,
   totalReferencia,
   type PontoAcumulado,
 } from '@/lib/msProjectCurve';
@@ -121,40 +122,107 @@ describe('lerNumero', () => {
     expect(lerNumero('   ')).toBeNull();
     expect(lerNumero('—')).toBeNull();
   });
+
+  it('recusa data — "Seg 01/Jun/26" não pode virar o número 126', () => {
+    expect(lerNumero('Seg 01/Jun/26')).toBeNull();
+    expect(lerNumero('01/06/2026')).toBeNull();
+  });
 });
 
 describe('lerColagem', () => {
-  it('lê a curva deitada, uma linha por série', () => {
+  // Recorte fiel do que o MS Project entrega na visão Uso da Tarefa.
+  const CABECALHO = 'Detalhes\tSeg 01/Jun/26\tSeg 08/Jun/26\tSeg 15/Jun/26\tSeg 22/Jun/26';
+  const BASE = 'Trab. Acum. Base\t\t181,5h\t201,8h\t222,1h';
+  const ACUM = 'Trab. acum.\t\t185,46h\t214,62h\t243,77h';
+  const REAL = 'Trab. Real Acum.\t\t185,46h\t214,62h\t243,77h';
+
+  it('reconhece os rótulos abreviados do MS Project', () => {
+    const lida = lerColagem([BASE, ACUM, REAL].join('\n'));
+    expect(lida.orientacao).toBe('linhas');
+    expect(lida.series.map((s) => s.papel)).toEqual(['linhaBase', 'acumulado', 'real']);
+    expect(lida.series[0].rotulo).toBe('Trab. Acum. Base');
+  });
+
+  it('lê a curva deitada mesmo sem rótulo nenhum, pela forma', () => {
+    // O caso real: a pessoa seleciona só o bloco de números no Project.
     const texto = [
-      'Trabalho de Linha de Base Acumulado\t100\t200\t300',
-      'Trabalho Real Acumulado\t80\t190\t190',
-      'Trabalho Acumulado\t80\t190\t300',
+      '181,5h\t201,8h\t222,1h\t242,4h\t302,7h\t338,7h',
+      '185,46h\t214,62h\t243,77h\t272,93h\t342,09h\t386,94h',
+      '185,46h\t214,62h\t243,77h\t272,93h\t342,09h\t386,94h',
     ].join('\n');
-    expect(lerColagem(texto)).toEqual([
-      { linhaBase: 100, real: 80, acumulado: 80 },
-      { linhaBase: 200, real: 190, acumulado: 190 },
-      { linhaBase: 300, real: 190, acumulado: 300 },
-    ]);
+    const lida = lerColagem(texto);
+    expect(lida.orientacao).toBe('linhas');
+    expect(lida.periodos).toBe(6);
+    // Sem rótulo, vale a ordem em que o Project entrega: Base, plano, Real.
+    expect(lida.series.map((s) => s.papel)).toEqual(['linhaBase', 'acumulado', 'real']);
+    expect(lida.series[0].valores[0]).toBe(181.5);
   });
 
-  it('lê a curva em pé, três colunas', () => {
-    const texto = ['100\t80\t80', '200\t190\t190'].join('\n');
-    expect(lerColagem(texto)).toEqual([
-      { linhaBase: 100, real: 80, acumulado: 80 },
-      { linhaBase: 200, real: 190, acumulado: 190 },
-    ]);
+  it('lê início e periodicidade da linha de datas', () => {
+    const lida = lerColagem([CABECALHO, BASE, ACUM, REAL].join('\n'));
+    expect(lida.inicio).toBe('2026-06-01');
+    expect(lida.periodicidade).toBe('semanal');
+    // A linha de datas não pode virar mais uma série.
+    expect(lida.series).toHaveLength(3);
   });
 
-  it('descarta o cabeçalho da colagem em pé em vez de tomá-lo por uma série', () => {
-    const texto = ['Linha de Base\tReal\tAcumulado', '100\t80\t80', '200\t190\t190'].join('\n');
-    expect(lerColagem(texto)).toEqual([
-      { linhaBase: 100, real: 80, acumulado: 80 },
-      { linhaBase: 200, real: 190, acumulado: 190 },
-    ]);
+  it('detecta periodicidade diária pelo espaçamento das datas', () => {
+    const texto = [
+      'Detalhes\tSeg 01/Jun/26\tTer 02/Jun/26\tQua 03/Jun/26\tQui 04/Jun/26',
+      'Trab. Acum. Base\t10h\t20h\t30h\t40h',
+    ].join('\n');
+    expect(lerColagem(texto).periodicidade).toBe('diaria');
+  });
+
+  it('preserva o período vazio da frente, para as datas não escorregarem', () => {
+    const lida = lerColagem([CABECALHO, BASE].join('\n'));
+    // 4 períodos: o primeiro (01/Jun) é vazio na linha de Base.
+    expect(lida.periodos).toBe(4);
+    expect(lida.series[0].valores).toEqual([null, 181.5, 201.8, 222.1]);
+  });
+
+  it('ignora o trabalho restante, que não entra na curva', () => {
+    const texto = [BASE, ACUM, REAL, 'Trab. Acum. Restante\t\t100h\t90h\t80h'].join('\n');
+    const lida = lerColagem(texto);
+    expect(lida.series[3].papel).toBe('ignorar');
+    const pontos = montarPontos(lida.series, lida.periodos);
+    expect(pontos[1]).toEqual({ linhaBase: 181.5, real: 185.46, acumulado: 185.46 });
+  });
+
+  it('lê a curva em pé quando há mais períodos que colunas', () => {
+    const texto = [
+      'Linha de Base\tAcumulado\tReal',
+      '100\t80\t80',
+      '200\t190\t190',
+      '300\t300\t190',
+      '400\t400\t190',
+    ].join('\n');
+    const lida = lerColagem(texto);
+    expect(lida.orientacao).toBe('colunas');
+    expect(lida.periodos).toBe(4);
+    expect(lida.series.map((s) => s.papel)).toEqual(['linhaBase', 'acumulado', 'real']);
+    expect(montarPontos(lida.series, lida.periodos)[0]).toEqual({
+      linhaBase: 100, real: 80, acumulado: 80,
+    });
   });
 
   it('devolve vazio quando não há número nenhum', () => {
-    expect(lerColagem('só texto\naqui')).toEqual([]);
+    expect(lerColagem('só texto\naqui').series).toEqual([]);
+  });
+});
+
+describe('montarPontos', () => {
+  it('respeita o papel escolhido, mesmo trocado à mão', () => {
+    const series = [
+      { rotulo: null, valores: [1, 2, 3], papel: 'real' as const },
+      { rotulo: null, valores: [10, 20, 30], papel: 'linhaBase' as const },
+      { rotulo: null, valores: [5, 6, 7], papel: 'ignorar' as const },
+    ];
+    expect(montarPontos(series, 3)).toEqual([
+      { linhaBase: 10, real: 1, acumulado: null },
+      { linhaBase: 20, real: 2, acumulado: null },
+      { linhaBase: 30, real: 3, acumulado: null },
+    ]);
   });
 });
 

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { useCurrentProject, type WeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
-import { janelaCentradaNaData } from '@/lib/dateUtils';
+import { visaoCincoSemanas } from '@/lib/visaoSemanal';
 import ChartInsight from '@/components/ChartInsight';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import {
@@ -48,17 +48,16 @@ const FiveWeekChart = () => {
     return out;
   }, [allWeeklyData, sCurveData]);
 
-  // A janela é sempre centrada na data de status: duas semanas atrás, a semana
-  // de status e duas à frente (o que está previsto). Quando a série não alcança
-  // um dos lados, o período entra vazio em vez de a janela deslizar — deslizar
-  // tirava o status do centro justamente no fim da obra, que é quando a
-  // comparação com o previsto mais importa.
+  // Janela centrada na data de status, com o Previsto vindo da Tendência % da
+  // Curva S — ver `lib/visaoSemanal.ts` para o porquê das duas regras.
   const weeklyData = useMemo(
-    () => janelaCentradaNaData(sourceWeekly, info?.atualizadoEm || '', {
-      size: 5,
-      periodicidade: info?.curvaPeriodicidade ?? 'semanal',
-    }),
-    [sourceWeekly, info?.atualizadoEm, info?.curvaPeriodicidade],
+    () => visaoCincoSemanas(
+      sourceWeekly,
+      sCurveData ?? [],
+      info?.atualizadoEm || '',
+      info?.curvaPeriodicidade ?? 'semanal',
+    ),
+    [sourceWeekly, sCurveData, info?.atualizadoEm, info?.curvaPeriodicidade],
   );
 
   const hasTendencia = weeklyData.some(w => (w.tendencia ?? 0) > 0);

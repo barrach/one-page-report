@@ -1,4 +1,12 @@
-import { formatDDmmm, parseISOLocal, somarDias, PASSO_DIAS, type Periodicidade } from '@/lib/dateUtils';
+import {
+  formatDDmmm,
+  formatISOLocal,
+  parseISOLocal,
+  parseWeekLabel,
+  somarDias,
+  PASSO_DIAS,
+  type Periodicidade,
+} from '@/lib/dateUtils';
 
 export type { Periodicidade };
 
@@ -143,6 +151,10 @@ export const converterParaPercentual = (
 export const lerNumero = (bruto: string): number | null => {
   const txt = String(bruto ?? '').trim();
   if (!txt) return null;
+  // Barra nunca aparece num valor, mas aparece em toda data ("Seg 01/Jun/26").
+  // Sem esta guarda, a limpeza abaixo transformava aquele cabeçalho no número
+  // 126 e a linha de datas entrava na curva como se fosse uma série.
+  if (txt.includes('/')) return null;
   const limpo = txt.replace(/[^0-9,.-]/g, '');
   if (!limpo) return null;
   const ultimaVirgula = limpo.lastIndexOf(',');
@@ -154,59 +166,193 @@ export const lerNumero = (bruto: string): number | null => {
   return isFinite(n) ? n : null;
 };
 
+// ─── Leitura da colagem vinda do MS Project ─────────────────────────────────
+
+/** Que série da curva cada linha/coluna colada representa. */
+export type PapelSerie = 'linhaBase' | 'real' | 'acumulado' | 'ignorar';
+
+export const ROTULO_PAPEL: Record<PapelSerie, string> = {
+  linhaBase: 'Linha de Base Acum.',
+  real: 'Real Acum.',
+  acumulado: 'Acum. (plano)',
+  ignorar: 'Ignorar',
+};
+
+export interface SerieLida {
+  /** Rótulo que veio junto, quando a seleção incluiu a coluna de nomes. */
+  rotulo: string | null;
+  valores: (number | null)[];
+  /** Papel sugerido pela leitura — a tela deixa corrigir. */
+  papel: PapelSerie;
+}
+
+export interface LeituraColagem {
+  orientacao: 'linhas' | 'colunas';
+  series: SerieLida[];
+  /** Início lido do cabeçalho de datas, quando a colagem trouxe essa linha. */
+  inicio: string | null;
+  periodicidade: Periodicidade | null;
+  periodos: number;
+}
+
 /**
- * Lê a colagem do Excel/MS Project, em linhas ou em colunas.
+ * "Seg 01/Jun/26" → Date.
  *
- * Aceita os dois sentidos porque o Project entrega a curva deitada (uma linha
- * por série, um período por coluna) e o Excel, depois de um "colar especial",
- * costuma sair em pé. A orientação é decidida pelo conteúdo: se a primeira
- * célula de alguma linha nomeia uma série, é por linha; senão, por coluna.
+ * O cabeçalho da escala de tempo do Project vem com o dia da semana na frente,
+ * que precisa sair antes de tentar ler a data.
  */
-export const lerColagem = (texto: string): PontoAcumulado[] => {
-  const linhas = texto.trim().split(/\r?\n/).map((l) => l.split('\t'));
-  if (linhas.length === 0) return [];
+export const lerDataCabecalho = (bruto: string, anoRef: number): Date | null => {
+  const txt = String(bruto ?? '')
+    .trim()
+    .replace(/^(seg|ter|qua|qui|sex|s[áa]b|dom)[a-zç]*\.?\s+/i, '');
+  if (!txt || !/\d/.test(txt)) return null;
+  return parseWeekLabel(txt, anoRef);
+};
 
-  const ehLinhaBase = (s: string) => /linha\s*de\s*base|baseline|previsto|planejado/i.test(s);
-  const ehReal = (s: string) => /real|realizado|actual/i.test(s);
-  const ehAcumulado = (s: string) => /acumulad|cumulative|trabalho|custo|tend/i.test(s);
+/** Um valor de verdade — `lerNumero` já recusa datas, então basta perguntar. */
+const ehValor = (c: string): boolean => lerNumero(c) != null;
 
-  const series: Partial<Record<keyof PontoAcumulado, (number | null)[]>> = {};
-  let achouRotulo = false;
+/**
+ * Papel sugerido pelo rótulo, incluindo as abreviações que o Project usa de
+ * fato: "Trab. Acum. Base", "Trab. acum.", "Trab. Real Acum." (e os
+ * equivalentes de Custo). Procurar pelos nomes por extenso não pegava nenhum.
+ *
+ * A ordem dos testes importa: "Trab. Acum. Base" casa com base E com acumulado,
+ * e o que vale é o mais específico.
+ */
+export const papelDoRotulo = (rotulo: string): PapelSerie => {
+  const n = rotulo.toLowerCase();
+  // "Trab. Acum. Restante" é o que falta, não o que foi feito — somá-lo à curva
+  // contaria o mesmo trabalho duas vezes.
+  if (/restante|remaining/.test(n)) return 'ignorar';
+  if (/base|baseline|planejad/.test(n)) return 'linhaBase';
+  if (/real|actual|realizad/.test(n)) return 'real';
+  if (/acum|cumulative|trabalho|trab|custo|tend|plano|previsto/.test(n)) return 'acumulado';
+  return 'ignorar';
+};
+
+/**
+ * Ordem em que as linhas saem do Project quando a colagem vem sem rótulo — é a
+ * ordem da visão Uso da Tarefa: Base, plano corrente, real.
+ */
+const ORDEM_PADRAO: PapelSerie[] = ['linhaBase', 'acumulado', 'real'];
+
+/** Tabulação é o normal; espaço é o plano B de quem copiou de outro lugar. */
+const dividirCelulas = (linha: string): string[] => {
+  if (linha.includes('\t')) return linha.split('\t');
+  const porEspacoDuplo = linha.trim().split(/\s{2,}/);
+  if (porEspacoDuplo.length > 1) return porEspacoDuplo;
+  return linha.trim().split(/\s+/);
+};
+
+/**
+ * Separa o rótulo dos valores.
+ *
+ * As células de texto do começo viram o rótulo (juntas, para "Trab. Acum. Base"
+ * sobreviver a uma colagem separada por espaço). Uma primeira célula VAZIA não é
+ * rótulo: é um período sem valor, e precisa continuar na série — descartá-la
+ * empurraria todas as datas uma semana para frente.
+ */
+const separarRotulo = (celulas: string[]): { rotulo: string | null; valores: (number | null)[] } => {
+  let i = 0;
+  while (i < celulas.length && celulas[i].trim() !== '' && !ehValor(celulas[i])) i++;
+  if (i === 0) return { rotulo: null, valores: celulas.map(lerNumero) };
+  return {
+    rotulo: celulas.slice(0, i).join(' ').replace(/\s+/g, ' ').trim() || null,
+    valores: celulas.slice(i).map(lerNumero),
+  };
+};
+
+/**
+ * Lê a colagem do MS Project ou do Excel.
+ *
+ * A orientação é decidida pela FORMA, não pelo rótulo: o Project entrega a curva
+ * deitada — uma linha por série, uma coluna por período — e quase sempre sem a
+ * coluna de nomes, porque a pessoa seleciona só o bloco de números. Decidir pelo
+ * rótulo fazia essa colagem cair no modo "em pé", onde cada série virava um
+ * período e a curva saía sem sentido.
+ *
+ * Quando a linha de datas vem junto, dela saem também o início da obra e a
+ * periodicidade, que deixam de precisar ser digitados.
+ */
+export const lerColagem = (texto: string): LeituraColagem => {
+  const vazio: LeituraColagem = {
+    orientacao: 'linhas', series: [], inicio: null, periodicidade: null, periodos: 0,
+  };
+
+  const linhas = String(texto ?? '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map(dividirCelulas)
+    .filter((c) => c.some((v) => v.trim() !== ''));
+  if (linhas.length === 0) return vazio;
+
+  const anoRef = new Date().getFullYear();
+  const maxCelulas = Math.max(...linhas.map((c) => c.length));
+  // Mais colunas que linhas → séries deitadas. É o caso do Project.
+  const orientacao: 'linhas' | 'colunas' = maxCelulas > linhas.length ? 'linhas' : 'colunas';
+
+  if (orientacao === 'colunas') {
+    const temCabecalho = linhas[0].every((c) => !ehValor(c));
+    const rotulos = temCabecalho ? linhas[0] : [];
+    const corpo = linhas.slice(temCabecalho ? 1 : 0).filter((c) => c.some(ehValor));
+    if (corpo.length === 0) return vazio;
+
+    const nCols = Math.max(...corpo.map((c) => c.length));
+    const series: SerieLida[] = Array.from({ length: nCols }, (_, j) => {
+      const rotulo = (rotulos[j] ?? '').trim() || null;
+      return {
+        rotulo,
+        valores: corpo.map((c) => lerNumero(c[j] ?? '')),
+        papel: rotulo ? papelDoRotulo(rotulo) : (ORDEM_PADRAO[j] ?? 'ignorar'),
+      };
+    });
+    return { orientacao, series, inicio: null, periodicidade: null, periodos: corpo.length };
+  }
+
+  // ── Séries deitadas ──
+  // A linha de datas é a que tem datas e nenhum valor.
+  let inicio: string | null = null;
+  let periodicidade: Periodicidade | null = null;
+  const linhasSerie: string[][] = [];
 
   for (const celulas of linhas) {
-    const primeira = (celulas[0] ?? '').trim();
-    if (!primeira) continue;
-    const valores = celulas.slice(1).map(lerNumero);
-    // Sem número nenhum depois do rótulo não é uma série deitada — é o cabeçalho
-    // de uma colagem em pé ("Linha de Base | Real | Acumulado"). Sem esta guarda,
-    // o cabeçalho virava a série inteira e a curva saía toda vazia.
-    if (!valores.some((v) => v != null)) continue;
-    // A ordem importa: "Trabalho Real Acumulado" casa com real E com acumulado,
-    // e o que vale é o rótulo mais específico.
-    if (ehLinhaBase(primeira)) { series.linhaBase = valores; achouRotulo = true; }
-    else if (ehReal(primeira)) { series.real = valores; achouRotulo = true; }
-    else if (ehAcumulado(primeira)) { series.acumulado = valores; achouRotulo = true; }
+    const datas = celulas
+      .map((c) => lerDataCabecalho(c, anoRef))
+      .filter((d): d is Date => d != null);
+    const ehLinhaDeDatas = datas.length >= 2 && celulas.every((c) => !ehValor(c));
+    if (ehLinhaDeDatas && inicio == null) {
+      inicio = formatISOLocal(datas[0]);
+      const dif = Math.round((datas[1].getTime() - datas[0].getTime()) / 86_400_000);
+      periodicidade = dif >= 5 ? 'semanal' : 'diaria';
+      continue;
+    }
+    if (!ehLinhaDeDatas) linhasSerie.push(celulas);
   }
 
-  if (achouRotulo) {
-    const n = Math.max(
-      series.linhaBase?.length ?? 0,
-      series.real?.length ?? 0,
-      series.acumulado?.length ?? 0,
-    );
-    return Array.from({ length: n }, (_, i) => ({
-      linhaBase: series.linhaBase?.[i] ?? null,
-      real: series.real?.[i] ?? null,
-      acumulado: series.acumulado?.[i] ?? null,
+  let semRotulo = 0;
+  const series: SerieLida[] = linhasSerie
+    .map(separarRotulo)
+    .filter((s) => s.valores.some((v) => v != null))
+    .map((s) => ({
+      ...s,
+      papel: s.rotulo ? papelDoRotulo(s.rotulo) : (ORDEM_PADRAO[semRotulo++] ?? 'ignorar'),
     }));
-  }
 
-  // Sem rótulo: colunas na ordem Linha de Base | Real | Acumulado. Uma primeira
-  // linha só de texto é cabeçalho e cai fora por não ter número nenhum.
-  const corpo = linhas.filter((c) => c.some((v) => lerNumero(v) != null));
-  return corpo.map((c) => ({
-    linhaBase: lerNumero(c[0]),
-    real: lerNumero(c[1]),
-    acumulado: lerNumero(c[2]),
+  const periodos = series.reduce((max, s) => Math.max(max, s.valores.length), 0);
+  return { orientacao, series, inicio, periodicidade, periodos };
+};
+
+/** Junta as séries já mapeadas nos períodos que a conversão consome. */
+export const montarPontos = (series: SerieLida[], periodos: number): PontoAcumulado[] => {
+  const valoresDe = (papel: PapelSerie) =>
+    series.find((s) => s.papel === papel)?.valores ?? [];
+  const lb = valoresDe('linhaBase');
+  const real = valoresDe('real');
+  const acum = valoresDe('acumulado');
+  return Array.from({ length: periodos }, (_, i) => ({
+    linhaBase: lb[i] ?? null,
+    real: real[i] ?? null,
+    acumulado: acum[i] ?? null,
   }));
 };

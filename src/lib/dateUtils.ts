@@ -185,3 +185,7 @@ export const janelaCentradaNaData = (
   }
   return out;
 };
+
+/** Date → yyyy-mm-dd pelos getters locais; `toISOString` jogaria o dia para trás. */
+export const formatISOLocal = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
