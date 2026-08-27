@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileText, Database, Shield, LogOut, Plus, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
+import { FileText, Database, Layers, Shield, LogOut, Plus, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useProjectStore } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,10 @@ export default function AppSidebar() {
         <Link to="/" className={itemClass(isActive('/'))} title="Relatório">
           <FileText className="h-4 w-4 shrink-0" />
           {!collapsed && 'Relatório'}
+        </Link>
+        <Link to="/consolidado" className={itemClass(isActive('/consolidado'))} title="Consolidado por cliente">
+          <Layers className="h-4 w-4 shrink-0" />
+          {!collapsed && 'Consolidado'}
         </Link>
         {/* Dados é de quem lança: visualizador e cliente não têm o que fazer lá. */}
         {canEdit && (

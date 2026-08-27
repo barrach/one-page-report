@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, lazy, Suspense } from "react";
 import Index from "./pages/Index";
 import DadosPage from "./pages/Dados";
+import Consolidado from "./pages/Consolidado";
 const Admin = lazy(() => import("./pages/Admin"));
 import Install from "./pages/Install";
 import Login from "./pages/Login";
@@ -55,6 +56,7 @@ const AppContent = () => {
         <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
         {/* Lançar dados é de quem edita: visualizador e cliente entram só para ler. */}
         <Route path="/dados" element={<EditorRoute><DadosPage /></EditorRoute>} />
+        <Route path="/consolidado" element={<ProtectedRoute><Consolidado /></ProtectedRoute>} />
         <Route path="/configuracoes" element={<ProtectedRoute><Configuracoes /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminRoute>{suspense(<Admin />)}</AdminRoute>} />
         <Route path="/install" element={<ProtectedRoute><Install /></ProtectedRoute>} />
