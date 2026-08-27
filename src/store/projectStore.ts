@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
 import type { ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
 import type { ColunaCronograma } from '@/lib/parseCronogramaColado';
+import type { Evidencia } from '@/lib/evidencias';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
@@ -201,6 +202,8 @@ export interface Project {
   scheduleData: ScheduleRow[];
   /** Colunas do cronograma como vieram da importacao, na ordem do arquivo. */
   scheduleColunas?: ColunaCronograma[];
+  /** Fotos de evidencia da obra — ponteiro para o Storage + legenda. */
+  evidencias?: Evidencia[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
   /** Arrumação dos cards do relatório — do projeto, não de quem olha. */
@@ -334,6 +337,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
     scheduleColunas: (d.scheduleColunas as ColunaCronograma[]) ?? undefined,
+    evidencias: (d.evidencias as Evidencia[]) ?? [],
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     observacoesCards: (d.observacoesCards as Record<string, ObservacaoCard[]>) ?? {},
@@ -359,6 +363,7 @@ const projectToDb = (p: Project): any => ({
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
     scheduleColunas: p.scheduleColunas || null,
+    evidencias: p.evidencias || [],
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     observacoesCards: p.observacoesCards || {},
@@ -414,6 +419,10 @@ interface ProjectStoreState {
   setScheduleData: (data: ScheduleRow[]) => void;
   /** Grava cronograma e as colunas importadas juntos. */
   setCronograma: (linhas: ScheduleRow[], colunas: ColunaCronograma[]) => void;
+  /** Registra a foto ja enviada ao Storage. */
+  addEvidencia: (evidencia: Evidencia) => void;
+  removeEvidencia: (id: string) => void;
+  setLegendaEvidencia: (id: string, legenda: string) => void;
   addScheduleRow: () => void;
   removeScheduleRow: (index: number) => void;
   setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
@@ -643,6 +652,33 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   removeHistogramPoint: (index) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       histogramData: (p.histogramData || []).filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  addEvidencia: (evidencia) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      evidencias: [...(p.evidencias || []), evidencia],
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  removeEvidencia: (id) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      evidencias: (p.evidencias || []).filter((e) => e.id !== id),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setLegendaEvidencia: (id, legenda) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      evidencias: (p.evidencias || []).map((e) => (e.id === id ? { ...e, legenda } : e)),
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);

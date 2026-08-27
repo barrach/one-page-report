@@ -13,6 +13,7 @@ import ActionsTable from '@/components/ActionsTable';
 import ScheduleTable from '@/components/ScheduleTable';
 import ParetoCausas from '@/components/ParetoCausas';
 import ClimaCard from '@/components/ClimaCard';
+import EvidenciasCard from '@/components/EvidenciasCard';
 import CardArrumavel from '@/components/CardArrumavel';
 import {
   normalizarLayout, moverCard, reordenarCard, alternarLargura, ajustarAltura, alternarOculto,
@@ -87,6 +88,7 @@ const Index = () => {
         />
       );
       case 'pareto': return <ParetoCausas />;
+      case 'evidencias': return <EvidenciasCard />;
       default: return null;
     }
   };
