@@ -55,8 +55,10 @@ const EapFinanceiraInput = () => {
 
   const aplicar = () => {
     if (!leitura) return;
-    setEap(leitura.itens);
-    toast.success(`✓ EAP financeira aplicada — ${leitura.itens.length} itens`);
+    // Itens e colunas vão juntos: é o par que faz o relatório mostrar as
+    // colunas da planilha, com os títulos dela.
+    setEap(leitura.itens, leitura.colunas);
+    toast.success(`✓ EAP aplicada — ${leitura.itens.length} itens, ${leitura.colunas.length} colunas`);
     setLeitura(null);
     setColagem('');
     setMostrarColagem(false);

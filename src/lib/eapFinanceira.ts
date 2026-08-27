@@ -18,6 +18,23 @@ export interface ItemEapFinanceira {
   realizadoMes: number;
   /** Realizado acumulado até o mês. */
   acumulado: number;
+  /** Texto cru de cada coluna colada — o relatório mostra exatamente isto. */
+  celulas?: Record<string, string>;
+}
+
+/**
+ * Uma coluna como veio da planilha de medição.
+ *
+ * Mesma ideia do cronograma: o relatório mostra as colunas do arquivo, com os
+ * títulos do arquivo. Cada contrato tem sua planilha, e uma tabela fixa jogava
+ * fora justamente as colunas que aquele contrato usa.
+ */
+export interface ColunaEap {
+  /** Chave estável — `c0`, `c1`… pela posição na colagem. */
+  chave: string;
+  titulo: string;
+  /** O campo que a coluna representa, quando reconhecido. */
+  campo?: CampoEap;
 }
 
 /** Nível pelo código: "1.2.3" → 3. Sem código, nível 1. */
@@ -117,7 +134,7 @@ export const lerValor = (bruto: string): number => {
 
 // ─── Colagem do Excel ───────────────────────────────────────────────────────
 
-type CampoEap = 'codigo' | 'descricao' | 'valorContrato' | 'previstoMes' | 'realizadoMes' | 'acumulado';
+export type CampoEap = 'codigo' | 'descricao' | 'valorContrato' | 'previstoMes' | 'realizadoMes' | 'acumulado';
 
 const normalizar = (v: string): string =>
   String(v ?? '')
@@ -145,12 +162,14 @@ const RECONHECEDORES: Array<{ campo: CampoEap; casa: (h: string) => boolean }> =
 
 export interface LeituraEap {
   itens: ItemEapFinanceira[];
+  /** As colunas trazidas, na ordem do arquivo. */
+  colunas: ColunaEap[];
   /** Campos que nenhuma coluna preencheu — a tela avisa antes de aplicar. */
   faltando: CampoEap[];
   reconhecidas: { campo: CampoEap; cabecalho: string }[];
 }
 
-const VAZIO: LeituraEap = { itens: [], faltando: [], reconhecidas: [] };
+const VAZIO: LeituraEap = { itens: [], colunas: [], faltando: [], reconhecidas: [] };
 
 export const lerEapColada = (texto: string): LeituraEap => {
   const linhas = String(texto ?? '')
@@ -193,18 +212,39 @@ export const lerEapColada = (texto: string): LeituraEap => {
     return col == null ? '' : (celulas[col] ?? '').trim();
   };
 
-  const itens = linhas.slice(idxCabecalho + 1)
-    .map((celulas) => ({
-      codigo: texto_(celulas, 'codigo'),
-      descricao: texto_(celulas, 'descricao'),
-      valorContrato: lerValor(texto_(celulas, 'valorContrato')),
-      previstoMes: lerValor(texto_(celulas, 'previstoMes')),
-      realizadoMes: lerValor(texto_(celulas, 'realizadoMes')),
-      acumulado: lerValor(texto_(celulas, 'acumulado')),
+  // Toda coluna com título vira coluna do relatório, na ordem do arquivo.
+  const cabecalhos = linhas[idxCabecalho];
+  const campoNaColuna = new Map<number, CampoEap>(
+    (Object.entries(mapa) as [CampoEap, number][]).map(([campo, col]) => [col, campo]),
+  );
+  const colunas: ColunaEap[] = cabecalhos
+    .map((titulo, i) => ({
+      chave: `c${i}`,
+      titulo: String(titulo ?? '').trim(),
+      campo: campoNaColuna.get(i),
     }))
+    .filter((c) => c.titulo !== '');
+
+  const itens = linhas.slice(idxCabecalho + 1)
+    .map((celulas) => {
+      // A chave já carrega a posição original ("c3"), então não há o que procurar.
+      const cruas: Record<string, string> = {};
+      for (const c of colunas) {
+        cruas[c.chave] = (celulas[Number(c.chave.slice(1))] ?? '').trim();
+      }
+      return {
+        codigo: texto_(celulas, 'codigo'),
+        descricao: texto_(celulas, 'descricao'),
+        valorContrato: lerValor(texto_(celulas, 'valorContrato')),
+        previstoMes: lerValor(texto_(celulas, 'previstoMes')),
+        realizadoMes: lerValor(texto_(celulas, 'realizadoMes')),
+        acumulado: lerValor(texto_(celulas, 'acumulado')),
+        celulas: cruas,
+      };
+    })
     // Linha sem descrição é total, separador ou sobra da seleção.
     .filter((it) => it.descricao !== '');
 
   const faltando = (['descricao', 'valorContrato'] as CampoEap[]).filter((c) => mapa[c] == null);
-  return { itens, faltando, reconhecidas };
+  return { itens, colunas, faltando, reconhecidas };
 };

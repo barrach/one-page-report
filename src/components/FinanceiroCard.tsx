@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import ObservacoesDoCard from '@/components/ObservacoesDoCard';
 import {
   ehFolha, fmtDinheiro, fmtPercentual, nivelDoCodigo, totaisDaEap,
+  type CampoEap, type ColunaEap, type ItemEapFinanceira, type TotaisEap,
 } from '@/lib/eapFinanceira';
 
 /**
@@ -35,13 +36,54 @@ const KpiFinanceiro = ({
   </div>
 );
 
+/** Valor já formatado de um campo conhecido — usado quando não há colagem. */
+const valorDoCampo = (it: ItemEapFinanceira, campo?: CampoEap): string => {
+  switch (campo) {
+    case 'codigo': return it.codigo;
+    case 'descricao': return it.descricao;
+    case 'valorContrato': return fmtDinheiro(it.valorContrato);
+    case 'previstoMes': return fmtDinheiro(it.previstoMes);
+    case 'realizadoMes': return fmtDinheiro(it.realizadoMes);
+    case 'acumulado': return fmtDinheiro(it.acumulado);
+    default: return '';
+  }
+};
+
+/** Total da coluna — só as que somam dinheiro. */
+const totalDaColuna = (campo: CampoEap | undefined, t: TotaisEap): string => {
+  switch (campo) {
+    case 'valorContrato': return fmtDinheiro(t.valorContrato);
+    case 'previstoMes': return fmtDinheiro(t.previstoMes);
+    case 'realizadoMes': return fmtDinheiro(t.realizadoMes);
+    case 'acumulado': return fmtDinheiro(t.acumulado);
+    default: return '';
+  }
+};
+
+/**
+ * Colunas quando a EAP foi digitada à mão, sem colagem: o mesmo conjunto de
+ * antes, para a tabela não ficar vazia.
+ */
+const COLUNAS_PADRAO: ColunaEap[] = [
+  { chave: 'p0', titulo: 'EAP', campo: 'codigo' },
+  { chave: 'p1', titulo: 'Descrição', campo: 'descricao' },
+  { chave: 'p2', titulo: 'Valor do contrato', campo: 'valorContrato' },
+  { chave: 'p3', titulo: 'Previsto no mês', campo: 'previstoMes' },
+  { chave: 'p4', titulo: 'Realizado no mês', campo: 'realizadoMes' },
+];
+
 const FinanceiroCard = () => {
-  const { eapFinanceira } = useCurrentProject();
+  const { eapFinanceira, eapColunas } = useCurrentProject();
   const { canEdit } = useAuth();
   const { tvMode } = useTvMode();
 
   const itens = eapFinanceira ?? [];
   const totais = useMemo(() => totaisDaEap(itens), [itens]);
+  // Só valem as colunas que os itens realmente trazem: EAP antiga, sem
+  // `celulas`, continua na tabela padrão em vez de virar uma grade de traços.
+  const colunas = (eapColunas ?? []).length > 0 && itens.some((it) => it.celulas)
+    ? (eapColunas as ColunaEap[])
+    : COLUNAS_PADRAO;
 
   // Mesmo trio que edita: administrador, gestor e planejador.
   if (!canEdit) return null;
@@ -83,11 +125,19 @@ const FinanceiroCard = () => {
         <table className="w-full text-[10px] sm:text-xs border-collapse">
           <thead>
             <tr className="bg-table-header text-table-header-foreground">
-              <th className="px-2 py-2 text-center border border-border/30 w-20 rounded-tl-lg">EAP</th>
-              <th className="px-2 py-2 text-left border border-border/30 min-w-[220px]">Descrição</th>
-              <th className="px-2 py-2 text-right border border-border/30 w-32">Valor do contrato</th>
-              <th className="px-2 py-2 text-right border border-border/30 w-28">Previsto no mês</th>
-              <th className="px-2 py-2 text-right border border-border/30 w-28">Realizado no mês</th>
+              {colunas.map((c, k) => (
+                <th
+                  key={c.chave}
+                  className={cn(
+                    'px-2 py-2 border border-border/30',
+                    c.campo === 'descricao' ? 'text-left min-w-[220px]' : 'text-right whitespace-nowrap',
+                    k === 0 && 'rounded-tl-lg',
+                  )}
+                >
+                  {c.titulo}
+                </th>
+              ))}
+              {/* Calculada, não colada: fecha a tabela do lado direito. */}
               <th className="px-2 py-2 text-right border border-border/30 w-20 rounded-tr-lg">% no mês</th>
             </tr>
           </thead>
@@ -107,20 +157,30 @@ const FinanceiroCard = () => {
                     !folha && 'bg-muted/40 font-semibold',
                   )}
                 >
-                  <td className="px-2 py-1 text-center border border-border/30 tabular-nums">{it.codigo || '—'}</td>
-                  <td className="px-2 py-1 border border-border/30">
-                    <span style={{ paddingLeft: `${Math.min(nivel - 1, 4) * 14}px` }} className="block">
-                      {it.descricao}
-                    </span>
-                  </td>
-                  <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtDinheiro(it.valorContrato)}</td>
-                  <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtDinheiro(it.previstoMes)}</td>
-                  <td className={cn(
-                    'px-2 py-1 text-right border border-border/30 tabular-nums',
-                    it.previstoMes > 0 && (abaixo ? 'text-destructive' : 'text-success'),
-                  )}>
-                    {fmtDinheiro(it.realizadoMes)}
-                  </td>
+                  {colunas.map((c) => {
+                    // O texto cru da planilha quando existir; senão, o campo já
+                    // formatado — cobre a EAP digitada à mão, sem colagem.
+                    const cru = it.celulas?.[c.chave];
+                    const valor = cru ?? valorDoCampo(it, c.campo);
+                    return (
+                      <td
+                        key={c.chave}
+                        className={cn(
+                          'px-2 py-1 border border-border/30 tabular-nums',
+                          c.campo === 'descricao' ? 'text-left' : 'text-right',
+                          // Medir abaixo do previsto é o que dói: fica em vermelho.
+                          c.campo === 'realizadoMes' && it.previstoMes > 0 &&
+                            (abaixo ? 'text-destructive' : 'text-success'),
+                        )}
+                      >
+                        {c.campo === 'descricao' ? (
+                          <span style={{ paddingLeft: `${Math.min(nivel - 1, 4) * 14}px` }} className="block">
+                            {valor || '—'}
+                          </span>
+                        ) : (valor || '—')}
+                      </td>
+                    );
+                  })}
                   <td className="px-2 py-1 text-right border border-border/30 tabular-nums">{fmtPercentual(pctMes)}</td>
                 </tr>
               );
@@ -128,15 +188,21 @@ const FinanceiroCard = () => {
           </tbody>
           <tfoot>
             <tr className="bg-primary/10 font-bold">
-              <td className="px-2 py-2 border border-border/30" colSpan={2}>Total do contrato</td>
-              <td className="px-2 py-2 text-right border border-border/30 tabular-nums">{fmtDinheiro(totais.valorContrato)}</td>
-              <td className="px-2 py-2 text-right border border-border/30 tabular-nums">{fmtDinheiro(totais.previstoMes)}</td>
-              <td className={cn(
-                'px-2 py-2 text-right border border-border/30 tabular-nums',
-                totais.desvioMes < 0 ? 'text-destructive' : 'text-success',
-              )}>
-                {fmtDinheiro(totais.realizadoMes)}
-              </td>
+              {colunas.map((c, k) => (
+                <td
+                  key={c.chave}
+                  className={cn(
+                    'px-2 py-2 border border-border/30 tabular-nums',
+                    c.campo === 'descricao' ? 'text-left' : 'text-right',
+                    c.campo === 'realizadoMes' && (totais.desvioMes < 0 ? 'text-destructive' : 'text-success'),
+                  )}
+                >
+                  {/* Só as colunas de dinheiro totalizam; código e descrição
+                      carregam o rótulo, e o resto fica em branco em vez de
+                      inventar um total para uma coluna que não soma. */}
+                  {k === 0 ? 'Total do contrato' : totalDaColuna(c.campo, totais)}
+                </td>
+              ))}
               <td className="px-2 py-2 text-right border border-border/30 tabular-nums">{fmtPercentual(totais.percentualMes)}</td>
             </tr>
           </tfoot>

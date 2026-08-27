@@ -115,3 +115,29 @@ describe('lerEapColada', () => {
     expect(lerEapColada('a\tb\nc\td').itens).toEqual([]);
   });
 });
+
+describe('colunas da EAP colada', () => {
+  const COLAGEM = [
+    'Item\tDiscriminação dos serviços\tValor do contrato\tPrevisto\tRealizado\tUnidade',
+    '1\tSPCI\tR$ 150.000,00\tR$ 10.000,00\tR$ 5.000,00\tvb',
+  ].join('\n');
+
+  it('traz as colunas da planilha com os títulos dela', () => {
+    const { colunas } = lerEapColada(COLAGEM);
+    expect(colunas.map((c) => c.titulo)).toEqual([
+      'Item', 'Discriminação dos serviços', 'Valor do contrato', 'Previsto', 'Realizado', 'Unidade',
+    ]);
+  });
+
+  it('guarda o texto cru, inclusive de coluna que não é campo conhecido', () => {
+    const { itens, colunas } = lerEapColada(COLAGEM);
+    const unidade = colunas.find((c) => c.titulo === 'Unidade')!;
+    expect(itens[0].celulas?.[unidade.chave]).toBe('vb');
+    expect(unidade.campo).toBeUndefined();
+  });
+
+  it('marca qual coluna é a descrição, para o relatório indentar por nível', () => {
+    const { colunas } = lerEapColada(COLAGEM);
+    expect(colunas.find((c) => c.campo === 'descricao')?.titulo).toBe('Discriminação dos serviços');
+  });
+});
