@@ -220,7 +220,6 @@ const DataInputPage = () => {
     toast.success(`✓ Prev. x Realizado Mês importado — ${newData.length} meses`);
   }, [setMonthData]);
 
-  };
 
   const updateMonth = (index: number, field: string, value: string) => {
     const updated = monthData.map((m, i) =>
