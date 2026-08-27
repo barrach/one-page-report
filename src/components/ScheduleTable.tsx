@@ -6,6 +6,7 @@ import { computeVisibleIndices, rowHasChildren } from '@/lib/scheduleHierarchy';
 import { cn } from '@/lib/utils';
 import { useExportMode } from '@/hooks/use-export-mode';
 import type { ScheduleRow } from '@/store/projectStore';
+import type { ColunaCronograma } from '@/lib/parseCronogramaColado';
 
 const fmtPct = (n: number) => Math.round(n).toString();
 
@@ -139,8 +140,99 @@ const CronogramaParaImpressao = ({
   );
 };
 
+
+/**
+ * Cronograma com as colunas que vieram da importação.
+ *
+ * Quando o cronograma é colado do MS Project, o relatório mostra exatamente as
+ * colunas do arquivo, com os títulos originais: cada obra traz as colunas que
+ * interessam a ela, e a tabela fixa jogava fora justamente as que o planejador
+ * escolheu trazer.
+ *
+ * O Nível continua vindo da estrutura de tópicos do Project (`outlineLevel`) —
+ * é ele que o filtro "Exibir até nível" usa, independente de quais colunas
+ * vieram.
+ */
+const TabelaImportada = ({
+  rows, indices, colunas, collapsed, onToggle, semBusca,
+}: {
+  rows: ScheduleRow[];
+  indices: number[];
+  colunas: ColunaCronograma[];
+  collapsed: Set<number>;
+  onToggle: (i: number) => void;
+  semBusca: boolean;
+}) => (
+  <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
+    <table className="w-full text-[10px] sm:text-xs border-collapse">
+      <thead>
+        <tr className="bg-table-header text-table-header-foreground">
+          <th className="px-2 py-2 text-center w-16 rounded-tl-lg border border-border/30">Nível</th>
+          {colunas.map((c, k) => (
+            <th
+              key={c.chave}
+              className={cn(
+                'px-2 py-2 border border-border/30',
+                c.campo === 'tarefa' ? 'text-left min-w-[220px]' : 'text-center whitespace-nowrap',
+                k === colunas.length - 1 && 'rounded-tr-lg',
+              )}
+            >
+              {c.titulo}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {indices.map((i) => {
+          const row = rows[i];
+          const level = row.outlineLevel ?? 1;
+          const temFilhos = semBusca && rowHasChildren(rows, i);
+          const recolhido = collapsed.has(i);
+          return (
+            <tr key={i} style={{ ...levelStyle(level), fontSize: level <= 2 ? '13px' : '12px' }}>
+              <td className="px-2 py-1 text-center border border-border/30 tabular-nums">
+                {row.outlineNumber || level}
+              </td>
+              {colunas.map((c) => {
+                const valor = row.celulas?.[c.chave] ?? '';
+                if (c.campo === 'tarefa') {
+                  return (
+                    <td key={c.chave} className="px-2 py-1 border border-border/30">
+                      <span
+                        className="flex items-center gap-1"
+                        style={{ paddingLeft: `${Math.min(Math.max(level - 1, 0), 5) * 16}px` }}
+                      >
+                        {temFilhos ? (
+                          <button
+                            onClick={() => onToggle(i)}
+                            data-pdf-hide
+                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                          >
+                            {recolhido ? <ChevronRight className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                          </button>
+                        ) : (
+                          <span className="w-3 shrink-0" />
+                        )}
+                        <span className="min-w-0">{valor || row.tarefa}</span>
+                      </span>
+                    </td>
+                  );
+                }
+                return (
+                  <td key={c.chave} className="px-2 py-1 text-center border border-border/30 whitespace-nowrap">
+                    {valor || '—'}
+                  </td>
+                );
+              })}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+);
 const ScheduleTable = () => {
-  const { scheduleData } = useCurrentProject();
+  const { scheduleData, scheduleColunas } = useCurrentProject();
   const { exportando } = useExportMode();
   const isMobile = useIsMobile();
   const [search, setSearch] = useState('');
@@ -149,6 +241,11 @@ const ScheduleTable = () => {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
 
   const all = (scheduleData || []).filter(r => r.tarefa);
+  // Só valem as colunas que as linhas realmente trazem: cronograma antigo, sem
+  // `celulas`, continua na tabela fixa em vez de virar uma grade de traços.
+  const colunasImportadas = (scheduleColunas ?? []).length > 0 && all.some((r) => r.celulas)
+    ? (scheduleColunas ?? [])
+    : [];
 
   const toggleCollapse = (idx: number) =>
     setCollapsed((s) => {
@@ -292,8 +389,19 @@ const ScheduleTable = () => {
             <p className="text-xs text-muted-foreground text-center py-6">Nenhuma tarefa encontrada.</p>
           )}
         </div>
+      ) : colunasImportadas.length > 0 ? (
+        /* Cronograma colado: mostra as colunas do arquivo, com os títulos dele. */
+        <TabelaImportada
+          rows={all}
+          indices={visibleIdx}
+          colunas={colunasImportadas}
+          collapsed={collapsed}
+          onToggle={toggleCollapse}
+          semBusca={!search}
+        />
       ) : (
-        /* Desktop: table */
+        /* Desktop: as 15 colunas do "Template - Cronograma", para o cronograma
+           que veio por arquivo e não traz a lista de colunas. */
         <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
           <table className="w-full text-[10px] sm:text-xs border-collapse min-w-[1500px]">
             <thead>

@@ -3,6 +3,7 @@ import { create } from 'zustand';
 // A autenticação fica no client principal (rlpmw); aqui é só leitura/escrita de dados.
 import { oprDataClient as supabase } from '@/integrations/supabase/oprDataClient';
 import type { ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
+import type { ColunaCronograma } from '@/lib/parseCronogramaColado';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
@@ -166,6 +167,8 @@ export interface ScheduleRow {
   outlineNumber?: string;
   summary?: boolean;
   milestone?: boolean;
+  /** Texto cru de cada coluna importada, por chave — o relatorio mostra isto. */
+  celulas?: Record<string, string>;
 }
 
 export type DesvioCausaRaiz = 'Mão de Obra' | 'Material' | 'Equipamento' | 'Clima' | 'Escopo' | 'Projeto' | 'Outro' | '';
@@ -196,6 +199,8 @@ export interface Project {
   observations: Observation[];
   histogramData: HistogramPoint[];
   scheduleData: ScheduleRow[];
+  /** Colunas do cronograma como vieram da importacao, na ordem do arquivo. */
+  scheduleColunas?: ColunaCronograma[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
   /** Arrumação dos cards do relatório — do projeto, não de quem olha. */
@@ -328,6 +333,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     observations: d.observations ?? defaultProjectData.observations,
     histogramData: d.histogramData ?? defaultProjectData.histogramData,
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
+    scheduleColunas: (d.scheduleColunas as ColunaCronograma[]) ?? undefined,
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     observacoesCards: (d.observacoesCards as Record<string, ObservacaoCard[]>) ?? {},
@@ -352,6 +358,7 @@ const projectToDb = (p: Project): any => ({
     observations: p.observations,
     histogramData: p.histogramData,
     scheduleData: p.scheduleData,
+    scheduleColunas: p.scheduleColunas || null,
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
     observacoesCards: p.observacoesCards || {},
@@ -405,6 +412,8 @@ interface ProjectStoreState {
   addHistogramPoint: () => void;
   removeHistogramPoint: (index: number) => void;
   setScheduleData: (data: ScheduleRow[]) => void;
+  /** Grava cronograma e as colunas importadas juntos. */
+  setCronograma: (linhas: ScheduleRow[], colunas: ColunaCronograma[]) => void;
   addScheduleRow: () => void;
   removeScheduleRow: (index: number) => void;
   setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
@@ -634,6 +643,16 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   removeHistogramPoint: (index) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       histogramData: (p.histogramData || []).filter((_, i) => i !== index),
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  setCronograma: (linhas, colunas) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({
+      scheduleData: linhas,
+      scheduleColunas: colunas,
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);

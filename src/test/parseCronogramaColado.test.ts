@@ -97,3 +97,41 @@ describe('lerCronogramaColado', () => {
     expect(lerCronogramaColado('a\tb\nc\td').linhas).toEqual([]);
   });
 });
+
+describe('colunas importadas', () => {
+  const COLAGEM = [
+    'Nível\tNome da tarefa\t% Concluída\tRecurso\tObservação da obra',
+    '1\tMontagem\t45%\tCaldeireiro\tAguardando liberação',
+    '2\tTubulação\t60%\tSoldador\t',
+  ].join('\n');
+
+  it('traz exatamente as colunas do arquivo, com os títulos originais', () => {
+    const { colunas } = lerCronogramaColado(COLAGEM);
+    expect(colunas.map((c) => c.titulo)).toEqual([
+      'Nível', 'Nome da tarefa', '% Concluída', 'Recurso', 'Observação da obra',
+    ]);
+  });
+
+  it('guarda o texto cru de cada coluna, inclusive as que não são campo conhecido', () => {
+    const { linhas, colunas } = lerCronogramaColado(COLAGEM);
+    const recurso = colunas.find((c) => c.titulo === 'Recurso')!;
+    const obs = colunas.find((c) => c.titulo === 'Observação da obra')!;
+    expect(linhas[0].celulas?.[recurso.chave]).toBe('Caldeireiro');
+    expect(linhas[0].celulas?.[obs.chave]).toBe('Aguardando liberação');
+    expect(linhas[1].celulas?.[obs.chave]).toBe('');
+  });
+
+  it('marca qual coluna é a da tarefa, para o relatório indentar por nível', () => {
+    const { colunas } = lerCronogramaColado(COLAGEM);
+    expect(colunas.find((c) => c.campo === 'tarefa')?.titulo).toBe('Nome da tarefa');
+    expect(colunas.find((c) => c.campo === 'nivel')?.titulo).toBe('Nível');
+    // Coluna que o app não conhece fica sem campo, mas continua sendo exibida.
+    expect(colunas.find((c) => c.titulo === 'Recurso')?.campo).toBeUndefined();
+  });
+
+  it('coluna sem título não vira coluna', () => {
+    const comVazia = ['Nome da tarefa\t\t% Concluída', 'Montagem\tx\t10%'].join('\n');
+    expect(lerCronogramaColado(comVazia).colunas.map((c) => c.titulo))
+      .toEqual(['Nome da tarefa', '% Concluída']);
+  });
+});

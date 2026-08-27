@@ -103,14 +103,38 @@ export interface ColunaMapeada {
   cabecalho: string;
 }
 
+/**
+ * Uma coluna como veio da colagem.
+ *
+ * O cronograma que vai para o relatório passa a ser o que foi importado, com os
+ * títulos do próprio arquivo — cada planejador monta a visão do Project com as
+ * colunas que interessam à obra dele, e uma tabela fixa jogava fora justamente
+ * as que ele escolheu trazer.
+ */
+export interface ColunaCronograma {
+  /** Chave estável da coluna — `c0`, `c1`… pela posição na colagem. */
+  chave: string;
+  /** Título exatamente como estava no cabeçalho. */
+  titulo: string;
+  /**
+   * O campo que esta coluna representa, quando foi reconhecido.
+   *
+   * É por aqui que o relatório sabe qual coluna leva a indentação por nível e o
+   * botão de recolher — sem isso ele teria de adivinhar pelo título.
+   */
+  campo?: CampoCronograma;
+}
+
 export interface LeituraCronograma {
   linhas: ScheduleRow[];
+  /** As colunas trazidas, na ordem do arquivo. */
+  colunas: ColunaCronograma[];
   mapeamento: ColunaMapeada[];
   /** Campos que nenhuma coluna preencheu — a tela avisa antes de aplicar. */
   faltando: CampoCronograma[];
 }
 
-const VAZIO: LeituraCronograma = { linhas: [], mapeamento: [], faltando: [] };
+const VAZIO: LeituraCronograma = { linhas: [], colunas: [], mapeamento: [], faltando: [] };
 
 const mapear = (cabecalhos: string[]): Partial<Record<CampoCronograma, ColunaMapeada>> => {
   const mapa: Partial<Record<CampoCronograma, ColunaMapeada>> = {};
@@ -164,12 +188,32 @@ export const lerCronogramaColado = (texto: string): LeituraCronograma => {
     return col == null ? '' : (celulas[col] ?? '').trim();
   };
 
+  // Toda coluna com título vira coluna do relatório, na ordem do arquivo.
+  const cabecalhos = linhas[idxCabecalho];
+  const campoNaColuna = new Map<number, CampoCronograma>(
+    (Object.values(mapa) as ColunaMapeada[]).map((m) => [m.coluna, m.campo]),
+  );
+  const colunas: ColunaCronograma[] = cabecalhos
+    .map((titulo, i) => ({
+      chave: `c${i}`,
+      titulo: String(titulo ?? '').trim(),
+      campo: campoNaColuna.get(i),
+    }))
+    .filter((c) => c.titulo !== '');
+
   const corpo = linhas.slice(idxCabecalho + 1);
   const resultado: ScheduleRow[] = [];
 
   for (const celulas of corpo) {
     const tarefa = valor(celulas, 'tarefa');
     if (!tarefa) continue; // linha de total, separador ou sobra da seleção
+
+    // O texto cru de cada coluna, para o relatório mostrar exatamente o que veio.
+    // A chave já carrega a posição original ("c3"), então não há o que procurar.
+    const cruas: Record<string, string> = {};
+    for (const c of colunas) {
+      cruas[c.chave] = (celulas[Number(c.chave.slice(1))] ?? '').trim();
+    }
 
     const id = valor(celulas, 'id');
     const nivelBruto = parseInt(valor(celulas, 'nivel'), 10);
@@ -194,6 +238,7 @@ export const lerCronogramaColado = (texto: string): LeituraCronograma => {
       inicioBase: dataOu('inicioBase', 'ND'),
       terminoBase: dataOu('terminoBase', 'ND'),
       outlineLevel: nivel,
+      celulas: cruas,
     });
   }
 
@@ -201,5 +246,5 @@ export const lerCronogramaColado = (texto: string): LeituraCronograma => {
   const faltando = (['tarefa', 'previsto', 'inicio', 'termino', 'inicioBase', 'terminoBase'] as CampoCronograma[])
     .filter((c) => !mapa[c]);
 
-  return { linhas: resultado, mapeamento, faltando };
+  return { linhas: resultado, colunas, mapeamento, faltando };
 };

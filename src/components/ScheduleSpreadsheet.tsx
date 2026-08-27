@@ -13,7 +13,7 @@ import { lerCronogramaColado, type LeituraCronograma } from '@/lib/parseCronogra
 
 const ScheduleSpreadsheet = () => {
   const { scheduleData } = useCurrentProject();
-  const { setScheduleData, removeScheduleRow } = useProjectStore();
+  const { setScheduleData, setCronograma, removeScheduleRow } = useProjectStore();
   const data = scheduleData || [];
 
   const [maxLevel, setMaxLevel] = useState<number>(4);
@@ -65,8 +65,10 @@ const ScheduleSpreadsheet = () => {
 
   const aplicarColagem = () => {
     if (!leitura) return;
-    setScheduleData(computeOutlineNumbers(leitura.linhas));
-    toast.success(`✓ Cronograma aplicado — ${leitura.linhas.length} tarefas`);
+    // Linhas e colunas vão juntas: é o par que faz o relatório mostrar
+    // exatamente as colunas que foram importadas, com os títulos do arquivo.
+    setCronograma(computeOutlineNumbers(leitura.linhas), leitura.colunas);
+    toast.success(`✓ Cronograma aplicado — ${leitura.linhas.length} tarefas, ${leitura.colunas.length} colunas`);
     setLeitura(null);
     setColagem('');
     setMostrarColagem(false);
