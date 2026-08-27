@@ -1,9 +1,11 @@
-import { type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ArrowUp, ArrowDown, Maximize2, Minimize2, ChevronsUpDown, Eye, EyeOff, GripVertical,
+  ChevronRight, ChevronUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { nomeDoCard, type ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
+import { useProjectStore } from '@/store/projectStore';
 
 /**
  * Um card do relatório em modo de arrumação.
@@ -38,13 +40,63 @@ const CardArrumavel = ({
   const colSpan = item.largura === 'inteira' ? 'lg:col-span-2' : 'lg:col-span-1';
   const estilo = item.altura ? { minHeight: `${item.altura}px` } : undefined;
 
+  // Fechar um card é conveniência de QUEM ESTÁ LENDO, não arrumação do projeto:
+  // fica no navegador de cada um, por projeto, e não mexe no que os outros veem.
+  const projetoId = useProjectStore((s) => s.selectedProjectId);
+  const chave = `opr_card_fechado_${projetoId}_${item.id}`;
+  const [fechado, setFechado] = useState(false);
+
+  useEffect(() => {
+    try { setFechado(localStorage.getItem(chave) === '1'); } catch { setFechado(false); }
+  }, [chave]);
+
+  const alternarFechado = () => {
+    setFechado((atual) => {
+      const proximo = !atual;
+      try { localStorage.setItem(chave, proximo ? '1' : '0'); } catch { /* quota */ }
+      return proximo;
+    });
+  };
+
   if (!editando) {
     // Card oculto some do relatório e do papel.
     if (item.oculto) return null;
+
     // `empty:hidden` cobre o card que decide não desenhar nada — o Clima sem
     // cidade, por exemplo. Sem isso o invólucro continuaria ocupando meia linha
     // da grade e abriria um buraco no meio do relatório.
-    return <div className={cn(colSpan, 'empty:hidden')} style={estilo}>{children}</div>;
+    return (
+      <div className={cn(colSpan, 'card-do-relatorio group relative')} style={fechado ? undefined : estilo}>
+        {fechado ? (
+          <button
+            onClick={() => alternarFechado()}
+            data-pdf-hide
+            className="w-full flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-left card-shadow hover:border-primary/40 transition-colors"
+          >
+            <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-bold text-foreground uppercase tracking-wider truncate">
+              {nomeDoCard(item.id)}
+            </span>
+          </button>
+        ) : (
+          <button
+            onClick={() => alternarFechado()}
+            data-pdf-hide
+            title="Fechar este item"
+            className="absolute -top-2 -right-2 z-10 h-6 w-6 flex items-center justify-center rounded-full border border-border bg-card text-muted-foreground opacity-60 hover:opacity-100 hover:text-foreground transition-opacity card-shadow"
+          >
+            <ChevronUp className="h-3.5 w-3.5" />
+          </button>
+        )}
+
+        {/* Fechado é conveniência de leitura, não decisão sobre o relatório: o
+            papel continua saindo com o card inteiro. Esconder no PDF é o que o
+            botão do olho (oculto) faz, e esse é do administrador. */}
+        <div className={cn('conteudo-do-card', fechado && 'hidden')} data-pdf-show>
+          {children}
+        </div>
+      </div>
+    );
   }
 
   const botao = 'h-7 w-7 flex items-center justify-center rounded hover:bg-background/70 disabled:opacity-30 disabled:hover:bg-transparent';

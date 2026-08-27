@@ -306,3 +306,10 @@
 .exportando-pdf [data-pdf-show] {
   display: block !important;
 }
+
+/* Card que decidiu não desenhar nada — o Clima sem cidade escolhida — não pode
+   deixar o invólucro, nem o botão de fechar, ocupando meia linha da grade do
+   relatório. O React não sabe que o filho renderizou vazio; o CSS sabe. */
+.card-do-relatorio:has(> .conteudo-do-card:empty) {
+  display: none;
+}
