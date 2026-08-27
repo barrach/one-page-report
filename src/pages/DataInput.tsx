@@ -16,8 +16,7 @@ import ProjectSelector from '@/components/ProjectSelector';
 import TemplatesDownload from '@/components/TemplatesDownload';
 import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
-import { visaoCincoSemanas } from '@/lib/visaoSemanal';
-import { avancoDaCurva } from '@/lib/avancoCurva';
+import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -159,16 +158,19 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
 };
 
 const DataInputPage = () => {
-  const { info, weeklyData, monthData, lastImports, sCurveData, statusDateIndex } = useCurrentProject();
-  const { setInfo, setWeeklyData, setMonthData, setHistogramData, setScheduleData } = useProjectStore();
+  const { info, monthData, lastImports, sCurveData, statusDateIndex } = useCurrentProject();
+  const { setInfo, setMonthData } = useProjectStore();
 
   // ── Avanço Prev./Real seguem a Curva S ──
   // O efeito dispara quando o PONTO da curva muda, não a cada render: assim o
   // cabeçalho acompanha a curva sozinho e, ao mesmo tempo, uma correção feita à
   // mão sobrevive até a curva mudar de novo.
   const avanco = useMemo(
-    () => avancoDaCurva(sCurveData, statusDateIndex),
-    [sCurveData, statusDateIndex],
+    () => avancoDaCurva(
+      sCurveData,
+      indiceDoStatus(sCurveData, info?.atualizadoEm || '', statusDateIndex),
+    ),
+    [sCurveData, info?.atualizadoEm, statusDateIndex],
   );
   const ultimoAvanco = useRef<string>('');
   useEffect(() => {
@@ -182,33 +184,11 @@ const DataInputPage = () => {
     // valor logo depois de alguém corrigi-lo na mão.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avanco, setInfo]);
-  const [showWeeklyPaste, setShowWeeklyPaste] = useState(false);
-  const [weeklyPasteText, setWeeklyPasteText] = useState('');
   const [showMonthPaste, setShowMonthPaste] = useState(false);
   const [monthPasteText, setMonthPasteText] = useState('');
   const [importOpen, setImportOpen] = useState(false);
-  const weeklyFileRef = useRef<HTMLInputElement>(null);
   const monthFileRef = useRef<HTMLInputElement>(null);
 
-  const handleWeeklyExcelImport = useCallback(async (file: File) => {
-    const ex = await extractCurveSheet(file, { prev: 'prev. %', real: 'real. %' });
-    if (!ex) return;
-    const dateRow = ex.data[ex.found.__date.row] || [];
-    const prevRow = ex.data[ex.found.prev.row] || [];
-    const realRow = ex.data[ex.found.real.row] || [];
-    const startCol = ex.found.__date.col + 1;
-    const cols: { date: string; previsto: number; real: number }[] = [];
-    for (let c = startCol; c < dateRow.length; c++) {
-      const d = parseDateCell(dateRow[c]);
-      if (!d) continue;
-      const num = (v: unknown) => (typeof v === 'number' ? v * 100 : 0);
-      cols.push({ date: formatDDmmm(d), previsto: num(prevRow[c]), real: num(realRow[c]) });
-    }
-    const last5 = cols.filter(c => c.previsto > 0).slice(-5);
-    if (last5.length === 0) { toast.error('Nenhuma semana com Prev. % > 0'); return; }
-    setWeeklyData(last5);
-    toast.success(`✓ Resultado Semanal importado — ${last5.length} semanas`);
-  }, [setWeeklyData]);
 
   const handleMonthExcelImport = useCallback(async (file: File) => {
     const ex = await extractCurveSheet(file, { prev: 'prev. acum. %', real: 'real. acum. %' });
@@ -240,34 +220,6 @@ const DataInputPage = () => {
     toast.success(`✓ Prev. x Realizado Mês importado — ${newData.length} meses`);
   }, [setMonthData]);
 
-  // A janela é a mesma que o relatório desenha — a tabela aqui deixou de ser a
-  // série crua para não haver duas verdades sobre quais são as 5 semanas.
-  const janelaSemanal = useMemo(
-    () => visaoCincoSemanas(
-      weeklyData ?? [],
-      sCurveData ?? [],
-      info?.atualizadoEm || '',
-      info?.curvaPeriodicidade ?? 'semanal',
-    ),
-    [weeklyData, sCurveData, info?.atualizadoEm, info?.curvaPeriodicidade],
-  );
-
-  /**
-   * Lança o Real de uma semana da janela.
-   *
-   * A janela pode mostrar semanas que ainda não existem na série (os períodos
-   * completados à frente da data de status), então lançar cria a semana quando
-   * ela falta, em vez de escrever num índice que não existe.
-   */
-  const setRealDaSemana = (date: string, valor: string) => {
-    if (!date) return;
-    const real = parseFloat(valor) || 0;
-    const existe = (weeklyData ?? []).some((w) => w.date === date);
-    setWeeklyData(
-      existe
-        ? weeklyData.map((w) => (w.date === date ? { ...w, real } : w))
-        : [...(weeklyData ?? []), { date, previsto: 0, real }],
-    );
   };
 
   const updateMonth = (index: number, field: string, value: string) => {
@@ -277,23 +229,6 @@ const DataInputPage = () => {
     setMonthData(updated);
   };
 
-  const handleWeeklyPaste = useCallback(() => {
-    if (!weeklyPasteText.trim()) return;
-    const lines = weeklyPasteText.trim().split('\n').map(l => l.split('\t'));
-    let dates: string[] = [], prevValues: string[] = [], realValues: string[] = [];
-    const dp = /^(data|métrica|date|semana)/i, pp = /prev/i, rp = /real/i;
-    let usedLabels = false;
-    for (const cells of lines) {
-      const first = cells[0]?.trim() || '';
-      if (dp.test(first)) { dates = cells.slice(1); usedLabels = true; }
-      else if (pp.test(first)) { prevValues = cells.slice(1); usedLabels = true; }
-      else if (rp.test(first)) { realValues = cells.slice(1); usedLabels = true; }
-    }
-    if (!usedLabels && lines.length >= 2) { dates = lines[0]; prevValues = lines[1] || []; realValues = lines[2] || []; }
-    if (dates.length === 0) return;
-    const newData = dates.map((d, i) => ({ date: d.trim(), previsto: parseNumber(prevValues[i]), real: parseNumber(realValues[i]) })).filter(p => p.date !== '');
-    if (newData.length > 0) { setWeeklyData(newData); setShowWeeklyPaste(false); setWeeklyPasteText(''); }
-  }, [weeklyPasteText, setWeeklyData]);
 
   const handleMonthPaste = useCallback(() => {
     if (!monthPasteText.trim()) return;
@@ -353,70 +288,6 @@ const DataInputPage = () => {
         <SCurveSpreadsheet />
         <ImportStamp iso={lastImports?.sCurve} />
       </div>
-
-      {/* Weekly Data */}
-      <SecaoRecolhivel
-        id="resultado-semanal"
-        titulo="Resultado Semanal / Visão 5 Semanas"
-        descricao="Janela centrada na data de “Atualizado em”: duas semanas atrás, a semana de status e duas à frente. O Previsto vem da Tendência % da Curva S na data correspondente — só o Real é lançado aqui."
-        acoes={weeklyData.length > 0 ? (
-          <ClearDataButton sectionName="Resultado Semanal" onConfirm={() => setWeeklyData([])} />
-        ) : undefined}
-      >
-        <PasteSection show={showWeeklyPaste} text={weeklyPasteText} setText={setWeeklyPasteText} onImport={handleWeeklyPaste} label="Datas" />
-        <div className="overflow-x-auto">
-          <table className="border-collapse text-xs min-w-max">
-            <thead>
-              <tr>
-                <th className="sticky left-0 z-10 bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-3 py-2 text-left font-semibold border border-border min-w-[120px]">Métrica</th>
-                {janelaSemanal.map((w, i) => (
-                  <th
-                    key={i}
-                    className={cn(
-                      'bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] px-2 py-1 text-center font-semibold border border-border min-w-[90px]',
-                      w.isStatus && 'ring-2 ring-inset ring-[hsl(var(--chart-cutline))]',
-                    )}
-                  >
-                    {w.date || '—'}
-                    {w.isStatus && <span className="block text-[10px] font-normal opacity-80">status</span>}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {/* Previsto é derivado da Curva S: editar aqui seria escrever num
-                  valor que a próxima renderização sobrescreve. */}
-              <tr>
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">
-                  Previsto %
-                  <span className="block text-[10px] font-normal text-muted-foreground">Tendência da Curva S</span>
-                </td>
-                {janelaSemanal.map((w, i) => (
-                  <td key={i} className="border border-border px-1 py-1 text-center bg-muted/30 tabular-nums text-[hsl(var(--chart-previsto))]">
-                    {w.previsto > 0 ? w.previsto.toLocaleString('pt-BR') : '—'}
-                  </td>
-                ))}
-              </tr>
-              <tr>
-                <td className="sticky left-0 z-10 bg-card px-3 py-2 font-semibold border border-border text-foreground">Real %</td>
-                {janelaSemanal.map((w, i) => (
-                  <td key={i} className="border border-border px-1 py-1">
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="w-full text-center bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5"
-                      value={w.real || ''}
-                      onChange={(e) => setRealDaSemana(w.date, e.target.value)}
-                      disabled={!w.date}
-                    />
-                  </td>
-                ))}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <ImportStamp iso={lastImports?.weekly} />
-      </SecaoRecolhivel>
 
       {/* Month Data */}
       <SecaoRecolhivel

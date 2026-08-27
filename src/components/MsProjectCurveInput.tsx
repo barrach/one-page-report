@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Plus, Trash2, Wand2, ClipboardPaste } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Plus, Trash2, ClipboardPaste } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -88,7 +88,6 @@ const MsProjectCurveInput = () => {
 
   const total = useMemo(() => totalReferencia(pontos), [pontos]);
   const previa = useMemo(() => converterParaPercentual(pontos, datas), [pontos, datas]);
-  const temDado = pontos.some((p) => (p.linhaBase ?? 0) > 0 || (p.acumulado ?? 0) > 0 || (p.real ?? 0) > 0);
 
   const editar = (i: number, campo: keyof LinhaBruta, valor: string) => {
     setLinhas((prev) => prev.map((l, k) => (k === i ? { ...l, [campo]: valor } : l)));
@@ -134,35 +133,54 @@ const MsProjectCurveInput = () => {
     toast.success(`✓ ${pontos.length} períodos aplicados`);
   };
 
-  const gerar = () => {
-    if (!inicio) { toast.error('Informe a data de início da obra.'); return; }
-    if (total <= 0) { toast.error('Sem total de linha de base: preencha ao menos a série de Linha de Base Acumulada.'); return; }
+  /**
+   * O que está na prévia É a Curva S do relatório.
+   *
+   * Não há botão de gerar: a gravação acontece sozinha um segundo depois de
+   * parar de mexer. A assinatura abaixo é o que decide se houve mudança de
+   * verdade — sem ela, cada render regravaria a curva e o "Atualizado em"
+   * ficaria pulando à toa.
+   */
+  const pronta = Boolean(inicio) && total > 0 && previa.curva.filter((p) => p.date).length >= 2;
+  const assinatura = pronta
+    ? JSON.stringify([previa.curva, previa.statusIndex, base, inicio, periodicidade])
+    : '';
+  const jaGravada = useRef('');
+  const [gravadoEm, setGravadoEm] = useState<string | null>(null);
 
-    const { curva, statusIndex } = previa;
-    const validos = curva.filter((p) => p.date);
-    if (validos.length === 0) { toast.error('Nenhum período com data válida.'); return; }
+  useEffect(() => {
+    if (!assinatura || jaGravada.current === assinatura) return;
+    const t = setTimeout(() => {
+      jaGravada.current = assinatura;
 
-    setSCurveData(validos);
+      const { curva, statusIndex } = previa;
+      const validos = curva.filter((p) => p.date);
+      setSCurveData(validos);
 
-    const patch: Parameters<typeof setInfo>[0] = {
-      curvaBase: base,
-      inicio,
-      curvaPeriodicidade: periodicidade,
-    };
-    if (statusIndex >= 0 && statusIndex < validos.length) {
-      setStatusDateIndex(statusIndex);
-      // "Atualizado em" é o que centraliza a Visão de 5 Semanas. Sem acertar
-      // aqui, a curva vinha do Project com uma data de status e o gráfico
-      // continuava centrado na data antiga.
-      const inicioDate = parseISOLocal(inicio);
-      if (inicioDate) {
-        patch.atualizadoEm = paraISO(somarDias(inicioDate, statusIndex * PASSO_DIAS[periodicidade]));
+      const patch: Parameters<typeof setInfo>[0] = {
+        curvaBase: base,
+        inicio,
+        curvaPeriodicidade: periodicidade,
+      };
+      if (statusIndex >= 0 && statusIndex < validos.length) {
+        setStatusDateIndex(statusIndex);
+        // "Atualizado em" é o que centraliza a Visão de 5 Semanas. Sem acertar
+        // aqui, a curva vinha do Project com uma data de status e o gráfico
+        // continuava centrado na data antiga.
+        const inicioDate = parseISOLocal(inicio);
+        if (inicioDate) {
+          patch.atualizadoEm = paraISO(somarDias(inicioDate, statusIndex * PASSO_DIAS[periodicidade]));
+        }
       }
-    }
-    setInfo(patch);
-    setLastImport('sCurve', new Date().toISOString());
-    toast.success(`✓ Curva S gerada — ${validos.length} períodos, 100% = ${fmtValor(total, base)}`);
-  };
+      setInfo(patch);
+      setLastImport('sCurve', new Date().toISOString());
+      setGravadoEm(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+    }, 1000);
+    return () => clearTimeout(t);
+    // `previa` e os setters entram pela assinatura; listá-los aqui religaria o
+    // timer a cada render e a gravação nunca chegaria a acontecer.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assinatura]);
 
   const opcao = (ativo: boolean) =>
     cn(
@@ -367,13 +385,22 @@ const MsProjectCurveInput = () => {
       </div>
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-muted-foreground max-w-[60ch]">
           O Real Acumulado do Project repete o último valor nos períodos futuros — a prévia corta a
           série na data de status para o gráfico não mostrar avanço que não houve.
         </p>
-        <Button onClick={gerar} disabled={!temDado || !inicio} className="gap-1.5 shrink-0">
-          <Wand2 className="h-4 w-4" /> Gerar Curva S
-        </Button>
+        {/* A gravação é automática, então o estado dela precisa ficar à vista. */}
+        <span className="text-[11px] shrink-0">
+          {gravadoEm ? (
+            <span className="text-success font-medium">✓ Curva gravada no relatório às {gravadoEm}</span>
+          ) : pronta ? (
+            <span className="text-muted-foreground">Gravando…</span>
+          ) : (
+            <span className="text-muted-foreground">
+              Preencha o início e ao menos dois períodos da Linha de Base.
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

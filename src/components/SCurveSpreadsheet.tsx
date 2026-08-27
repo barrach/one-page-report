@@ -1,7 +1,7 @@
 import { useProjectStore, useCurrentProject, SCurvePoint } from '@/store/projectStore';
 import { Button } from '@/components/ui/button';
 import { Plus, Trash2, ClipboardPaste, Upload } from 'lucide-react';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Textarea } from '@/components/ui/textarea';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
@@ -9,6 +9,8 @@ import ClearDataButton from '@/components/ClearDataButton';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import MsProjectCurveInput from '@/components/MsProjectCurveInput';
 import { cn } from '@/lib/utils';
+import { formatISOLocal, parseWeekLabel } from '@/lib/dateUtils';
+import { indiceDoStatus } from '@/lib/avancoCurva';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -16,8 +18,8 @@ const excelSerialToDate = (s: number) => new Date(Math.round((s - 25569) * 86400
 const norm = (v: unknown) => String(v ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 const SCurveSpreadsheet = () => {
-  const { sCurveData, statusDateIndex } = useCurrentProject();
-  const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex } = useProjectStore();
+  const { sCurveData, statusDateIndex, info } = useCurrentProject();
+  const { setSCurveData, addSCurvePoint, removeSCurvePoint, setStatusDateIndex, setInfo } = useProjectStore();
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const hasReplanejadoData =
@@ -144,6 +146,22 @@ const SCurveSpreadsheet = () => {
     if (newData.length > 0) { setSCurveData(newData); setShowPaste(false); setPasteText(''); }
   }, [pasteText, setSCurveData]);
 
+  // A data de status não é mais um índice guardado à parte: ela É o
+  // "Atualizado em". Marcar uma coluna aqui move o "Atualizado em" para a data
+  // daquela coluna, e o índice guardado segue junto para os gráficos que ainda
+  // o leem.
+  const statusIdx = indiceDoStatus(sCurveData, info?.atualizadoEm || '', statusDateIndex);
+
+  useEffect(() => {
+    if (statusIdx >= 0 && statusIdx !== statusDateIndex) setStatusDateIndex(statusIdx);
+  }, [statusIdx, statusDateIndex, setStatusDateIndex]);
+
+  const marcarStatus = (i: number) => {
+    const d = parseWeekLabel(sCurveData[i]?.date ?? '', new Date().getFullYear());
+    if (d) setInfo({ atualizadoEm: formatISOLocal(d) });
+    setStatusDateIndex(i);
+  };
+
   const botaoCabecalho = (ativo: boolean) =>
     cn(
       'text-xs px-2 py-1 rounded border transition-colors',
@@ -220,8 +238,14 @@ const SCurveSpreadsheet = () => {
             <tr>
               <td className="sticky left-0 z-10 bg-[hsl(var(--chart-cutline)/0.1)] px-3 py-2 font-semibold border border-border text-[hsl(var(--chart-cutline))] text-xs">📍 Data de Status</td>
               {sCurveData.map((_, i) => (
-                <td key={i} className={`border border-border px-1 py-1 text-center ${i === statusDateIndex ? 'bg-[hsl(var(--chart-cutline)/0.15)]' : ''}`}>
-                  <input type="radio" name="statusDate" checked={i === statusDateIndex} onChange={() => setStatusDateIndex(i)} className="accent-[hsl(var(--chart-cutline))]" />
+                <td key={i} className={`border border-border px-1 py-1 text-center ${i === statusIdx ? 'bg-[hsl(var(--chart-cutline)/0.15)]' : ''}`}>
+                  <input
+                    type="radio"
+                    name="statusDate"
+                    checked={i === statusIdx}
+                    onChange={() => marcarStatus(i)}
+                    className="accent-[hsl(var(--chart-cutline))]"
+                  />
                 </td>
               ))}
             </tr>
