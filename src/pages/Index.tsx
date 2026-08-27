@@ -271,6 +271,13 @@ const Index = () => {
 
       const paraJpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.92);
 
+      /** Nome do card para a mensagem de erro — sem isso sobra "div.grid". */
+      const nomeDoBloco = (el: HTMLElement): string =>
+        el.querySelector('h2, h3')?.textContent?.trim() || 'um card do relatório';
+
+      /** Cards que não puderam ser desenhados — viram aviso no fim. */
+      const falhas: string[] = [];
+
       // Troca os campos editáveis por texto estático antes de capturar: o
       // html2canvas corta o valor dos inputs e não desenha o texto dos selects.
       setExportando(true);
@@ -327,8 +334,14 @@ const Index = () => {
           if (!bloco || bloco.dataset.pdfSkip !== undefined) continue;
           if (bloco.getBoundingClientRect().height <= 8) continue;
 
+          // Um card que não pode ser capturado NÃO derruba o PDF inteiro.
+          // Antes, uma imagem de outro domínio ou um elemento que o html2canvas
+          // não sabe desenhar abortava a exportação toda e a pessoa ficava sem
+          // relatório nenhum — pior que um relatório com um card faltando.
+          try {
           const canvas = await capturar(bloco);
           if (canvas.width === 0 || canvas.height === 0) {
+            falhas.push(nomeDoBloco(bloco));
             console.warn('Bloco não capturado no PDF:', caminho, bloco.className);
             continue;
           }
@@ -374,6 +387,10 @@ const Index = () => {
             pdf.addImage(paraJpeg(corte), 'JPEG', margem, y, larguraUtil, fatiaMm);
             y += fatiaMm + espacoEntreBlocos;
           }
+          } catch (erroBloco) {
+            falhas.push(nomeDoBloco(bloco));
+            console.error('Falha ao capturar bloco do PDF:', nomeDoBloco(bloco), erroBloco);
+          }
         }
 
         raiz.classList.remove('exportando-pdf');
@@ -390,9 +407,21 @@ const Index = () => {
         : `One Page Report - ${idsToExport.length} projetos`;
       pdf.save(`${nome}.pdf`);
       setShowExportDialog(false);
+
+      // O PDF saiu, mas com buraco: dizer QUAL card faltou é o que permite
+      // agir. Ficar em silêncio entregaria um relatório incompleto sem aviso.
+      if (falhas.length > 0) {
+        const unicos = [...new Set(falhas)];
+        toast.warning(
+          `PDF gerado sem ${unicos.length === 1 ? 'o card' : 'os cards'}: ${unicos.join(', ')}.`,
+        );
+      }
     } catch (err) {
       console.error('Erro ao exportar PDF:', err);
-      toast.error('Não foi possível exportar o PDF. Veja o console para o detalhe.');
+      // A mensagem real do erro vai para a tela: "veja o console" obriga a
+      // pessoa da obra a abrir o DevTools para descobrir o que aconteceu.
+      const detalhe = err instanceof Error ? err.message : String(err);
+      toast.error(`Não foi possível exportar o PDF — ${detalhe}`);
       reportRef.current?.classList.remove('exportando-pdf');
       setExportando(false);
     } finally {
