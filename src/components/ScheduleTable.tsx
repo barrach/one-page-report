@@ -29,12 +29,23 @@ const statusStyle = (status: string | undefined): React.CSSProperties => {
   return {};
 };
 
-const levelStyle = (level: number): React.CSSProperties =>
-  level === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700 } :
-  level === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700 } :
-  level === 3 ? { backgroundColor: '#d6e4f0', color: '#1a3158', fontWeight: 700 } :
-  level === 4 ? { backgroundColor: '#ffffff', color: '#333333' } :
-                { backgroundColor: '#ffffff', color: '#555555' };
+/**
+ * Cor da linha pelo nível da estrutura de tópicos.
+ *
+ * O MS Project numera a tarefa-resumo do projeto como 0. Ela é a linha mais
+ * importante da tabela, então recebe o mesmo destaque do nível 1 — que é como o
+ * filtro "Exibir até nível" já a trata.
+ */
+const levelStyle = (level: number): React.CSSProperties => {
+  const n = Math.max(1, Number(level) || 1);
+  return (
+    n === 1 ? { backgroundColor: '#1a3158', color: '#ffffff', fontWeight: 700 } :
+    n === 2 ? { backgroundColor: '#2e5fa3', color: '#ffffff', fontWeight: 700 } :
+    n === 3 ? { backgroundColor: '#d6e4f0', color: '#1a3158', fontWeight: 700 } :
+    n === 4 ? { backgroundColor: '#ffffff', color: '#333333' } :
+              { backgroundColor: '#ffffff', color: '#555555' }
+  );
+};
 
 const LEVEL_BUTTONS = [
   { label: '1', value: 1 }, { label: '2', value: 2 }, { label: '3', value: 3 },
@@ -166,14 +177,16 @@ const TabelaImportada = ({
   <div className="overflow-x-auto -mx-2 px-2 sm:mx-0 sm:px-0">
     <table className="w-full text-[10px] sm:text-xs border-collapse">
       <thead>
+        {/* Sem coluna de nível própria: a do arquivo já vem entre as importadas,
+            e duas colunas de nível lado a lado só confundiam. */}
         <tr className="bg-table-header text-table-header-foreground">
-          <th className="px-2 py-2 text-center w-16 rounded-tl-lg border border-border/30">Nível</th>
           {colunas.map((c, k) => (
             <th
               key={c.chave}
               className={cn(
                 'px-2 py-2 border border-border/30',
                 c.campo === 'tarefa' ? 'text-left min-w-[220px]' : 'text-center whitespace-nowrap',
+                k === 0 && 'rounded-tl-lg',
                 k === colunas.length - 1 && 'rounded-tr-lg',
               )}
             >
@@ -190,9 +203,6 @@ const TabelaImportada = ({
           const recolhido = collapsed.has(i);
           return (
             <tr key={i} style={{ ...levelStyle(level), fontSize: level <= 2 ? '13px' : '12px' }}>
-              <td className="px-2 py-1 text-center border border-border/30 tabular-nums">
-                {row.outlineNumber || level}
-              </td>
               {colunas.map((c) => {
                 const valor = row.celulas?.[c.chave] ?? '';
                 if (c.campo === 'tarefa') {

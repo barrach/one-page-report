@@ -68,9 +68,16 @@ const Index = () => {
   const setLayoutRelatorio = useProjectStore((s) => s.setLayoutRelatorio);
   const [editandoLayout, setEditandoLayout] = useState(false);
   const arrastando = useRef<string | null>(null);
+  // A arrumação é única para todas as obras. Um projeto criado depois ainda não
+  // tem o layout gravado, então cai no de qualquer outro que já tenha — sem
+  // isso ele abriria no padrão e destoaria dos demais na reunião seguinte.
+  //
   // Normaliza sempre: card novo criado depois entra no fim em vez de sumir do
   // relatório de quem já tinha layout salvo.
-  const layout = useMemo(() => normalizarLayout(current?.layoutRelatorio), [current?.layoutRelatorio]);
+  const layout = useMemo(() => {
+    const salvo = current?.layoutRelatorio ?? projects.find((p) => p.layoutRelatorio)?.layoutRelatorio;
+    return normalizarLayout(salvo);
+  }, [current?.layoutRelatorio, projects]);
 
   const renderizarCard = (id: string) => {
     switch (id) {
@@ -623,7 +630,8 @@ const Index = () => {
           >
             <p className="text-xs text-muted-foreground">
               Arraste os cards ou use as setas para reordenar. A arrumação vale para
-              <strong className="text-foreground"> todo mundo que abrir este projeto</strong>.
+              <strong className="text-foreground"> todas as obras e todo mundo que abrir</strong> —
+              o One Page Report é um formato só.
             </p>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" onClick={() => setLayoutRelatorio(null)}>

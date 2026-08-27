@@ -738,12 +738,17 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     return { projects: updated };
   }),
 
+  /**
+   * A arrumação do relatório vale para TODAS as obras.
+   *
+   * O One Page Report é um formato único da Megasteam: o SPCI, o FRIGO e o
+   * GUAXE têm que abrir iguais, senão cada reunião começa com quem apresenta
+   * procurando onde foi parar o card. Por isso o layout é gravado em todos os
+   * projetos, e não só no que está aberto.
+   */
   setLayoutRelatorio: (layout) => set((s) => {
-    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({
-      layoutRelatorio: layout ?? undefined,
-    }));
-    const proj = updated.find(p => p.id === s.selectedProjectId)!;
-    debouncedSave(proj);
+    const updated = s.projects.map((p) => ({ ...p, layoutRelatorio: layout ?? undefined }));
+    updated.forEach((p) => debouncedSave(p));
     return { projects: updated };
   }),
 
