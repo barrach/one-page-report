@@ -101,6 +101,21 @@ export interface Observation {
   date?: string;
 }
 
+/**
+ * Anotação feita num card do relatório, durante a reunião.
+ *
+ * Guarda a data de quando foi escrita — é isso que transforma o card num
+ * histórico do que foi dito naquela semana, em vez de um texto que alguém
+ * sobrescreve na semana seguinte.
+ */
+export interface ObservacaoCard {
+  id: string;
+  texto: string;
+  /** ISO de quando foi registrada. */
+  data: string;
+  autor?: string;
+}
+
 export interface HistogramPoint {
   date: string;
   semana: string;
@@ -180,6 +195,8 @@ export interface Project {
   scheduleData: ScheduleRow[];
   curvaSFinanceira?: CurvaSFinanceiraPoint[];
   aiInsights?: Record<string, string>; // chartType -> insight text
+  /** Anotações de reunião por card do relatório: chave do card → histórico. */
+  observacoesCards?: Record<string, ObservacaoCard[]>;
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; schedule?: string; curvaSFinanceira?: string; progSemanal?: string };
   programacaoSemanal?: ProgramacaoSemanal[];
   desvioAnalise?: DesvioAnalise;
@@ -308,6 +325,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     scheduleData: d.scheduleData ?? defaultProjectData.scheduleData,
     curvaSFinanceira: (d.curvaSFinanceira as CurvaSFinanceiraPoint[]) ?? [],
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
+    observacoesCards: (d.observacoesCards as Record<string, ObservacaoCard[]>) ?? {},
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
     programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
     desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
@@ -330,6 +348,7 @@ const projectToDb = (p: Project): any => ({
     scheduleData: p.scheduleData,
     curvaSFinanceira: p.curvaSFinanceira || [],
     aiInsights: p.aiInsights || {},
+    observacoesCards: p.observacoesCards || {},
     lastImports: p.lastImports || {},
     programacaoSemanal: p.programacaoSemanal || [],
     desvioAnalise: p.desvioAnalise || null,
@@ -383,6 +402,9 @@ interface ProjectStoreState {
   removeScheduleRow: (index: number) => void;
   setCurvaSFinanceira: (data: CurvaSFinanceiraPoint[]) => void;
   setAiInsight: (chartType: string, insight: string) => void;
+  /** Anota num card do relatório, carimbando a data. */
+  addObservacaoCard: (card: string, texto: string, autor?: string) => void;
+  removeObservacaoCard: (card: string, id: string) => void;
   setLastImport: (section: keyof NonNullable<Project['lastImports']>, iso: string) => void;
   addProgramacaoSemanal: (projectId: string, data: ProgramacaoSemanal) => void;
   clearProgramacaoSemanal: (projectId: string) => void;
@@ -646,6 +668,38 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   setAiInsight: (chartType, insight) => set((s) => {
     const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
       aiInsights: { ...(p.aiInsights || {}), [chartType]: insight },
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  addObservacaoCard: (card, texto, autor) => set((s) => {
+    const limpo = texto.trim();
+    if (!limpo) return {};
+    const nova: ObservacaoCard = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      texto: limpo,
+      data: new Date().toISOString(),
+      autor,
+    };
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      observacoesCards: {
+        ...(p.observacoesCards || {}),
+        [card]: [...((p.observacoesCards || {})[card] || []), nova],
+      },
+    }));
+    const proj = updated.find(p => p.id === s.selectedProjectId)!;
+    debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  removeObservacaoCard: (card, id) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, (p) => ({
+      observacoesCards: {
+        ...(p.observacoesCards || {}),
+        [card]: ((p.observacoesCards || {})[card] || []).filter((o) => o.id !== id),
+      },
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);

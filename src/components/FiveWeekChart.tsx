@@ -3,6 +3,8 @@ import { useCurrentProject, type WeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { visaoCincoSemanas } from '@/lib/visaoSemanal';
 import ChartInsight from '@/components/ChartInsight';
+import ObservacoesDoCard from '@/components/ObservacoesDoCard';
+import ChartExpandModal from '@/components/ChartExpandModal';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -67,14 +69,11 @@ const FiveWeekChart = () => {
     if (data?.activeLabel) setSelectedDate(data.activeLabel, 'fiveweek');
   };
 
-  return (
-    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
-      <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Visão de 5 Semanas</h3>
-      <p className="text-xs text-muted-foreground mb-4">Resultado semanal previsto × real{hasTendencia ? ' × tendência' : ''}</p>
-      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1.
-          Na TV não há piso: o gráfico ocupa exatamente a altura disponível. */}
-      <div className={tvMode ? 'flex-1 min-h-0' : 'flex-1 min-h-[240px] sm:min-h-[380px]'}>
-        <ResponsiveContainer width="100%" height="100%">
+  const subtitulo = `Resultado semanal previsto × real${hasTendencia ? ' × tendência' : ''}`;
+
+  const chartContent = (height: string) => (
+    <div className={height}>
+      <ResponsiveContainer width="100%" height="100%">
           <BarChart data={weeklyData} onClick={handleClick} style={{ cursor: 'pointer' }} barCategoryGap="15%" barGap={4} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
             <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
@@ -139,8 +138,23 @@ const FiveWeekChart = () => {
             )}
           </BarChart>
         </ResponsiveContainer>
+    </div>
+  );
+
+  return (
+    <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Visão de 5 Semanas</h3>
+        <ChartExpandModal title="Visão de 5 Semanas" subtitle={subtitulo} expandedHeight="h-full">
+          {chartContent('h-full min-h-0')}
+        </ChartExpandModal>
       </div>
+      <p className="text-xs text-muted-foreground mb-4">{subtitulo}</p>
+      {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1.
+          Na TV não há piso: o gráfico ocupa exatamente a altura disponível. */}
+      {chartContent(tvMode ? 'flex-1 min-h-0' : 'flex-1 min-h-[240px] sm:min-h-[380px]')}
       <ChartInsight chartType="fiveweek" data={weeklyData} projectInfo={info} />
+      <ObservacoesDoCard card="fiveweek" />
     </div>
   );
 };

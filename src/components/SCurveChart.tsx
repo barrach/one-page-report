@@ -3,6 +3,7 @@ import { useTvMode } from '@/hooks/use-tv-mode';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { useIsMobile } from '@/hooks/use-mobile';
 import ChartInsight from '@/components/ChartInsight';
+import ObservacoesDoCard from '@/components/ObservacoesDoCard';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import { useMemo } from 'react';
 import { limitarAoTermino, indiceDoStatus } from '@/lib/avancoCurva';
@@ -254,6 +255,7 @@ const SCurveChart = () => {
         </button>
       )}
       <ChartInsight chartType="scurve" data={curva} projectInfo={info} />
+      <ObservacoesDoCard card="scurve" />
     </div>
   );
 };

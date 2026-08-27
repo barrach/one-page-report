@@ -299,3 +299,10 @@
 .exportando-pdf .rounded-full {
   border-radius: 4px !important;
 }
+
+/* As anotações de reunião ficam recolhidas na tela, mas SEMPRE aparecem no PDF:
+   elas são o registro do que foi dito, e um relatório impresso sem elas perde
+   justamente a parte que a reunião produziu. */
+.exportando-pdf [data-pdf-show] {
+  display: block !important;
+}

@@ -2,6 +2,8 @@ import { useMemo } from 'react';
 import { useCurrentProject, useProjectStore, type MonthWeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import ChartInsight from '@/components/ChartInsight';
+import ObservacoesDoCard from '@/components/ObservacoesDoCard';
+import ChartExpandModal from '@/components/ChartExpandModal';
 import { visaoMensal, ROTULO_BASE_MENSAL, type BaseMensal } from '@/lib/visaoMensal';
 import { cn } from '@/lib/utils';
 import { parseISOLocal } from '@/lib/dateUtils';
@@ -202,6 +204,17 @@ const MonthChart = () => {
             Semanas de {mesRotulo} · previsto pela {ROTULO_BASE_MENSAL[baseMensal].toLowerCase()}
           </p>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <ChartExpandModal
+            title="Prev. × Realizado Mês"
+            subtitle={`Semanas de ${mesRotulo} · previsto pela ${ROTULO_BASE_MENSAL[baseMensal].toLowerCase()}`}
+            expandedHeight="h-full"
+          >
+            <div className="h-full flex items-center justify-center">
+              <GaugeChart metaRealizado={metaRealizado} selectedIndex={selectedMonthIndex} />
+            </div>
+          </ChartExpandModal>
+        </div>
         {/* Escolha de contra o que o mês é comparado. Fora do papel: no PDF o
             que importa é a série escolhida, não o seletor. */}
         <div className="flex gap-1 shrink-0 print:hidden" data-html2canvas-ignore>
@@ -280,6 +293,7 @@ const MonthChart = () => {
         </button>
       )}
       <ChartInsight chartType="month" data={monthData} projectInfo={info} />
+      <ObservacoesDoCard card="month" />
     </div>
   );
 };

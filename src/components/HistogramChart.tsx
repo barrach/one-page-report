@@ -5,6 +5,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { filtrarPeriodo, ROTULO_PERIODO, type PeriodoHistograma } from '@/lib/histograma';
 import ChartInsight from '@/components/ChartInsight';
+import ObservacoesDoCard from '@/components/ObservacoesDoCard';
 import ChartExpandModal from '@/components/ChartExpandModal';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -201,6 +202,7 @@ const HistogramChart = () => {
       {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
       {chartContent('flex-1 min-h-[260px] sm:min-h-[450px]')}
       <ChartInsight chartType="histogram" data={data} projectInfo={info} />
+      <ObservacoesDoCard card="histogram" />
     </div>
   );
 };
