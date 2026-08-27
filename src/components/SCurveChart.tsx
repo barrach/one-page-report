@@ -1,3 +1,4 @@
+import SeloDeFrescor from '@/components/SeloDeFrescor';
 import { useCurrentProject } from '@/store/projectStore';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import { useReportInteraction } from '@/store/reportInteraction';
@@ -233,7 +234,10 @@ const SCurveChart = () => {
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between mb-1">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva "S"</h3>
+        <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva "S"</h3>
+          <SeloDeFrescor secao="sCurve" />
+        </div>
         <ChartExpandModal
           title='Curva "S"'
           subtitle="Avanço acumulado previsto × real × tendência"

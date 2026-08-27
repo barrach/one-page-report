@@ -1,3 +1,4 @@
+import SeloDeFrescor from '@/components/SeloDeFrescor';
 import { useMemo } from 'react';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
@@ -167,7 +168,10 @@ const HistogramChart = () => {
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-1">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Histograma MOD</h3>
+        <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Histograma MOD</h3>
+          <SeloDeFrescor secao="histogram" />
+        </div>
         <div className="flex items-center gap-2 shrink-0">
           {/* Recorte fica fora do papel: no PDF vale a janela escolhida, não o seletor. */}
           <div className="flex gap-1 print:hidden" data-html2canvas-ignore>

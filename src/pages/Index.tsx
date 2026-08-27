@@ -261,13 +261,29 @@ const Index = () => {
       // Cada bloco é capturado na largura que tem na tela e desenhado em 194 mm.
       // Mexer na largura antes de capturar fazia o recharts redesenhar e o
       // html2canvas pegava o gráfico vazio.
-      const capturar = (el: HTMLElement) =>
-        html2canvas(el, {
-          scale: 2,
+      /**
+       * O navegador tem um teto para o tamanho de um canvas — por volta de
+       * 16.384 px de lado. Passando disso ele não devolve erro: devolve uma
+       * imagem EM BRANCO. Um cronograma de milhares de linhas gerava um canvas
+       * muito acima do teto, virava branco, e o branco era fatiado em dezenas de
+       * páginas vazias. Foi assim que um relatório saiu com 108 folhas.
+       *
+       * A escala cai para o bloco caber no teto. Perde nitidez num card gigante
+       * — e um card gigante ilegível ainda é melhor que um card em branco.
+       */
+      const LIMITE_CANVAS = 15000;
+
+      const capturar = (el: HTMLElement) => {
+        const caixa = el.getBoundingClientRect();
+        const maiorLado = Math.max(el.scrollHeight, el.scrollWidth, caixa.height, caixa.width, 1);
+        const escala = Math.min(2, LIMITE_CANVAS / maiorLado);
+        return html2canvas(el, {
+          scale: Math.max(0.5, escala),
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
         });
+      };
 
       const paraJpeg = (c: HTMLCanvasElement) => c.toDataURL('image/jpeg', 0.92);
 

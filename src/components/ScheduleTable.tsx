@@ -1,3 +1,4 @@
+import SeloDeFrescor from '@/components/SeloDeFrescor';
 import { useState, useMemo } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
 import { useCurrentProject } from '@/store/projectStore';
@@ -62,9 +63,19 @@ const LEVEL_BUTTONS = [
  * nome indentado, nada de botão. Mostra exatamente as linhas visíveis do nível
  * escolhido na tela.
  */
+/**
+ * Teto de linhas no papel.
+ *
+ * Um cronograma inteiro impresso vira um anexo de dezenas de folhas que ninguém
+ * lê na reunião — e, no limite, estoura o tamanho de canvas que o navegador
+ * aceita e sai em branco. Quem precisa da lista completa abre a tela ou o
+ * próprio MS Project; no papel vale o recorte do nível escolhido.
+ */
+const MAX_LINHAS_IMPRESSAS = 150;
+
 const CronogramaParaImpressao = ({
   rows,
-  indices,
+  indices: todosIndices,
   total,
   nivel,
 }: {
@@ -73,6 +84,8 @@ const CronogramaParaImpressao = ({
   total: number;
   nivel: number;
 }) => {
+  const indices = todosIndices.slice(0, MAX_LINHAS_IMPRESSAS);
+  const cortadas = todosIndices.length - indices.length;
   const corDoNivel = (n: number) =>
     n === 1 ? 'bg-[#1a3158] text-white font-bold'
     : n === 2 ? 'bg-[#2e5fa3] text-white font-bold'
@@ -144,8 +157,14 @@ const CronogramaParaImpressao = ({
         </tbody>
       </table>
 
+      {/* O corte precisa estar dito no papel: um cronograma truncado em
+          silêncio faz quem lê acreditar que aquilo é a obra inteira. */}
       <p className="mt-1 text-[9px] text-muted-foreground">
         Exibindo {indices.length} de {total} linhas.
+        {cortadas > 0 && (
+          <> · Mais {cortadas} linha{cortadas > 1 ? 's' : ''} deste nível ficaram de fora do papel —
+            reduza o nível exibido ou consulte a tela.</>
+        )}
       </p>
     </div>
   );
@@ -379,6 +398,7 @@ const ScheduleTable = () => {
         <div>
           <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
           <p className="text-xs text-muted-foreground">Status das atividades planejadas</p>
+          <SeloDeFrescor secao="schedule" />
         </div>
         <div data-pdf-hide className="flex items-center gap-1.5 text-[11px] flex-wrap">
           <span className="text-muted-foreground">Exibir até nível:</span>

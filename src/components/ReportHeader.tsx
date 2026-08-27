@@ -1,9 +1,10 @@
 import { useCurrentProject } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
-import { X, TrendingUp, TrendingDown, Minus, Calendar, CalendarClock, CalendarRange, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Calendar, CalendarClock, CalendarRange, CalendarCheck, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatDateBR, formatDateShort, semanaISO } from '@/lib/dateUtils';
+import { projetarTermino } from '@/lib/previsaoTermino';
 import { useContractPerformance } from '@/hooks/use-contract-performance';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import { ppcDaSemana, ultimaSemana } from '@/lib/ppc';
@@ -94,6 +95,9 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
     ? prevAvancoReal - getRealAt(sCurveData[penIdx - 1])
     : prevAvancoReal;
 
+  // Projeção pelo IDP: a duração da linha de base esticada no ritmo real.
+  const previsao = projetarTermino(info.inicio, info.terminoLB, idp);
+
   const DesvioIcon = desvio < 0 ? TrendingDown : desvio > 0 ? TrendingUp : Minus;
 
   // Health badge
@@ -169,7 +173,7 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
       </div>
 
       {/* Info strip */}
-      <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 divide-x divide-border">
+      <div className="bg-secondary/60 border-x border-border grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 divide-x divide-border">
         {([
           // Cliente entra aqui, no lugar da linha que havia sob o título; o número do
           // contrato vem como segunda linha da mesma célula.
@@ -188,6 +192,19 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
             value: info.semanaAnalise?.trim() || semanaISO(info.atualizadoEm),
             icon: CalendarRange,
           },
+          // A data que o RITMO aponta, ao lado da que alguém digitou. É a
+          // pergunta que todo gestor faz na reunião e que o relatório não
+          // respondia: nesse desempenho, quando isso acaba?
+          ...(previsao ? [{
+            label: 'Término projetado',
+            value: formatDateBR(previsao.data),
+            sub: previsao.desvioDias > 0
+              ? `${previsao.desvioDias} dias além da linha de base`
+              : previsao.desvioDias < 0
+                ? `${Math.abs(previsao.desvioDias)} dias antes da linha de base`
+                : 'na linha de base',
+            icon: CalendarCheck,
+          }] : []),
         ] as { label: string; value?: string; sub?: string; icon: React.ElementType }[]).map(({ label, value, sub, icon: Icon }) => (
           <div key={label} className="flex items-center gap-2 px-4 py-2 min-w-0">
             <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
