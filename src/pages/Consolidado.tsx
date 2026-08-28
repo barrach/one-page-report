@@ -13,7 +13,7 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
-import { fmtDinheiro, fmtDinheiroCurto } from '@/lib/eapFinanceira';
+import { fmtDinheiro, fmtDinheiroCurto, lerValor } from '@/lib/eapFinanceira';
 import { consolidarObras } from '@/lib/consolidado';
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
@@ -102,6 +102,73 @@ const Dinheiro = ({ valor, classe }: { valor: number; classe: string }) => (
   </td>
 );
 
+/**
+ * Célula de dinheiro editável.
+ *
+ * A linha do consolidado é onde o erro aparece; obrigar a voltar na EAP para
+ * corrigir um número que está na frente da pessoa é o caminho mais curto para
+ * ninguém corrigir. Só entra em edição no clique — a tabela continua sendo uma
+ * tabela, não um formulário de oito campos por linha.
+ *
+ * O ponto ao lado do valor marca o que foi digitado aqui: valor manual que
+ * envelhece escondido depois de uma colagem nova é pior que valor errado.
+ */
+const DinheiroEditavel = ({ valor, manual, classe, podeEditar, aoSalvar }: {
+  valor: number;
+  manual: boolean;
+  classe: string;
+  podeEditar: boolean;
+  aoSalvar: (n: number) => void;
+}) => {
+  const [editando, setEditando] = useState(false);
+  const [texto, setTexto] = useState('');
+
+  if (!podeEditar) return <Dinheiro valor={valor} classe={classe} />;
+
+  const gravar = () => {
+    aoSalvar(lerValor(texto));
+    setEditando(false);
+  };
+
+  return (
+    <td className={cn(classe, 'text-right tabular-nums whitespace-nowrap p-1')}>
+      {editando ? (
+        <input
+          autoFocus
+          type="text"
+          inputMode="decimal"
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          onBlur={gravar}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') gravar();
+            if (e.key === 'Escape') setEditando(false);
+          }}
+          className="w-full bg-background text-right text-sm rounded px-1 py-0.5 outline-none ring-1 ring-primary/50"
+        />
+      ) : (
+        <button
+          type="button"
+          // stopPropagation: a linha inteira é o seletor de obra, e clicar para
+          // editar não pode trocar o foco da página junto.
+          onClick={(e) => {
+            e.stopPropagation();
+            setTexto(valor > 0 ? String(valor) : '');
+            setEditando(true);
+          }}
+          title="Clique para editar"
+          className="w-full text-right px-1 py-0.5 rounded hover:bg-muted/60 transition-colors"
+        >
+          {manual && <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary mr-1.5 align-middle" title="Valor digitado aqui" />}
+          {valor > 0
+            ? fmtDinheiro(valor)
+            : <span className="text-muted-foreground font-normal">não lançado</span>}
+        </button>
+      )}
+    </td>
+  );
+};
+
 const ESTILO_TOOLTIP = {
   background: 'hsl(var(--card))',
   border: '1px solid hsl(var(--border))',
@@ -164,7 +231,7 @@ const TooltipResultado = ({ active, payload }: any) => {
 };
 
 const Consolidado = () => {
-  const { projects, selectProject, acessoRestrito } = useProjectStore();
+  const { projects, selectProject, acessoRestrito, setInfoDoProjeto } = useProjectStore();
   const { canEdit } = useAuth();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -583,18 +650,38 @@ const Consolidado = () => {
                             )}>
                               {pct(o.desvio)}
                             </td>
-                            {canEdit && <Dinheiro classe={td} valor={o.valorContrato} />}
-                            {canEdit && <Dinheiro classe={td} valor={o.acumulado} />}
-                            {canEdit && <Dinheiro classe={td} valor={o.previstoMes} />}
+                            {canEdit && (
+                              <DinheiroEditavel
+                                classe={td} valor={o.valorContrato} manual={o.manuais.valorContrato}
+                                podeEditar={canEdit}
+                                aoSalvar={(n) => setInfoDoProjeto(o.id, { valorContrato: n })}
+                              />
+                            )}
+                            {canEdit && (
+                              <DinheiroEditavel
+                                classe={td} valor={o.acumulado} manual={o.manuais.acumulado}
+                                podeEditar={canEdit}
+                                aoSalvar={(n) => setInfoDoProjeto(o.id, { acumuladoManual: n })}
+                              />
+                            )}
+                            {canEdit && (
+                              <DinheiroEditavel
+                                classe={td} valor={o.previstoMes} manual={o.manuais.previstoMes}
+                                podeEditar={canEdit}
+                                aoSalvar={(n) => setInfoDoProjeto(o.id, { previstoMesManual: n })}
+                              />
+                            )}
                             {canEdit && (
                               // Realizado abaixo do previsto no mês é medição que
                               // não saiu — o número já diz, a cor faz enxergar.
-                              <Dinheiro
+                              <DinheiroEditavel
                                 classe={cn(
                                   td,
                                   o.previstoMes > 0 && o.realizadoMes < o.previstoMes && 'text-destructive',
                                 )}
-                                valor={o.realizadoMes}
+                                valor={o.realizadoMes} manual={o.manuais.realizadoMes}
+                                podeEditar={canEdit}
+                                aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
                               />
                             )}
                           </tr>

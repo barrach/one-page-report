@@ -36,6 +36,16 @@ export interface ProjectInfo {
   valorContrato?: number;
   /** Alíquota de impostos sobre a receita, em % — entra no resultado projetado. */
   impostoPercentual?: number;
+  // ── Correções feitas direto no consolidado ──
+  // Valem sobre o que a EAP soma: a linha do consolidado é onde o erro aparece,
+  // e obrigar a voltar na EAP para corrigir um número que está na sua frente é
+  // o caminho mais curto para ninguém corrigir.
+  /** Medição acumulada lançada à mão. */
+  acumuladoManual?: number;
+  /** Previsto de medição do mês lançado à mão. */
+  previstoMesManual?: number;
+  /** Realizado de medição do mês lançado à mão. */
+  realizadoMesManual?: number;
   // ── Curva S vinda do MS Project (Trabalho ou Custo acumulado) ──
   /** Em que unidade o Project exportou a curva. */
   curvaBase?: 'trabalho' | 'custo';
@@ -497,6 +507,8 @@ interface ProjectStoreState {
   addProject: (name: string) => Promise<void>;
   deleteProject: (id: string) => Promise<void>;
   setInfo: (info: Partial<ProjectInfo>) => void;
+  /** Edita as informacoes de uma obra pelo id, sem trocar a selecao. */
+  setInfoDoProjeto: (projectId: string, info: Partial<ProjectInfo>) => void;
   setStatusDateIndex: (index: number) => void;
   setWeeklyData: (data: WeekData[]) => void;
   setSCurveData: (data: SCurvePoint[]) => void;
@@ -631,6 +643,21 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     }));
     const proj = updated.find(p => p.id === s.selectedProjectId)!;
     debouncedSave(proj);
+    return { projects: updated };
+  }),
+
+  /**
+   * Edita as informações de UMA obra pelo id.
+   *
+   * O `setInfo` mexe na obra selecionada; o consolidado precisa corrigir a
+   * linha de outra obra sem trocar a seleção e levar o relatório junto.
+   */
+  setInfoDoProjeto: (projectId, info) => set((s) => {
+    const updated = s.projects.map((p) => (p.id === projectId
+      ? { ...p, info: { ...p.info, ...info } }
+      : p));
+    const alvo = updated.find((p) => p.id === projectId);
+    if (alvo) debouncedSave(alvo);
     return { projects: updated };
   }),
 

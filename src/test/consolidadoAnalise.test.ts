@@ -9,6 +9,7 @@ const obra = (p: Partial<LinhaObra>): LinhaObra => ({
   id: 'x', nome: 'X', avancoPrev: 50, avancoReal: 50, desvio: 0, idp: 100,
   status: 'ok', terminoBase: '', terminoProjetado: null, desvioDias: null,
   valorContrato: 0, custo: 0, impostoPercentual: 0, previstoMes: 0, realizadoMes: 0, acumulado: 0,
+  manuais: { valorContrato: false, previstoMes: false, realizadoMes: false, acumulado: false },
   atualizadoEm: '2026-08-28',
   ...p,
 });

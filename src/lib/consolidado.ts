@@ -43,6 +43,8 @@ export interface LinhaObra {
   previstoMes: number;
   realizadoMes: number;
   acumulado: number;
+  /** Quais números foram digitados no consolidado em vez de virem da EAP. */
+  manuais: { valorContrato: boolean; previstoMes: boolean; realizadoMes: boolean; acumulado: boolean };
   /** Última importação de qualquer seção — o dado mais fresco da obra. */
   atualizadoEm: string;
 }
@@ -96,16 +98,27 @@ export const linhaDaObra = (p: Project): LinhaObra => {
     terminoBase: info.terminoLB ?? '',
     terminoProjetado: previsao?.data ?? null,
     desvioDias: previsao?.desvioDias ?? null,
-    // Sem valor na EAP, vale o campo "Valor do contrato" das Informações do
-    // Projeto. NÃO o custo da obra: custo é o que a Megasteam gasta, contrato é
-    // o que o cliente paga, e trocar um pelo outro estraga a ponderação e
-    // qualquer conta de resultado.
-    valorContrato: totais.valorContrato || Number(info.valorContrato) || 0,
+    // O valor lançado à mão VENCE o da EAP. É o oposto do que parece natural,
+    // e é de propósito: quem digitou no consolidado estava olhando o número
+    // errado e corrigindo. Fazer a EAP ganhar transformaria a correção num
+    // clique que não faz nada — e é assim que se ensina alguém a não corrigir.
+    // A tela marca a célula corrigida, para o valor manual não envelhecer
+    // escondido depois de uma colagem nova.
+    //
+    // NÃO usar o custo da obra como valor de contrato: custo é o que a
+    // Megasteam gasta, contrato é o que o cliente paga.
+    valorContrato: Number(info.valorContrato) || totais.valorContrato || 0,
     custo: Number(info.custoObra) || 0,
     impostoPercentual: Number(info.impostoPercentual) || 0,
-    previstoMes: totais.previstoMes,
-    realizadoMes: totais.realizadoMes,
-    acumulado: totais.acumulado,
+    previstoMes: Number(info.previstoMesManual) || totais.previstoMes,
+    realizadoMes: Number(info.realizadoMesManual) || totais.realizadoMes,
+    acumulado: Number(info.acumuladoManual) || totais.acumulado,
+    manuais: {
+      valorContrato: Number(info.valorContrato) > 0,
+      previstoMes: Number(info.previstoMesManual) > 0,
+      realizadoMes: Number(info.realizadoMesManual) > 0,
+      acumulado: Number(info.acumuladoManual) > 0,
+    },
     atualizadoEm: info.atualizadoEm ?? '',
   };
 };
