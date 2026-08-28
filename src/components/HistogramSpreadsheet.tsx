@@ -7,7 +7,7 @@ import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import ClearDataButton from '@/components/ClearDataButton';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
-import { alinharComCurva, indiceDaSemanaDeStatus, lerColagemHistograma } from '@/lib/histograma';
+import { alinharComCurva, indiceDaSemanaDeStatus, lerColagemHistograma, ordenarPorData } from '@/lib/histograma';
 import { anoDeReferencia } from '@/lib/dateUtils';
 import { cn } from '@/lib/utils';
 
@@ -124,10 +124,12 @@ const HistogramSpreadsheet = () => {
   // Mesmo ano de referência que o gráfico do relatório usa: se os dois
   // alinhassem por anos diferentes, a planilha e o card mostrariam colunas
   // diferentes para o mesmo lançamento.
-  const data = useMemo(
-    () => alinharComCurva(histogramData || [], sCurveData, anoDeReferencia(info?.atualizadoEm)),
-    [histogramData, sCurveData, info?.atualizadoEm],
-  );
+  const data = useMemo(() => {
+    const ano = anoDeReferencia(info?.atualizadoEm);
+    // Em ordem de data: a colagem cai nas colunas pela POSIÇÃO, e com as
+    // semanas embaralhadas os valores do Excel entrariam na semana errada.
+    return ordenarPorData(alinharComCurva(histogramData || [], sCurveData, ano), ano);
+  }, [histogramData, sCurveData, info?.atualizadoEm]);
 
   // Rola até a semana de status: numa obra longa a coluna a preencher fica
   // muito à direita, e abrir a planilha no começo obrigava a arrastar até lá.

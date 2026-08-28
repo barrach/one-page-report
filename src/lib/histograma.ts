@@ -39,7 +39,29 @@ export const dataDoRotulo = (rotulo: string, anoRef: number): Date | null => {
   return parseWeekLabel(txt, anoRef);
 };
 
-const chaveDoDia = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const UM_DIA = 24 * 60 * 60 * 1000;
+
+/**
+ * Metade do passo da curva — a tolerância para dizer que dois rótulos falam da
+ * mesma semana.
+ *
+ * A planilha do histograma fecha a semana no sábado e a Curva S no domingo (ou
+ * na segunda). Exigir o mesmo dia exato faz nenhum lançamento casar, e o
+ * relatório mostra a obra inteira zerada. Sai do espaçamento real da curva
+ * para funcionar igual numa curva diária.
+ */
+const toleranciaDaCurva = (datas: (Date | null)[]): number => {
+  const validas = datas.filter((d): d is Date => d != null);
+  if (validas.length < 2) return 3.5 * UM_DIA;
+  const passos: number[] = [];
+  for (let i = 1; i < validas.length; i++) {
+    const passo = Math.abs(validas[i].getTime() - validas[i - 1].getTime());
+    if (passo > 0) passos.push(passo);
+  }
+  if (passos.length === 0) return 3.5 * UM_DIA;
+  passos.sort((a, b) => a - b);
+  return passos[Math.floor(passos.length / 2)] / 2;
+};
 
 export interface PontoHistograma {
   date: string;
@@ -151,6 +173,17 @@ export const lerColagemHistograma = (texto: string): SeriesColadas => {
  * estava lançado é reaproveitado casando pela DATA, não pelo texto: a planilha
  * nomeia as semanas de um jeito ("Dez/25 S2") e a curva de outro ("08/dez"), e
  * casar por texto perderia tudo que já havia sido preenchido.
+ *
+ * Duas coisas que o casamento por dia exato errava:
+ *
+ * — Semana fechada em dia diferente. O histograma vinha com sábados e a curva
+ *   com domingos: nenhum dia batia, todo lançamento se perdia e o relatório
+ *   mostrava a obra zerada. Agora cada lançamento vai para a semana da curva
+ *   mais PRÓXIMA, dentro de meio passo.
+ * — O rótulo. O ponto casado voltava com o nome que tinha na planilha, então o
+ *   eixo do relatório misturava "06/set" (do histograma) com "07/set" (da
+ *   curva) e as datas apareciam fora de ordem. O rótulo é sempre o da curva:
+ *   é ela que define de que semana o relatório está falando.
  */
 export const alinharComCurva = (
   historico: PontoHistograma[] | undefined,
@@ -161,18 +194,50 @@ export const alinharComCurva = (
   const semanas = (curva ?? []).filter((c) => c.date);
   if (semanas.length === 0) return hist;
 
-  const porDia = new Map<string, PontoHistograma>();
+  const datasCurva = semanas.map((c) => parseWeekLabel(c.date, anoRef));
+  const tolerancia = toleranciaDaCurva(datasCurva);
+
+  const porSemana = new Map<number, { dif: number; ponto: PontoHistograma }>();
   hist.forEach((h) => {
     const d = dataDoRotulo(h.date, anoRef);
-    if (d) porDia.set(chaveDoDia(d), h);
+    if (!d) return;
+
+    let melhor = -1;
+    let menor = Infinity;
+    datasCurva.forEach((dc, i) => {
+      if (!dc) return;
+      const dif = Math.abs(dc.getTime() - d.getTime());
+      if (dif < menor) { menor = dif; melhor = i; }
+    });
+    if (melhor < 0 || menor > tolerancia) return;
+
+    // Dois lançamentos caindo na mesma semana: fica o mais próximo dela.
+    const atual = porSemana.get(melhor);
+    if (!atual || menor < atual.dif) porSemana.set(melhor, { dif: menor, ponto: h });
   });
 
-  return semanas.map((c) => {
-    const d = parseWeekLabel(c.date, anoRef);
-    const achado = d ? porDia.get(chaveDoDia(d)) : undefined;
-    return achado ?? { date: c.date, semana: '', previsto: 0, real: 0 };
+  return semanas.map((c, i) => {
+    const achado = porSemana.get(i)?.ponto;
+    return achado
+      ? { ...achado, date: c.date }
+      : { date: c.date, semana: '', previsto: 0, real: 0 };
   });
 };
+
+/**
+ * Ordena as colunas por data.
+ *
+ * Rede de segurança para quando não há Curva S com que alinhar: histograma
+ * montado de duas importações diferentes vinha com as semanas embaralhadas, e
+ * o gráfico desenhava 28/set antes de 06/set. Rótulo que não vira data fica no
+ * fim, na ordem em que estava — sumir com ele seria pior.
+ */
+export const ordenarPorData = <T extends { date: string }>(dados: T[], anoRef: number): T[] =>
+  [...dados]
+    .map((d, i) => ({ d, i, t: dataDoRotulo(d.date, anoRef)?.getTime() ?? Infinity }))
+    // `a.t === b.t` cobre os dois Infinity: subtrair daria NaN e embaralharia.
+    .sort((a, b) => (a.t === b.t ? a.i - b.i : a.t - b.t))
+    .map((x) => x.d);
 
 export type PeriodoHistograma = 'tudo' | '15' | '30';
 

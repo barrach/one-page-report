@@ -5,6 +5,7 @@ import {
   filtrarPeriodo,
   indiceDaSemanaDeStatus,
   lerColagemHistograma,
+  ordenarPorData,
   serieDoRotulo,
   type PontoHistograma,
 } from '@/lib/histograma';
@@ -54,6 +55,53 @@ describe('alinharComCurva', () => {
   it('sem curva, devolve o histórico como está', () => {
     const hist: PontoHistograma[] = [{ date: '08/dez', semana: '', previsto: 40, real: 38 }];
     expect(alinharComCurva(hist, [], 2025)).toEqual(hist);
+  });
+
+  it('casa a semana mesmo fechada em outro dia da semana', () => {
+    // A planilha do histograma fecha no sábado, a curva no domingo. Exigir o
+    // mesmo dia exato fazia nenhum lançamento casar e zerava o relatório.
+    const hist: PontoHistograma[] = [{ date: '07/dez', semana: '', previsto: 40, real: 38 }];
+    const alinhado = alinharComCurva(hist, curva, 2025);
+    expect(alinhado[1].previsto).toBe(40);
+  });
+
+  it('o rótulo é sempre o da curva', () => {
+    // Devolver o rótulo do histograma misturava "06/set" com "07/set" no mesmo
+    // eixo, e as datas apareciam fora de ordem.
+    const hist: PontoHistograma[] = [{ date: '07/dez', semana: '', previsto: 40, real: 38 }];
+    expect(alinharComCurva(hist, curva, 2025)[1].date).toBe('08/dez');
+  });
+
+  it('lançamento fora de qualquer semana da curva não é puxado', () => {
+    const hist: PontoHistograma[] = [{ date: '20/jun', semana: '', previsto: 99, real: 99 }];
+    expect(alinharComCurva(hist, curva, 2025).every((h) => h.previsto === 0)).toBe(true);
+  });
+
+  it('dois lançamentos na mesma semana: fica o mais próximo', () => {
+    const hist: PontoHistograma[] = [
+      { date: '10/dez', semana: '', previsto: 10, real: 10 },
+      { date: '08/dez', semana: '', previsto: 40, real: 38 },
+    ];
+    expect(alinharComCurva(hist, curva, 2025)[1].previsto).toBe(40);
+  });
+});
+
+describe('ordenarPorData', () => {
+  it('desembaralha semanas de importações diferentes', () => {
+    const dados = [{ date: '07/set' }, { date: '06/set' }, { date: '14/set' }];
+    expect(ordenarPorData(dados, 2026).map((d) => d.date))
+      .toEqual(['06/set', '07/set', '14/set']);
+  });
+
+  it('rótulo que não vira data vai para o fim, sem sumir', () => {
+    const dados = [{ date: 'Total' }, { date: '06/set' }];
+    expect(ordenarPorData(dados, 2026).map((d) => d.date)).toEqual(['06/set', 'Total']);
+  });
+
+  it('vários rótulos ilegíveis mantêm a ordem entre si', () => {
+    const dados = [{ date: 'Total' }, { date: '06/set' }, { date: 'Média' }];
+    expect(ordenarPorData(dados, 2026).map((d) => d.date))
+      .toEqual(['06/set', 'Total', 'Média']);
   });
 });
 

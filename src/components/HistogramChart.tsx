@@ -4,7 +4,7 @@ import { useCurrentProject, useProjectStore } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
-import { alinharComCurva, filtrarPeriodo, ROTULO_PERIODO, type PeriodoHistograma } from '@/lib/histograma';
+import { alinharComCurva, filtrarPeriodo, ordenarPorData, ROTULO_PERIODO, type PeriodoHistograma } from '@/lib/histograma';
 import { anoDeReferencia } from '@/lib/dateUtils';
 import ChartInsight from '@/components/ChartInsight';
 import ObservacoesDoCard from '@/components/ObservacoesDoCard';
@@ -81,7 +81,9 @@ const HistogramChart = () => {
   const alinhado = useMemo(() => {
     const bruto = (histogramData || []).filter((h) => h.date);
     if (bruto.length === 0) return bruto;
-    return alinharComCurva(bruto, sCurveData, anoRef);
+    // A ordenação é rede de segurança para a obra sem Curva S: alinhado, o
+    // resultado já vem na ordem da curva.
+    return ordenarPorData(alinharComCurva(bruto, sCurveData, anoRef), anoRef);
   }, [histogramData, sCurveData, anoRef]);
 
   const allData = useMemo(
