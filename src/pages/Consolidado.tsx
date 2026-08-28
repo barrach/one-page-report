@@ -723,10 +723,10 @@ const Consolidado = () => {
                               nota={doCliente.find((p) => p.id === obra.id)?.notaProblemas}
                               podeEditar={canEdit}
                               aoSalvar={(t) => setNotaProblemas(obra.id, t, user?.email ?? undefined)}
-                              placeholder={`O que travou na ${obra.nome} nesta semana? Causa e responsável.`}
+                              placeholder="Qual o motivo do desvio em relação ao previsto para o mês e o realizado?"
                               vazio={canEdit
-                                ? 'Sem Programação Semanal importada — escreva aqui os problemas da semana.'
-                                : 'Sem Programação Semanal importada e nenhum problema anotado.'}
+                                ? 'Qual o motivo do desvio em relação ao previsto para o mês e o realizado?'
+                                : 'Nenhum motivo registrado para o desvio do mês.'}
                             />
                           </div>
                         ) : obra.semanas.length === 0 ? (
