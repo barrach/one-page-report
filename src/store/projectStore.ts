@@ -215,6 +215,21 @@ export interface NotaDeTexto {
   /** Veio da IA e ainda não foi editada por gente. */
   porIa?: boolean;
 }
+/**
+ * Um motivo de desvio anotado no consolidado.
+ *
+ * Lista, e não campo único: a reunião levanta um motivo por vez, e sobrescrever
+ * o anterior apagaria o histórico do mês — que é justamente o que se quer ler
+ * depois.
+ */
+export interface MotivoDesvio {
+  id: string;
+  texto: string;
+  /** ISO de quando foi registrado. */
+  data: string;
+  autor?: string;
+}
+
 /** Nome antigo, mantido porque a análise de risco já referencia este tipo. */
 export type RiscoConsolidado = NotaDeTexto;
 
@@ -250,7 +265,9 @@ export interface Project {
   desvioAnalise?: DesvioAnalise;
   /** Análise de risco do consolidado do cliente — a mesma em todas as obras dele. */
   riscoConsolidado?: RiscoConsolidado;
-  /** Problemas anotados à mão no consolidado, quando não há Programação Semanal. */
+  /** Motivos do desvio do mês, anotados à mão no consolidado. */
+  motivosDesvio?: MotivoDesvio[];
+  /** @deprecated campo único anterior — a lista acima o absorve na leitura. */
   notaProblemas?: NotaDeTexto;
 }
 
@@ -419,6 +436,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
     riscoConsolidado: (d.riscoConsolidado as RiscoConsolidado) ?? undefined,
     notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
+    motivosDesvio: (d.motivosDesvio as MotivoDesvio[]) ?? undefined,
   };
 };
 
@@ -449,6 +467,7 @@ const projectToDb = (p: Project): any => ({
     desvioAnalise: p.desvioAnalise || null,
     riscoConsolidado: p.riscoConsolidado || null,
     notaProblemas: p.notaProblemas || null,
+    motivosDesvio: p.motivosDesvio || null,
   },
 });
 
@@ -513,8 +532,8 @@ interface ProjectStoreState {
   setLayoutRelatorio: (layout: ItemLayoutRelatorio[] | null) => void;
   /** Análise de risco do consolidado — grava a mesma em todas as obras do cliente. */
   setRiscoConsolidado: (idsDoCliente: string[], texto: string, porIa: boolean, autor?: string) => void;
-  /** Problemas anotados a mao numa obra, quando nao ha Programacao Semanal. */
-  setNotaProblemas: (projectId: string, texto: string, autor?: string) => void;
+  /** Motivos do desvio do mes anotados numa obra. */
+  setMotivosDesvio: (projectId: string, motivos: MotivoDesvio[]) => void;
   /** Anota num card do relatório, carimbando a data. */
   addObservacaoCard: (card: string, texto: string, autor?: string) => void;
   removeObservacaoCard: (card: string, id: string) => void;
@@ -881,9 +900,11 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
    * Existe porque nem toda obra importa a Programação Semanal, e a reunião tem
    * problema para registrar do mesmo jeito. Fica na obra, não no cliente.
    */
-  setNotaProblemas: (projectId, texto, autor) => set((s) => {
+  setMotivosDesvio: (projectId, motivos) => set((s) => {
     const updated = s.projects.map((p) => (p.id === projectId
-      ? { ...p, notaProblemas: { texto: texto.trim(), atualizadoEm: new Date().toISOString(), autor } }
+      // O campo único antigo sai junto: ele já foi absorvido pela lista na
+      // leitura, e deixá-lo gravado o faria reaparecer duplicado.
+      ? { ...p, motivosDesvio: motivos, notaProblemas: undefined }
       : p));
     const alvo = updated.find((p) => p.id === projectId);
     if (alvo) debouncedSave(alvo);

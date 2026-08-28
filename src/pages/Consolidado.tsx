@@ -22,7 +22,7 @@ import {
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
-import NotaEditavel from '@/components/NotaEditavel';
+import MotivosDoDesvio from '@/components/MotivosDoDesvio';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -164,8 +164,8 @@ const TooltipResultado = ({ active, payload }: any) => {
 };
 
 const Consolidado = () => {
-  const { projects, selectProject, acessoRestrito, setNotaProblemas } = useProjectStore();
-  const { canEdit, user } = useAuth();
+  const { projects, selectProject, acessoRestrito } = useProjectStore();
+  const { canEdit } = useAuth();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
@@ -773,15 +773,7 @@ const Consolidado = () => {
                           // problema para registrar — e sem campo aqui, essa
                           // conversa acontece fora do relatório, onde se perde.
                           <div className="px-3 py-3">
-                            <NotaEditavel
-                              nota={doCliente.find((p) => p.id === obra.id)?.notaProblemas}
-                              podeEditar={canEdit}
-                              aoSalvar={(t) => setNotaProblemas(obra.id, t, user?.email ?? undefined)}
-                              placeholder="Qual o motivo do desvio em relação ao previsto para o mês e o realizado?"
-                              vazio={canEdit
-                                ? 'Qual o motivo do desvio em relação ao previsto para o mês e o realizado?'
-                                : 'Nenhum motivo registrado para o desvio do mês.'}
-                            />
+                            <MotivosDoDesvio projeto={doCliente.find((p) => p.id === obra.id)!} />
                           </div>
                         ) : obra.semanas.length === 0 ? (
                           <p className="px-3 py-3 text-xs text-muted-foreground">Nenhuma semana lançada.</p>
