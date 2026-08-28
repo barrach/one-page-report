@@ -96,6 +96,21 @@ const Vazio = ({ children }: { children: ReactNode }) => (
   <p className="text-xs text-muted-foreground py-6 text-center">{children}</p>
 );
 
+/**
+ * Célula de dinheiro.
+ *
+ * Zero vira "não lançado", e não "R$ 0,00": as duas coisas se parecem na tela e
+ * são opostas — uma é a obra que não mediu nada, a outra é o dado que ninguém
+ * preencheu, e só a segunda é problema de cadastro.
+ */
+const Dinheiro = ({ valor, classe }: { valor: number; classe: string }) => (
+  <td className={cn(classe, 'text-right tabular-nums whitespace-nowrap')}>
+    {valor > 0
+      ? fmtDinheiro(valor)
+      : <span className="text-muted-foreground font-normal">não lançado</span>}
+  </td>
+);
+
 const ESTILO_TOOLTIP = {
   background: 'hsl(var(--card))',
   border: '1px solid hsl(var(--border))',
@@ -302,14 +317,20 @@ const Consolidado = () => {
                   outra a 4, e essas são reuniões completamente diferentes. */}
               {dados.obras.length > 1 && (
                 <div className="overflow-x-auto mt-3">
-                  <table className="w-full border-collapse min-w-[30rem]">
+                  <table className="w-full border-collapse min-w-[52rem]">
                     <thead>
                       <tr className="bg-table-header text-table-header-foreground">
                         <th className={cn(th, 'text-left')}>Obra</th>
                         <th className={cn(th, 'text-right')}>Avanço previsto</th>
                         <th className={cn(th, 'text-right')}>Avanço real</th>
                         <th className={cn(th, 'text-right')}>Desvio</th>
+                        {/* As colunas de dinheiro são do mesmo trio que vê o card
+                            Financeiro: valor de contrato e medição não se mostram
+                            ao cliente da obra. */}
                         {canEdit && <th className={cn(th, 'text-right')}>Valor da obra</th>}
+                        {canEdit && <th className={cn(th, 'text-right')}>Medição acumulada</th>}
+                        {canEdit && <th className={cn(th, 'text-right')}>Previsto no mês</th>}
+                        {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -324,12 +345,19 @@ const Consolidado = () => {
                           )}>
                             {pct(o.desvio)}
                           </td>
+                          {canEdit && <Dinheiro classe={td} valor={o.valorContrato} />}
+                          {canEdit && <Dinheiro classe={td} valor={o.acumulado} />}
+                          {canEdit && <Dinheiro classe={td} valor={o.previstoMes} />}
                           {canEdit && (
-                            <td className={cn(td, 'text-right tabular-nums whitespace-nowrap')}>
-                              {o.valorContrato > 0
-                                ? fmtDinheiro(o.valorContrato)
-                                : <span className="text-muted-foreground">não lançado</span>}
-                            </td>
+                            // Realizado abaixo do previsto no mês é medição que
+                            // não saiu — o número já diz, a cor faz enxergar.
+                            <Dinheiro
+                              classe={cn(
+                                td,
+                                o.previstoMes > 0 && o.realizadoMes < o.previstoMes && 'text-destructive',
+                              )}
+                              valor={o.realizadoMes}
+                            />
                           )}
                         </tr>
                       ))}
@@ -340,11 +368,10 @@ const Consolidado = () => {
                         <td className={cn(td, 'text-right tabular-nums')}>{pct(dados.avancoPrev)}</td>
                         <td className={cn(td, 'text-right tabular-nums')}>{pct(dados.avancoReal)}</td>
                         <td className={cn(td, 'text-right tabular-nums', corDesvio)}>{pct(dados.desvio)}</td>
-                        {canEdit && (
-                          <td className={cn(td, 'text-right tabular-nums whitespace-nowrap')}>
-                            {fmtDinheiro(dados.valorContrato)}
-                          </td>
-                        )}
+                        {canEdit && <Dinheiro classe={td} valor={dados.valorContrato} />}
+                        {canEdit && <Dinheiro classe={td} valor={dados.acumulado} />}
+                        {canEdit && <Dinheiro classe={td} valor={dados.previstoMes} />}
+                        {canEdit && <Dinheiro classe={td} valor={dados.realizadoMes} />}
                       </tr>
                     </tbody>
                   </table>

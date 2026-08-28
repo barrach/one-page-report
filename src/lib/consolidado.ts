@@ -35,6 +35,8 @@ export interface LinhaObra {
   /** Dias além (ou aquém) da linha de base. */
   desvioDias: number | null;
   valorContrato: number;
+  /** Previsto de medição para o mês, da EAP financeira. */
+  previstoMes: number;
   realizadoMes: number;
   acumulado: number;
   /** Última importação de qualquer seção — o dado mais fresco da obra. */
@@ -47,6 +49,8 @@ export interface Consolidado {
   avancoReal: number;
   desvio: number;
   valorContrato: number;
+  /** Soma do previsto de medição do mês nas obras do cliente. */
+  previstoMes: number;
   realizadoMes: number;
   acumulado: number;
   /** Como o avanço foi consolidado — a tela precisa dizer isto. */
@@ -88,6 +92,7 @@ export const linhaDaObra = (p: Project): LinhaObra => {
     // mesmo número, digitado em outro lugar, e sem esta queda o consolidado
     // caía em média simples mesmo com a obra valorizada na aba Dados.
     valorContrato: totais.valorContrato || Number(info.custoObra) || 0,
+    previstoMes: totais.previstoMes,
     realizadoMes: totais.realizadoMes,
     acumulado: totais.acumulado,
     atualizadoEm: info.atualizadoEm ?? '',
@@ -126,6 +131,7 @@ export const consolidarObras = (projetos: Project[]): Consolidado => {
     avancoReal,
     desvio: r2(avancoReal - avancoPrev),
     valorContrato: obras.reduce((s, o) => s + o.valorContrato, 0),
+    previstoMes: obras.reduce((s, o) => s + o.previstoMes, 0),
     realizadoMes: obras.reduce((s, o) => s + o.realizadoMes, 0),
     acumulado: obras.reduce((s, o) => s + o.acumulado, 0),
     ponderacao,

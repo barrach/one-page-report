@@ -89,3 +89,31 @@ describe('consolidarObras', () => {
     expect(c.valorContrato).toBe(0);
   });
 });
+
+describe('colunas de medicao', () => {
+  it('leva previsto, realizado e acumulado do mes para a linha da obra', () => {
+    const p = {
+      id: 'a', name: 'FRIGO',
+      info: { avancoPrev: 50, avancoReal: 45 },
+      eapFinanceira: [
+        { codigo: '1', descricao: 'Montagem', valorContrato: 1_000_000, previstoMes: 80_000, realizadoMes: 62_000, acumulado: 400_000 },
+      ],
+    } as never;
+    const linha = linhaDaObra(p);
+    expect(linha.previstoMes).toBe(80_000);
+    expect(linha.realizadoMes).toBe(62_000);
+    expect(linha.acumulado).toBe(400_000);
+  });
+
+  it('o consolidado soma as tres colunas das obras', () => {
+    const obra = (id: string, previstoMes: number, realizadoMes: number, acumulado: number) => ({
+      id, name: id,
+      info: { avancoPrev: 50, avancoReal: 50 },
+      eapFinanceira: [{ codigo: '1', descricao: 'x', valorContrato: 1_000, previstoMes, realizadoMes, acumulado }],
+    });
+    const c = consolidarObras([obra('a', 10, 8, 100), obra('b', 20, 25, 200)] as never);
+    expect(c.previstoMes).toBe(30);
+    expect(c.realizadoMes).toBe(33);
+    expect(c.acumulado).toBe(300);
+  });
+});
