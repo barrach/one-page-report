@@ -214,7 +214,15 @@ export const lerEapColada = (texto: string): LeituraEap => {
       break;
     }
   }
-  if (idxCabecalho < 0) return VAZIO;
+  // Nenhum título reconhecido não pode significar "não importa nada": cada
+  // contrato nomeia as colunas do seu jeito, e a promessa é trazer a planilha
+  // como ela é. Aqui o cabeçalho passa a ser a primeira linha com dois títulos,
+  // as colunas entram todas cruas e nenhum campo é reconhecido — o relatório
+  // mostra o texto do Excel, que é o que interessa.
+  if (idxCabecalho < 0) {
+    idxCabecalho = linhas.findIndex((l) => l.filter((c) => String(c ?? '').trim() !== '').length >= 2);
+    if (idxCabecalho < 0) return VAZIO;
+  }
 
   const texto_ = (celulas: string[], campo: CampoEap): string => {
     const col = mapa[campo];
@@ -251,8 +259,10 @@ export const lerEapColada = (texto: string): LeituraEap => {
         celulas: cruas,
       };
     })
-    // Linha sem descrição é total, separador ou sobra da seleção.
-    .filter((it) => it.descricao !== '');
+    // Fica a linha que tem QUALQUER conteúdo. Filtrar por descrição jogava fora
+    // a planilha inteira sempre que a coluna de descrição tinha um título que o
+    // reconhecedor não conhece — e é justamente aí que o texto cru importa.
+    .filter((it) => Object.values(it.celulas ?? {}).some((v) => v !== ''));
 
   const faltando = (['descricao', 'valorContrato'] as CampoEap[]).filter((c) => mapa[c] == null);
   return { itens, colunas, faltando, reconhecidas };

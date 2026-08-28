@@ -9,7 +9,7 @@ import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import ClearDataButton from '@/components/ClearDataButton';
 import {
   fmtDinheiro, lerEapColada, lerValor, nivelDoCodigo, totaisDaEap,
-  type ItemEapFinanceira, type LeituraEap,
+  type ItemEapFinanceira, type LeituraEap, type ColunaEap, type CampoEap,
 } from '@/lib/eapFinanceira';
 
 /**
@@ -24,17 +24,26 @@ const LINHA_VAZIA: ItemEapFinanceira = {
   codigo: '', descricao: '', valorContrato: 0, previstoMes: 0, realizadoMes: 0, acumulado: 0,
 };
 
-const COLUNAS: { campo: keyof ItemEapFinanceira; titulo: string; largura: string }[] = [
-  { campo: 'codigo', titulo: 'EAP', largura: 'w-24' },
-  { campo: 'descricao', titulo: 'Descrição', largura: 'min-w-[220px]' },
-  { campo: 'valorContrato', titulo: 'Valor do contrato', largura: 'w-36' },
-  { campo: 'previstoMes', titulo: 'Previsto no mês', largura: 'w-32' },
-  { campo: 'realizadoMes', titulo: 'Realizado no mês', largura: 'w-32' },
-  { campo: 'acumulado', titulo: 'Acumulado', largura: 'w-36' },
+/**
+ * Colunas de quando não houve colagem — EAP digitada à mão.
+ *
+ * Depois de colar, quem manda são as colunas da PLANILHA: cada contrato tem a
+ * sua, e uma grade fixa jogava fora exatamente as colunas daquele contrato.
+ */
+const COLUNAS_PADRAO: ColunaEap[] = [
+  { chave: 'p0', titulo: 'EAP', campo: 'codigo' },
+  { chave: 'p1', titulo: 'Descrição', campo: 'descricao' },
+  { chave: 'p2', titulo: 'Valor do contrato', campo: 'valorContrato' },
+  { chave: 'p3', titulo: 'Previsto no mês', campo: 'previstoMes' },
+  { chave: 'p4', titulo: 'Realizado no mês', campo: 'realizadoMes' },
+  { chave: 'p5', titulo: 'Acumulado', campo: 'acumulado' },
 ];
 
+/** Campos que somam no rodapé — os outros não são dinheiro. */
+const SOMAVEIS: CampoEap[] = ['valorContrato', 'previstoMes', 'realizadoMes', 'acumulado'];
+
 const EapFinanceiraInput = () => {
-  const { eapFinanceira } = useCurrentProject();
+  const { eapFinanceira, eapColunas } = useCurrentProject();
   const setEap = useProjectStore((s) => s.setEapFinanceira);
 
   const itens = eapFinanceira ?? [];
@@ -64,12 +73,49 @@ const EapFinanceiraInput = () => {
     setMostrarColagem(false);
   };
 
-  const editar = (i: number, campo: keyof ItemEapFinanceira, valor: string) => {
+  /**
+   * As colunas da planilha colada; sem colagem, as padrão.
+   *
+   * Mesma regra do card do relatório, de propósito: a tabela de lançamento e o
+   * relatório têm que mostrar a MESMA coisa, senão quem confere aqui não
+   * reconhece o que sai lá.
+   */
+  const colunas: ColunaEap[] =
+    (eapColunas ?? []).length > 0 && itens.some((it) => it.celulas)
+      ? (eapColunas as ColunaEap[])
+      : COLUNAS_PADRAO;
+
+  /**
+   * Edita uma célula.
+   *
+   * Grava sempre o TEXTO CRU da coluna — é ele que a tela mostra — e, quando a
+   * coluna foi reconhecida como um campo conhecido, grava também o número, que
+   * é o que alimenta os totais e o consolidado.
+   */
+  const editar = (i: number, coluna: ColunaEap, valor: string) => {
     setEap(itens.map((it, k) => {
       if (k !== i) return it;
-      if (campo === 'codigo' || campo === 'descricao') return { ...it, [campo]: valor };
-      return { ...it, [campo]: lerValor(valor) };
-    }));
+
+      const novo: ItemEapFinanceira = {
+        ...it,
+        celulas: { ...(it.celulas ?? {}), [coluna.chave]: valor },
+      };
+      if (!coluna.campo) return novo;
+
+      return coluna.campo === 'codigo' || coluna.campo === 'descricao'
+        ? { ...novo, [coluna.campo]: valor }
+        : { ...novo, [coluna.campo]: lerValor(valor) };
+    }), eapColunas);
+  };
+
+  /** O que a célula mostra: o texto do Excel; sem ele, o campo reconhecido. */
+  const textoDaCelula = (it: ItemEapFinanceira, c: ColunaEap): string => {
+    const cru = it.celulas?.[c.chave];
+    if (cru != null) return cru;
+    if (!c.campo) return '';
+    return c.campo === 'codigo' || c.campo === 'descricao'
+      ? String(it[c.campo] ?? '')
+      : (Number(it[c.campo]) || '').toString();
   };
 
   return (
@@ -107,9 +153,10 @@ const EapFinanceiraInput = () => {
       {mostrarColagem && (
         <div className="mb-4 space-y-2 p-3 rounded-md bg-card border">
           <p className="text-xs text-muted-foreground">
-            Copie da planilha de medição <strong>com a linha de títulos</strong>. A ordem das colunas
-            não importa — elas são reconhecidas pelo nome (EAP, Descrição, Valor do contrato,
-            Previsto, Realizado, Acumulado).
+            Copie da planilha de medição <strong>com a linha de títulos</strong>. As colunas entram
+            exatamente como estão no Excel, com os títulos do arquivo. As que o app reconhece pelo
+            nome (EAP, Descrição, Valor do contrato, Previsto, Realizado, Acumulado) também somam
+            nos totais e alimentam o consolidado; as demais entram como texto.
           </p>
           <Textarea
             rows={5}
@@ -151,9 +198,9 @@ const EapFinanceiraInput = () => {
         <table className="border-collapse text-xs w-full">
           <thead>
             <tr className="bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))]">
-              {COLUNAS.map((c) => (
-                <th key={c.campo} className={cn('px-2 py-1.5 border border-border', c.largura,
-                  c.campo === 'descricao' ? 'text-left' : 'text-center')}>
+              {colunas.map((c) => (
+                <th key={c.chave} className={cn('px-2 py-1.5 border border-border whitespace-nowrap',
+                  c.campo === 'descricao' ? 'text-left min-w-[220px]' : 'text-center')}>
                   {c.titulo}
                 </th>
               ))}
@@ -163,30 +210,32 @@ const EapFinanceiraInput = () => {
           <tbody>
             {itens.map((it, i) => (
               <tr key={i} className={nivelDoCodigo(it.codigo) === 1 ? 'font-semibold bg-muted/30' : undefined}>
-                {COLUNAS.map((c) => (
-                  <td key={c.campo} className="border border-border px-1 py-1">
+                {colunas.map((c) => (
+                  <td key={c.chave} className="border border-border px-1 py-1">
+                    {/* Toda célula é editável, inclusive as colunas que o
+                        reconhecedor não conhece — quem chega nesta aba já é
+                        administrador, gestor ou planejador (rota EditorRoute). */}
                     <input
                       type="text"
                       inputMode={c.campo === 'codigo' || c.campo === 'descricao' ? 'text' : 'decimal'}
                       className={cn(
-                        'w-full bg-transparent outline-none text-xs focus:bg-muted/50 rounded px-1 py-0.5',
+                        'w-full outline-none text-xs rounded px-1 py-0.5 bg-transparent',
+                        // A borda ao passar o mouse é o que diz "isto se edita":
+                        // célula de tabela sem nenhum sinal parece só leitura.
+                        'hover:bg-muted/40 focus:bg-muted/60 focus:ring-1 focus:ring-primary/40',
                         c.campo === 'descricao' ? 'text-left' : 'text-center',
                       )}
                       style={c.campo === 'descricao'
                         ? { paddingLeft: `${Math.min(nivelDoCodigo(it.codigo) - 1, 4) * 12}px` }
                         : undefined}
-                      value={
-                        c.campo === 'codigo' || c.campo === 'descricao'
-                          ? (it[c.campo] as string)
-                          : (it[c.campo] as number) || ''
-                      }
-                      onChange={(e) => editar(i, c.campo, e.target.value)}
+                      value={textoDaCelula(it, c)}
+                      onChange={(e) => editar(i, c, e.target.value)}
                     />
                   </td>
                 ))}
                 <td className="border border-border px-1 py-1 text-center">
                   <button
-                    onClick={() => setEap(itens.filter((_, k) => k !== i))}
+                    onClick={() => setEap(itens.filter((_, k) => k !== i), eapColunas)}
                     className="text-destructive/70 hover:text-destructive"
                     title="Remover item"
                   >
@@ -198,14 +247,21 @@ const EapFinanceiraInput = () => {
           </tbody>
           {itens.length > 0 && (
             <tfoot>
+              {/* O rodapé segue as MESMAS colunas da tabela: com a planilha do
+                  contrato na tela, um total em posição fixa cairia embaixo da
+                  coluna errada. Só as colunas de dinheiro somam. */}
               <tr className="bg-muted/60 font-semibold">
-                <td className="border border-border px-2 py-1.5" colSpan={2}>
-                  Total (soma das folhas)
-                </td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{fmtDinheiro(totais.valorContrato)}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{fmtDinheiro(totais.previstoMes)}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{fmtDinheiro(totais.realizadoMes)}</td>
-                <td className="border border-border px-2 py-1.5 text-center tabular-nums">{fmtDinheiro(totais.acumulado)}</td>
+                {colunas.map((c, k) => (
+                  <td key={c.chave} className={cn(
+                    'border border-border px-2 py-1.5 tabular-nums',
+                    c.campo && SOMAVEIS.includes(c.campo) ? 'text-center' : 'text-left',
+                  )}>
+                    {k === 0 && !SOMAVEIS.includes(c.campo as CampoEap) ? 'Total (soma das folhas)' : ''}
+                    {c.campo && SOMAVEIS.includes(c.campo)
+                      ? fmtDinheiro(totais[c.campo as keyof typeof totais] as number)
+                      : ''}
+                  </td>
+                ))}
                 <td className="border border-border" />
               </tr>
             </tfoot>
@@ -218,7 +274,7 @@ const EapFinanceiraInput = () => {
           O total soma só as folhas da EAP. Numa estrutura em níveis o pai é o total dos filhos, e
           somar tudo contaria o mesmo dinheiro duas vezes.
         </p>
-        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEap([...itens, { ...LINHA_VAZIA }])}>
+        <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setEap([...itens, { ...LINHA_VAZIA }], eapColunas)}>
           <Plus className="h-3.5 w-3.5" /> Item
         </Button>
       </div>

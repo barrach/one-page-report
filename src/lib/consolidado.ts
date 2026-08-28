@@ -113,12 +113,17 @@ export const linhaDaObra = (p: Project): LinhaObra => {
 /**
  * Consolida as obras de um cliente.
  *
- * A ordem é por desvio: a obra mais atrasada aparece primeiro, porque é ela que
- * decide para onde a equipe vai na semana. Ordenar por nome deixaria a pior obra
- * escondida no meio da lista.
+ * A ordem é ALFABÉTICA: esta é a lista de referência do cliente, e quem procura
+ * uma obra específica procura pelo nome. Uma lista que muda de ordem conforme o
+ * desempenho obriga a reencontrar a obra toda semana.
+ *
+ * A ordenação por criticidade não se perdeu — ela vive onde tem função: a
+ * priorização ordena por risco, a cascata por contribuição e o resultado por
+ * margem. Cada bloco ordena pelo que ele mesmo está respondendo.
  */
 export const consolidarObras = (projetos: Project[]): Consolidado => {
-  const obras = projetos.map(linhaDaObra).sort((a, b) => a.desvio - b.desvio);
+  const obras = projetos.map(linhaDaObra)
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR', { sensitivity: 'base' }));
 
   const comContrato = obras.filter((o) => o.valorContrato > 0);
   // Só pondera por contrato se TODAS as obras tiverem valor. Com metade
