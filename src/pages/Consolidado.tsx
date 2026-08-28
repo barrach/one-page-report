@@ -511,12 +511,15 @@ const Consolidado = () => {
 
       <div className="flex-1 min-w-0 p-3 sm:p-5 space-y-4">
 
-        <header className="flex items-start justify-between gap-3 flex-wrap">
+        {/* Mesma faixa do relatório: título no topo e os controles logo abaixo
+            dele, dentro da barra. Duas telas do mesmo app com cabeçalhos
+            diferentes fazem parecer que são dois produtos. */}
+        <header className="gradient-primary rounded-xl px-5 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-foreground uppercase tracking-widest">
+            <h1 className="text-base sm:text-lg font-bold text-primary-foreground tracking-widest uppercase">
               One Page Consolidado
             </h1>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-[11px] text-primary-foreground/70">
               Resultado → Driver → Risco → Ação ·{' '}
               {foco ? 'recortado numa obra' : 'todas as obras do cliente numa leitura só'}
             </p>
@@ -529,16 +532,17 @@ const Consolidado = () => {
             {foco && (
               <button
                 onClick={() => setObraFocada(null)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary-foreground/30 bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
                 title="Voltar ao cliente inteiro"
               >
                 Só {nomeFocado}
                 <X className="h-3.5 w-3.5" />
               </button>
             )}
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Building2 className="h-4 w-4 text-primary-foreground/70 shrink-0" />
+            {/* Seletor sobre fundo escuro: o padrão claro sumiria na faixa. */}
             <Select value={clienteAtivo} onValueChange={setCliente}>
-              <SelectTrigger className="h-9 min-w-[180px] max-w-[280px]">
+              <SelectTrigger className="h-9 min-w-[180px] max-w-[280px] bg-primary-foreground/10 border-primary-foreground/20 text-primary-foreground">
                 <SelectValue placeholder="Cliente" />
               </SelectTrigger>
               <SelectContent>
@@ -554,7 +558,7 @@ const Consolidado = () => {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
-                  className="flex items-center justify-center h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  className="flex items-center justify-center h-9 w-9 rounded-lg text-primary-foreground/70 hover:text-primary-foreground hover:bg-primary-foreground/10 transition-colors"
                   title="Mais opções"
                 >
                   <MoreVertical className="h-4 w-4" />
