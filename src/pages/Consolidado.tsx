@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Building2, TrendingDown, TrendingUp, Minus, ArrowRight, ArrowDown, AlertTriangle, X,
+  Building2, TrendingDown, TrendingUp, Minus, ArrowRight, ArrowDown, AlertTriangle, X, ChevronRight,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
@@ -11,12 +11,13 @@ import AppSidebar from '@/components/AppSidebar';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
-import { formatDateBR } from '@/lib/dateUtils';
+import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
 import { fmtDinheiro, fmtDinheiroCurto } from '@/lib/eapFinanceira';
 import { consolidarObras, ROTULO_STATUS, type StatusObra } from '@/lib/consolidado';
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
-  prioridades, riscoDasObras, tendenciaDePrazo, cascataDaMedicao, semanaDeAnalise,
+  prioridades, riscoDasObras, cascataDaMedicao, semanaDeAnalise,
+  problemasPorSemana, tendenciaDeDatas, MAX_SEMANAS,
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
@@ -201,9 +202,9 @@ const Consolidado = () => {
       pesos,
       ponte: pontePorObra(dados.obras, dados.ponderacao),
       matriz: matrizDeVariacao(dados.obras, abertas),
+      problemas: problemasPorSemana(emAnalise),
       medicao: cascataDaMedicao(dados.obras),
       semana: semanaDeAnalise(emAnalise),
-      prazo: tendenciaDePrazo(emAnalise, pesos, status),
       entregaPrazo: entregaNoPrazo(dados.obras),
       riscos,
       acoes: prioridades(riscos, emAnalise, dados.obras),
@@ -299,6 +300,42 @@ const Consolidado = () => {
       ],
     };
   }, [analise.medicao]);
+
+  /** Semanas abertas no item 3. Fechadas por padrão: aberto tudo, ninguém lê. */
+  const [semanasAbertas, setSemanasAbertas] = useState<Set<string>>(new Set());
+  const alternarSemana = (chave: string) => setSemanasAbertas((atual) => {
+    const proximo = new Set(atual);
+    if (proximo.has(chave)) proximo.delete(chave); else proximo.add(chave);
+    return proximo;
+  });
+
+  /**
+   * Obra do gráfico de datas do item 4.
+   *
+   * Datas de término não se somam nem se fazem média entre obras — cada obra
+   * tem a sua —, então este gráfico é sempre de UMA obra. Com foco global
+   * ativo, ele segue o foco; sem foco, a pessoa escolhe aqui.
+   */
+  const [obraDoPrazo, setObraDoPrazo] = useState<string | null>(null);
+  const idDoPrazo = foco
+    ?? (obraDoPrazo && doCliente.some((p) => p.id === obraDoPrazo) ? obraDoPrazo : doCliente[0]?.id ?? null);
+
+  const datasPrazo = useMemo(() => {
+    const projeto = doCliente.find((p) => p.id === idDoPrazo);
+    if (!projeto) return null;
+
+    const serie = tendenciaDeDatas(projeto, analise.status);
+    if (serie.length === 0) return null;
+
+    const valores = serie.flatMap((s) => [s.base, s.projetado]);
+    const folga = 20 * 24 * 60 * 60 * 1000;
+    return {
+      serie,
+      nome: projeto.name,
+      dominio: [Math.min(...valores) - folga, Math.max(...valores) + folga] as [number, number],
+      ultimo: serie[serie.length - 1],
+    };
+  }, [doCliente, idDoPrazo, analise.status]);
 
   /** Quem está sem valor — é por elas que a ponderação por contrato não liga. */
   const semValor = useMemo(
@@ -592,80 +629,204 @@ const Consolidado = () => {
               </Bloco>
 
               {/* ── 3. ONDE ESTÁ O PROBLEMA ──────────────────────────── */}
-              <Bloco n={3} pergunta="Onde está o problema?" ferramenta="Matriz de variação por obra">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse min-w-[26rem]">
-                    <thead>
-                      <tr className="bg-table-header text-table-header-foreground">
-                        <th className={cn(th, 'text-left')}>Obra</th>
-                        {COLUNAS_MATRIZ.map((c) => (
-                          <th key={c} className={cn(th, 'text-center')}>{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {analise.matriz.map((linha) => (
-                        <tr key={linha.id}>
-                          <td className={cn(td, 'font-medium text-foreground')}>{linha.nome}</td>
-                          {linha.celulas.map((c, i) => (
-                            <td key={i} className={cn(td, 'text-center p-1')}>
-                              <span className={cn(
-                                'block rounded px-2 py-1 text-xs font-semibold tabular-nums',
-                                FUNDO_SEVERIDADE[c.severidade],
-                              )}>
-                                {c.texto}
+              <Bloco n={3} pergunta="Onde está o problema?" ferramenta="Semana a semana — clique para abrir o que não fechou">
+                <div className="space-y-3">
+                  {analise.problemas.map((obra) => {
+                    const resumo = analise.matriz.find((m) => m.id === obra.id);
+                    return (
+                      <div key={obra.id} className="rounded-lg border border-border overflow-hidden">
+                        {/* Cabeçalho da obra: o resumo de severidade que a matriz
+                            já dava, agora como contexto do detalhe que vem abaixo. */}
+                        <div className="bg-muted/40 px-3 py-2 flex items-center justify-between gap-3 flex-wrap">
+                          <span className="text-sm font-bold text-foreground">{obra.nome}</span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {resumo?.celulas.map((c, i) => (
+                              <span
+                                key={i}
+                                title={COLUNAS_MATRIZ[i]}
+                                className={cn(
+                                  'rounded px-2 py-0.5 text-[11px] font-semibold tabular-nums whitespace-nowrap',
+                                  FUNDO_SEVERIDADE[c.severidade],
+                                )}
+                              >
+                                {COLUNAS_MATRIZ[i]}: {c.texto}
                               </span>
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                            ))}
+                          </div>
+                        </div>
+
+                        {obra.semProgramacao ? (
+                          <p className="px-3 py-3 text-xs text-muted-foreground">
+                            Sem Programação Semanal importada nesta obra — é dela que sai o que não
+                            fechou em cada semana e por quê.
+                          </p>
+                        ) : obra.semanas.length === 0 ? (
+                          <p className="px-3 py-3 text-xs text-muted-foreground">Nenhuma semana lançada.</p>
+                        ) : (
+                          <div className="divide-y divide-border">
+                            {obra.semanas.map((s) => {
+                              const aberta = semanasAbertas.has(s.chave);
+                              return (
+                                <div key={s.chave}>
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarSemana(s.chave)}
+                                    className="w-full px-3 py-2 flex items-center gap-3 text-left hover:bg-muted/30 transition-colors"
+                                  >
+                                    <ChevronRight className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', aberta && 'rotate-90')} />
+                                    <span className="text-xs font-semibold text-foreground w-32 shrink-0">{s.rotulo}</span>
+                                    <span className={cn(
+                                      'text-xs font-semibold tabular-nums w-16 shrink-0',
+                                      s.ppc >= 90 ? 'text-success' : s.ppc >= 70 ? 'text-amber-600 dark:text-amber-500' : 'text-destructive',
+                                    )}>
+                                      PPC {s.ppc}%
+                                    </span>
+                                    <span className="text-xs text-muted-foreground w-28 shrink-0">
+                                      {s.problemas.length} de {s.totalAtividades} abertas
+                                    </span>
+                                    <span className="text-xs text-muted-foreground truncate min-w-0">
+                                      {s.causasDominantes.join(' · ')}
+                                    </span>
+                                  </button>
+
+                                  {aberta && (
+                                    <div className="px-3 pb-3 pl-9 space-y-2">
+                                      {s.problemas.length === 0 ? (
+                                        <p className="text-xs text-success">Todas as atividades da semana fecharam.</p>
+                                      ) : s.problemas.map((pr) => (
+                                        <div key={pr.id} className="rounded border border-border bg-muted/20 px-3 py-2">
+                                          <div className="flex items-start justify-between gap-2 flex-wrap">
+                                            <span className="text-xs font-semibold text-foreground min-w-0">
+                                              {pr.atividade}
+                                            </span>
+                                            {pr.aderencia != null && (
+                                              <span className="text-[11px] tabular-nums text-muted-foreground shrink-0">
+                                                {pr.aderencia}% de aderência
+                                              </span>
+                                            )}
+                                          </div>
+                                          {pr.area && <p className="text-[11px] text-muted-foreground">{pr.area}</p>}
+
+                                          {pr.causas.length > 0 && (
+                                            <div className="flex gap-1 flex-wrap mt-1.5">
+                                              {pr.causas.map((c) => (
+                                                <span key={c} className="rounded-full border border-destructive/40 bg-destructive/5 px-2 py-0.5 text-[10px] font-semibold text-destructive">
+                                                  {c}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          )}
+                                          {pr.descricaoCausa && (
+                                            <p className="text-[11px] text-foreground mt-1.5">
+                                              <span className="text-muted-foreground">Causa: </span>{pr.descricaoCausa}
+                                            </p>
+                                          )}
+                                          {pr.planoAcao && (
+                                            <p className="text-[11px] text-foreground mt-0.5">
+                                              <span className="text-muted-foreground">Plano: </span>{pr.planoAcao}
+                                            </p>
+                                          )}
+                                          {pr.responsavel && (
+                                            <p className="text-[11px] text-muted-foreground mt-0.5">{pr.responsavel}</p>
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+
                 <p className="text-[10px] text-muted-foreground mt-2">
-                  Quatro problemas diferentes: avançar devagar, estourar a data, não medir o que
-                  executou e deixar ação parada. Uma obra pode estar bem em três e mal na quarta.
+                  Sai da Programação Semanal de cada obra: atividade que não fechou, causa 6M,
+                  descrição e plano de ação. Últimas {MAX_SEMANAS} semanas por obra. Os selos no
+                  cabeçalho são quatro problemas diferentes — avançar devagar, estourar a data, não
+                  medir o que executou e deixar ação parada.
                 </p>
               </Bloco>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
               {/* ── 4. TENDÊNCIA DE PRAZO ────────────────────────────── */}
-              <Bloco n={4} pergunta="Qual a tendência do prazo?" ferramenta="Dias além da linha de base, mês a mês">
-                {analise.prazo.length === 0 ? (
+              <Bloco
+                n={4}
+                pergunta="Qual a tendência do prazo?"
+                ferramenta="Término da linha de base × término projetado, mês a mês"
+                aside={!foco && doCliente.length > 1 ? (
+                  // Datas de término não se somam entre obras — este gráfico é
+                  // sempre de uma só, e a escolha precisa estar à mão.
+                  <Select value={idDoPrazo ?? ''} onValueChange={setObraDoPrazo}>
+                    <SelectTrigger className="h-8 min-w-[140px] max-w-[220px] text-xs">
+                      <SelectValue placeholder="Obra" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {doCliente.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : undefined}
+              >
+                {!datasPrazo ? (
                   <Vazio>
                     Falta Curva S com data de início, término da linha de base ou realizado
-                    lançado para projetar prazo.
+                    lançado para projetar a data de término.
                   </Vazio>
                 ) : (
                   <>
-                    <div className="h-[260px]">
+                    <div className="h-[250px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={analise.prazo} margin={{ top: 8, right: 8, left: -8, bottom: 4 }}>
+                        <LineChart data={datasPrazo.serie} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="rotulo" tick={{ fontSize: 10 }} interval="preserveStartEnd" stroke="hsl(var(--muted-foreground))" />
                           <YAxis
-                            tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))"
-                            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}d`}
+                            type="number" domain={datasPrazo.dominio}
+                            tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" width={66}
+                            tickFormatter={(v: number) => formatDateShort(new Date(v).toISOString().slice(0, 10))}
                           />
                           <Tooltip
                             contentStyle={ESTILO_TOOLTIP}
-                            formatter={(v: number) => [`${v > 0 ? '+' : ''}${v} dias`, 'Desvio de prazo']}
+                            formatter={(v: number, n: string) => [
+                              formatDateBR(new Date(v).toISOString().slice(0, 10)),
+                              n === 'base' ? 'Término da linha de base' : 'Término projetado',
+                            ]}
                           />
-                          {/* O zero é a linha de base: acima dela é atraso. */}
-                          <ReferenceLine y={0} stroke={COR_GRAFICO.neutro} strokeDasharray="4 4" />
+                          {/* A linha de base é reta: ela é a promessa e não muda.
+                              O que mexe é a projeção — e a distância entre as
+                              duas é o atraso, legível sem legenda. */}
                           <Line
-                            type="monotone" dataKey="desvioDias" strokeWidth={2.5} dot={false}
-                            stroke={(analise.prazo.at(-1)?.desvioDias ?? 0) > 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom}
+                            type="monotone" dataKey="base" name="base" strokeWidth={2} dot={false}
+                            stroke={COR_GRAFICO.neutro} strokeDasharray="5 4"
+                          />
+                          <Line
+                            type="monotone" dataKey="projetado" name="projetado" strokeWidth={2.5} dot={false}
+                            stroke={datasPrazo.ultimo.projetado > datasPrazo.ultimo.base ? COR_GRAFICO.ruim : COR_GRAFICO.bom}
                           />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
+
+                    <p className={cn(
+                      'text-xs mt-1 px-3 py-2 rounded-lg border',
+                      datasPrazo.ultimo.projetado > datasPrazo.ultimo.base
+                        ? 'border-destructive/40 bg-destructive/5 text-foreground'
+                        : 'border-success/40 bg-success/5 text-foreground',
+                    )}>
+                      <strong>{datasPrazo.nome}</strong>: linha de base em{' '}
+                      <strong>{formatDateBR(new Date(datasPrazo.ultimo.base).toISOString().slice(0, 10))}</strong>,
+                      o ritmo aponta{' '}
+                      <strong>{formatDateBR(new Date(datasPrazo.ultimo.projetado).toISOString().slice(0, 10))}</strong>.
+                    </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Cada mês responde: com o ritmo <em>até ali</em>, a obra terminaria quantos dias
-                      além da linha de base? A inclinação é o que importa — subindo, o cliente está
-                      perdendo prazo mesmo com o avanço crescendo. Meses com menos de 5% planejado
-                      ficam de fora: ali um ponto de diferença vira meses de projeção.
+                      Cada mês mostra a data que o ritmo <em>até ali</em> apontava. A tracejada é a
+                      linha de base — reta, porque é a promessa. Meses com menos de 5% planejado
+                      ficam de fora: ali um ponto de diferença vira anos de projeção.
                     </p>
                   </>
                 )}

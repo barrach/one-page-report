@@ -1,6 +1,6 @@
 import type { Project } from '@/store/projectStore';
 import type { Consolidado, LinhaObra } from '@/lib/consolidado';
-import { datasDaCurva, parseISOLocal, semanaDaAnalise } from '@/lib/dateUtils';
+import { datasDaCurva, parseISOLocal, semanaDaAnalise, somarDias } from '@/lib/dateUtils';
 
 /**
  * As sete perguntas do consolidado.
@@ -187,6 +187,102 @@ export const matrizDeVariacao = (
     };
 
     return { id: o.id, nome: o.nome, celulas: [avanco, prazo, medicao, acoes] };
+  });
+
+// ─── 3b. PROBLEMAS SEMANA A SEMANA ──────────────────────────────────────
+
+export interface ProblemaSemana {
+  id: string;
+  atividade: string;
+  area: string;
+  /** Causas 6M marcadas na programação. */
+  causas: string[];
+  descricaoCausa: string;
+  planoAcao: string;
+  responsavel: string;
+  /** Aderência da atividade em %, quando lançada. */
+  aderencia: number | null;
+}
+
+export interface SemanaComProblemas {
+  chave: string;
+  rotulo: string;
+  periodo: string;
+  /** PPC da semana, 0–100. */
+  ppc: number;
+  totalAtividades: number;
+  problemas: ProblemaSemana[];
+  /** As causas mais frequentes da semana, para a linha fechada. */
+  causasDominantes: string[];
+}
+
+export interface ObraComProblemas {
+  id: string;
+  nome: string;
+  semanas: SemanaComProblemas[];
+  /** A obra não tem Programação Semanal importada. */
+  semProgramacao: boolean;
+}
+
+/** Semanas exibidas por obra. Obra de dois anos enterraria o bloco. */
+export const MAX_SEMANAS = 12;
+
+/**
+ * O que não fechou, semana a semana, por obra.
+ *
+ * A matriz de severidade diz que a obra tem problema; ela não diz QUAL. A
+ * resposta já está lançada na Programação Semanal — atividade que não fechou,
+ * causa 6M, descrição e plano de ação — e estava presa dentro do relatório de
+ * cada obra, invisível para quem lê o cliente.
+ *
+ * Da semana mais recente para trás: é a que a reunião discute.
+ */
+export const problemasPorSemana = (projetos: Project[]): ObraComProblemas[] =>
+  projetos.map((p) => {
+    const programacao = p.programacaoSemanal ?? [];
+
+    const semanas = [...programacao]
+      // Mais recente primeiro. `semana` é o número ISO; o período desempata
+      // quando a obra atravessa a virada do ano.
+      .sort((a, b) => String(b.periodo).localeCompare(String(a.periodo)) || (b.semana - a.semana))
+      .slice(0, MAX_SEMANAS)
+      .map((s) => {
+        const naoFecharam = (s.atividades ?? []).filter((a) => !a.executada && a.descricao?.trim());
+
+        const frequencia = new Map<string, number>();
+        naoFecharam.forEach((a) => (a.causas6M ?? []).forEach((c) => {
+          frequencia.set(c, (frequencia.get(c) ?? 0) + 1);
+        }));
+
+        return {
+          chave: `${p.id}::${s.periodo || s.semana}`,
+          rotulo: `SEM ${String(s.semana).padStart(2, '0')}${s.mes ? ` · ${s.mes}` : ''}`,
+          periodo: s.periodo ?? '',
+          ppc: Math.round(Number(s.ppc?.ppcSemana) || 0),
+          totalAtividades: (s.atividades ?? []).length,
+          problemas: naoFecharam.map((a, i) => ({
+            id: `${s.periodo || s.semana}-${a.id || i}`,
+            atividade: a.descricao.trim(),
+            area: a.area ?? '',
+            causas: a.causas6M ?? [],
+            descricaoCausa: a.descricaoCausa ?? '',
+            planoAcao: a.planoAcao ?? '',
+            responsavel: a.responsavel ?? '',
+            aderencia: a.aderencia == null ? null : Math.round(a.aderencia * 100),
+          })),
+          causasDominantes: [...frequencia.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+            .map(([causa]) => causa),
+        };
+      });
+
+    return {
+      id: p.id,
+      nome: p.name,
+      semanas,
+      semProgramacao: programacao.length === 0,
+    };
   });
 
 /** Ações que ainda cobram alguém: nem concluídas, nem canceladas. */
@@ -378,6 +474,71 @@ export const tendenciaDePrazo = (
       desvioDias: peso > 0 ? Math.round(soma / peso) : 0,
     };
   });
+};
+
+// ─── 4c. TENDÊNCIA EM DATAS ─────────────────────────────────────────────
+
+export interface PontoDataPrazo {
+  mes: string;
+  rotulo: string;
+  /** Timestamp do término da linha de base — constante, é a promessa. */
+  base: number;
+  /** Timestamp da data que o ritmo daquele mês apontava. */
+  projetado: number;
+}
+
+/**
+ * A data de término, mês a mês.
+ *
+ * Em DATA e não em dias: "800 dias de atraso" é um número que ninguém consegue
+ * transformar em decisão sem fazer conta; "termina em out/28 e não em ago/26" é
+ * a mesma informação já traduzida para o que o cliente pergunta. A distância
+ * entre as duas linhas é o atraso, e ela se lê sem legenda.
+ *
+ * A linha de base é reta de propósito: ela é a promessa, e não muda. O que
+ * mexe é a projeção.
+ */
+export const tendenciaDeDatas = (p: Project, atualizadoEm: string): PontoDataPrazo[] => {
+  const inicio = parseISOLocal(p.info?.inicio ?? '');
+  const termino = parseISOLocal(p.info?.terminoLB ?? '');
+  if (!inicio || !termino) return [];
+
+  const duracaoLB = diasEntre(inicio, termino);
+  if (duracaoLB <= 0) return [];
+
+  const corte = parseISOLocal(atualizadoEm);
+  const curva = p.sCurveData ?? [];
+  const datas = datasDaCurva(
+    curva.length,
+    p.info?.curvaInicio || p.info?.inicio || '',
+    p.info?.curvaPeriodicidade ?? 'semanal',
+  );
+
+  const porMes = new Map<string, number>();
+  curva.forEach((ponto, i) => {
+    const d = datas[i];
+    if (!d) return;
+    if (corte && d.getTime() > corte.getTime()) return;
+
+    const previsto = Number(ponto.previsto) || 0;
+    const real = Number(ponto.real) || 0;
+    if (previsto < AVANCO_MINIMO_PARA_PROJETAR || real <= 0) return;
+
+    const projetada = somarDias(inicio, Math.round(duracaoLB / (real / previsto)));
+    porMes.set(chaveMes(d), projetada.getTime());
+  });
+
+  return [...porMes.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([mes, projetado]) => {
+      const [ano, m] = mes.split('-');
+      return {
+        mes: `${mes}-01`,
+        rotulo: `${MESES[Number(m) - 1]}/${ano.slice(2)}`,
+        base: termino.getTime(),
+        projetado,
+      };
+    });
 };
 
 // ─── 5. VAMOS ENTREGAR NO PRAZO? ────────────────────────────────────────
