@@ -999,6 +999,24 @@ const Consolidado = () => {
                           </tr>
                         );
                       })}
+
+                      {/* Só as colunas de dinheiro somam. Percentual de avanço
+                          não se soma nem se faz média simples entre obras — é
+                          para isso que existe a ponderação, e o número dela já
+                          está no bloco 2. Uma célula vazia diz isso melhor que
+                          um número que ninguém saberia interpretar. */}
+                      {canEdit && dadosCliente.obras.length > 1 && (
+                        <tr className="bg-muted/50 font-semibold">
+                          <td className={cn(td, 'text-foreground')}>Total</td>
+                          <td className={td} />
+                          <td className={td} />
+                          <td className={td} />
+                          <Dinheiro classe={td} valor={dadosCliente.valorContrato} />
+                          <Dinheiro classe={td} valor={dadosCliente.acumulado} />
+                          <Dinheiro classe={td} valor={dadosCliente.previstoMes} />
+                          <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
