@@ -257,3 +257,20 @@ export const lerEapColada = (texto: string): LeituraEap => {
   const faltando = (['descricao', 'valorContrato'] as CampoEap[]).filter((c) => mapa[c] == null);
   return { itens, colunas, faltando, reconhecidas };
 };
+
+/**
+ * "R$ 1,2 mi" / "R$ 850 mil" / "R$ 940".
+ *
+ * Para rótulo dentro de gráfico: "R$ 1.234.567,89" não cabe em cima de uma
+ * barra, e cortar o número no meio é pior que arredondar.
+ */
+export const fmtDinheiroCurto = (n: number): string => {
+  const v = Number(n) || 0;
+  const abs = Math.abs(v);
+  const sinal = v < 0 ? '-' : '';
+  const num = (x: number) => x.toFixed(x >= 10 ? 0 : 1).replace('.', ',');
+
+  if (abs >= 1_000_000) return `${sinal}R$ ${num(abs / 1_000_000)} mi`;
+  if (abs >= 1_000) return `${sinal}R$ ${num(abs / 1_000)} mil`;
+  return `${sinal}R$ ${abs.toFixed(0)}`;
+};

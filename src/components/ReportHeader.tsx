@@ -3,7 +3,7 @@ import { useReportInteraction } from '@/store/reportInteraction';
 import { Button } from '@/components/ui/button';
 import { X, TrendingUp, TrendingDown, Minus, Calendar, CalendarClock, CalendarRange, CalendarCheck, User, Building2, BarChart3, ShieldCheck, ShieldAlert, ShieldX, ArrowUpRight, ArrowDownRight, ArrowRight, ClipboardCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { formatDateBR, formatDateShort, semanaISO } from '@/lib/dateUtils';
+import { formatDateBR, formatDateShort, semanaDaAnalise } from '@/lib/dateUtils';
 import { projetarTermino } from '@/lib/previsaoTermino';
 import { useContractPerformance } from '@/hooks/use-contract-performance';
 import { useTvMode } from '@/hooks/use-tv-mode';
@@ -187,9 +187,9 @@ const ReportHeader = ({ actions }: ReportHeaderProps) => {
           { label: 'Atualizado em', value: formatDateBR(info.atualizadoEm), icon: CalendarClock },
           {
             label: 'Semana de análise',
-            // Sem a semana digitada, mostra a semana ISO da data de status — é
-            // melhor que uma célula vazia, e é a semana que se estaria analisando.
-            value: info.semanaAnalise?.trim() || semanaISO(info.atualizadoEm),
+            // Calculada da data de status: as duas dizem a mesma coisa, e um
+            // valor digitado poderia anunciar SEM 30 num relatório da SEM 32.
+            value: semanaDaAnalise(info),
             icon: CalendarRange,
           },
           // A data que o RITMO aponta, ao lado da que alguém digitou. É a

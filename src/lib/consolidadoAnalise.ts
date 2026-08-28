@@ -1,6 +1,6 @@
 import type { Project } from '@/store/projectStore';
 import type { Consolidado, LinhaObra } from '@/lib/consolidado';
-import { datasDaCurva, parseISOLocal } from '@/lib/dateUtils';
+import { datasDaCurva, parseISOLocal, semanaDaAnalise } from '@/lib/dateUtils';
 
 /**
  * As sete perguntas do consolidado.
@@ -56,6 +56,70 @@ export const pontePorObra = (
     // Da que mais puxa para baixo à que mais puxa para cima: a ponte se lê da
     // esquerda para a direita e o problema tem que aparecer primeiro.
     .sort((a, b) => a.contribuicao - b.contribuicao);
+};
+
+// ─── 2b. CASCATA DA MEDIÇÃO DO MÊS ──────────────────────────────────────
+
+export interface PassoMedicao {
+  id: string;
+  nome: string;
+  previsto: number;
+  realizado: number;
+  /** Realizado menos previsto: negativo é medição que não saiu. */
+  delta: number;
+}
+
+export interface CascataMedicao {
+  previstoTotal: number;
+  realizadoTotal: number;
+  /** Uma parcela por obra, da que mais tira à que mais devolve. */
+  passos: PassoMedicao[];
+}
+
+/**
+ * Do previsto do mês ao realizado, obra a obra.
+ *
+ * Aqui a cascata funciona e na do avanço não funcionava: lá o total era um
+ * NÍVEL (78%) e os degraus eram diferenças de dois pontos — grandezas
+ * incomparáveis, e o degrau virava um risco invisível. Em dinheiro os dois são
+ * a mesma grandeza, então a barra do degrau tem tamanho comparável à do total
+ * e a cascata diz o que promete.
+ *
+ * A conta fecha por construção: previsto + Σ(realizado − previsto) = realizado.
+ */
+export const cascataDaMedicao = (obras: LinhaObra[]): CascataMedicao | null => {
+  const comMedicao = obras.filter((o) => o.previstoMes > 0 || o.realizadoMes > 0);
+  if (comMedicao.length === 0) return null;
+
+  return {
+    previstoTotal: comMedicao.reduce((s, o) => s + o.previstoMes, 0),
+    realizadoTotal: comMedicao.reduce((s, o) => s + o.realizadoMes, 0),
+    passos: comMedicao
+      .map((o) => ({
+        id: o.id,
+        nome: o.nome,
+        previsto: o.previstoMes,
+        realizado: o.realizadoMes,
+        delta: o.realizadoMes - o.previstoMes,
+      }))
+      .sort((a, b) => a.delta - b.delta),
+  };
+};
+
+/**
+ * A semana de análise do cliente.
+ *
+ * Sai do campo "Semana de análise" de cada obra, na aba Dados. Obras em semanas
+ * DIFERENTES é problema de verdade e a tela precisa dizer: a reunião estaria
+ * comparando obras medidas em momentos distintos como se fossem o mesmo
+ * instante, e o consolidado inteiro passa a somar coisas que não se somam.
+ */
+export const semanaDeAnalise = (projetos: Project[]): { texto: string; divergente: boolean } => {
+  const semanas = [...new Set(projetos.map((p) => semanaDaAnalise(p.info)).filter(Boolean))];
+  return {
+    texto: semanas.join(' · '),
+    divergente: semanas.length > 1,
+  };
 };
 
 // ─── 3. ONDE ESTÁ O PROBLEMA — matriz de variação ───────────────────────

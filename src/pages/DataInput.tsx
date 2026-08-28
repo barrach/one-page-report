@@ -21,7 +21,7 @@ import EapFinanceiraInput from '@/components/EapFinanceiraInput';
 import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
 import { useAuth, type AppRole } from '@/context/AuthContext';
 import { visaoMensal } from '@/lib/visaoMensal';
-import { formatISOLocal, parseWeekLabel } from '@/lib/dateUtils';
+import { formatISOLocal, parseWeekLabel, semanaDaAnalise } from '@/lib/dateUtils';
 
 const MONTHS_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const formatDDmmm = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${MONTHS_PT[d.getMonth()]}`;
@@ -105,6 +105,8 @@ const INFO_FIELDS: {
   label: string;
   key: keyof ProjectInfo;
   type: 'text' | 'date' | 'number';
+  /** Calculado a partir de outro campo: aparece na tela, mas não se digita. */
+  automatico?: boolean;
   papeis?: AppRole[];
 }[] = [
   { label: 'Projeto', key: 'projeto', type: 'text' },
@@ -119,7 +121,7 @@ const INFO_FIELDS: {
   { label: 'Avanço Prev. (%)', key: 'avancoPrev', type: 'number' },
   { label: 'Avanço Real (%)', key: 'avancoReal', type: 'number' },
   { label: 'Atualizado em', key: 'atualizadoEm', type: 'date' },
-  { label: 'Semana de análise', key: 'semanaAnalise', type: 'text' },
+  { label: 'Semana de análise', key: 'semanaAnalise', type: 'text', automatico: true },
 ];
 
 const camposVisiveis = (papel: AppRole | null) =>
@@ -154,7 +156,9 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
     const patch: Partial<ProjectInfo> = {};
     // Só os campos que a pessoa enxerga entram no patch: incluir os escondidos
     // faria quem não vê o custo gravá-lo de volta com o valor do próprio draft.
-    campos.forEach(f => { (patch as Record<string, unknown>)[f.key] = draft[f.key]; });
+    // Campo automático não entra: ele é calculado na leitura, e regravá-lo
+    // deixaria um valor velho no banco esperando para contradizer o cálculo.
+    campos.filter(f => !f.automatico).forEach(f => { (patch as Record<string, unknown>)[f.key] = draft[f.key]; });
     patch.infoSavedAt = new Date().toISOString();
     setInfo(patch);
   };
@@ -165,11 +169,22 @@ const ProjectInfoEditor = ({ info, setInfo }: { info: ProjectInfo; setInfo: (pat
         {campos.map((field) => (
           <div key={field.key}>
             <label className="text-sm font-medium text-muted-foreground mb-1 block">{field.label}</label>
-            <Input
-              type={field.type}
-              value={(draft as Record<string, unknown>)[field.key] as string | number}
-              onChange={(e) => onField(field.key, field.type, e.target.value)}
-            />
+            {field.automatico ? (
+              <>
+                {/* Somente leitura: o valor é a data de status dita de outro
+                    jeito, e digitável ele podia contradizê-la no cabeçalho. */}
+                <Input readOnly value={semanaDaAnalise(draft) || '—'} className="bg-muted/50 cursor-default" />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Calculada a partir de <strong>Atualizado em</strong>.
+                </p>
+              </>
+            ) : (
+              <Input
+                type={field.type}
+                value={(draft as Record<string, unknown>)[field.key] as string | number}
+                onChange={(e) => onField(field.key, field.type, e.target.value)}
+              />
+            )}
           </div>
         ))}
       </div>

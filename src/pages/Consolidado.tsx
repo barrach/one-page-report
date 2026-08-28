@@ -12,11 +12,11 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDateBR } from '@/lib/dateUtils';
-import { fmtDinheiro } from '@/lib/eapFinanceira';
+import { fmtDinheiro, fmtDinheiroCurto } from '@/lib/eapFinanceira';
 import { consolidarObras, ROTULO_STATUS, type StatusObra } from '@/lib/consolidado';
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
-  prioridades, riscoDasObras, tendenciaDePrazo,
+  prioridades, riscoDasObras, tendenciaDePrazo, cascataDaMedicao, semanaDeAnalise,
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
@@ -118,19 +118,31 @@ const ESTILO_TOOLTIP = {
   fontSize: 12,
 };
 
-/** Tooltip da contribuição: mostra também o peso, que explica o tamanho da barra. */
+/**
+ * Tooltip da cascata.
+ *
+ * Conteúdo próprio porque a barra-base é só um espaçador: o tooltip padrão a
+ * listaria como se fosse um valor, e o degrau apareceria duas vezes.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TooltipContribuicao = ({ active, payload }: any) => {
+const TooltipCascata = ({ active, payload }: any) => {
   const ponto = active ? payload?.[0]?.payload : null;
   if (!ponto) return null;
 
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs card-shadow">
       <div className="font-semibold text-foreground">{ponto.nome}</div>
-      <div className="text-muted-foreground">Contribuição {pp(ponto.contribuicao)}</div>
-      <div className="text-muted-foreground">
-        Peso no cliente: {ponto.peso.toFixed(1).replace('.', ',')}%
-      </div>
+      {ponto.tipo === 'total' ? (
+        <div className="text-muted-foreground">{fmtDinheiro(ponto.delta)}</div>
+      ) : (
+        <>
+          <div className="text-muted-foreground">Previsto {fmtDinheiro(ponto.previsto)}</div>
+          <div className="text-muted-foreground">Realizado {fmtDinheiro(ponto.realizado)}</div>
+          <div className={ponto.delta < 0 ? 'text-destructive font-semibold' : 'text-success font-semibold'}>
+            {ponto.delta > 0 ? '+' : ''}{fmtDinheiro(ponto.delta)}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -166,6 +178,8 @@ const Consolidado = () => {
       pesos,
       ponte: pontePorObra(dados.obras, dados.ponderacao),
       matriz: matrizDeVariacao(dados.obras, abertas),
+      medicao: cascataDaMedicao(dados.obras),
+      semana: semanaDeAnalise(doCliente),
       prazo: tendenciaDePrazo(doCliente, pesos, status),
       entregaPrazo: entregaNoPrazo(dados.obras),
       riscos,
@@ -214,20 +228,51 @@ const Consolidado = () => {
   }), [dados, analise, clienteAtivo]);
 
   /**
-   * A contribuição de cada obra, em barras divergentes a partir do zero.
+   * A cascata da medição do mês, em barras flutuantes.
    *
-   * A primeira versão era uma ponte de barras flutuantes, como a do modelo
-   * financeiro. Não serviu: numa carteira o degrau de cada obra é de poucos
-   * pontos percentuais contra totais de 40 a 80, então as barras dos totais
-   * ocupavam o gráfico inteiro e o assunto — quanto cada obra puxa — virava um
-   * risco de dois pixels. Aqui o zero é o centro, e a barra É a contribuição.
+   * Do previsto do mês ao realizado, com uma parcela por obra. Aqui a cascata
+   * funciona e na do avanço não funcionava: lá o total era um NÍVEL (78%) e os
+   * degraus eram diferenças de dois pontos — grandezas incomparáveis. Em
+   * dinheiro os dois são a mesma grandeza, e o degrau tem tamanho comparável ao
+   * do total.
    */
-  const contribuicoes = useMemo(() => {
-    if (analise.ponte.length === 0) return null;
-    const maior = Math.max(...analise.ponte.map((c) => Math.abs(c.contribuicao)), 1);
-    // Folga de 25% para o rótulo não encostar na borda.
-    return { itens: analise.ponte, limite: Math.ceil(maior * 1.25) };
-  }, [analise.ponte]);
+  const cascata = useMemo(() => {
+    const c = analise.medicao;
+    if (!c) return null;
+
+    let acum = c.previstoTotal;
+    const passos = c.passos.map((p) => {
+      const fim = acum + p.delta;
+      const barra = {
+        nome: p.nome,
+        de: Math.min(acum, fim),
+        tamanho: Math.abs(p.delta),
+        delta: p.delta,
+        previsto: p.previsto,
+        realizado: p.realizado,
+        tipo: 'obra' as const,
+      };
+      acum = fim;
+      return barra;
+    });
+
+    const topo = Math.max(c.previstoTotal, c.realizadoTotal, acum) * 1.15 || 1;
+
+    return {
+      topo,
+      barras: [
+        {
+          nome: 'Previsto do mês', de: 0, tamanho: c.previstoTotal, delta: c.previstoTotal,
+          previsto: c.previstoTotal, realizado: 0, tipo: 'total' as const,
+        },
+        ...passos,
+        {
+          nome: 'Realizado', de: 0, tamanho: c.realizadoTotal, delta: c.realizadoTotal,
+          previsto: 0, realizado: c.realizadoTotal, tipo: 'total' as const,
+        },
+      ],
+    };
+  }, [analise.medicao]);
 
   /** Quem está sem valor — é por elas que a ponderação por contrato não liga. */
   const semValor = useMemo(
@@ -396,60 +441,91 @@ const Consolidado = () => {
 
             <div className="grid gap-4 lg:grid-cols-2">
               {/* ── 2. POR QUÊ ───────────────────────────────────────── */}
-              <Bloco n={2} pergunta="Por quê?" ferramenta="Quanto cada obra puxa o desvio do cliente">
-                {!contribuicoes ? (
-                  <Vazio>Sem avanço lançado para explicar o desvio.</Vazio>
+              <Bloco
+                n={2}
+                pergunta="Por quê?"
+                ferramenta="Cascata da medição do mês: previsto → realizado, obra a obra"
+                aside={analise.semana.texto ? (
+                  <span className={cn(
+                    'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap',
+                    analise.semana.divergente
+                      ? 'border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                      : 'border-border bg-muted/40 text-muted-foreground',
+                  )}>
+                    {analise.semana.texto}
+                  </span>
+                ) : undefined}
+              >
+                {!cascata ? (
+                  <Vazio>
+                    Nenhuma obra deste cliente tem previsto ou realizado do mês lançado na EAP
+                    financeira.
+                  </Vazio>
                 ) : (
                   <>
-                    {/* O caminho em uma linha: os totais são contexto, não o
-                        assunto — por isso texto, e não barra concorrendo. */}
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Previsto <strong className="text-foreground">{pct(dados.avancoPrev)}</strong>
-                      {' → '}real <strong className="text-foreground">{pct(dados.avancoReal)}</strong>
-                      {' · desvio '}
-                      <strong className={corDesvio}>{pp(dados.desvio)}</strong>
-                    </p>
+                    {/* Obras em semanas diferentes não se somam: o consolidado
+                        estaria juntando medições de momentos distintos. */}
+                    {analise.semana.divergente && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400 border-l-2 border-amber-500 pl-3 mb-2">
+                        As obras deste cliente estão em <strong>semanas de análise diferentes</strong>.
+                        O total abaixo soma medições de momentos distintos — acerte a data de
+                        <strong> Atualizado em</strong> das obras antes de usar este número.
+                      </p>
+                    )}
 
-                    <div style={{ height: Math.max(150, contribuicoes.itens.length * 46) }}>
+                    <div className="h-[280px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={contribuicoes.itens}
-                          layout="vertical"
-                          margin={{ top: 4, right: 12, left: 8, bottom: 4 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                        <BarChart data={cascata.barras} margin={{ top: 20, right: 8, left: 4, bottom: 4 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
-                            type="number"
-                            domain={[-contribuicoes.limite, contribuicoes.limite]}
-                            tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
-                            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}`}
+                            dataKey="nome" tick={{ fontSize: 10 }} interval={0}
+                            angle={-25} textAnchor="end" height={64}
+                            stroke="hsl(var(--muted-foreground))"
                           />
                           <YAxis
-                            type="category" dataKey="nome" width={92}
-                            tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))"
+                            domain={[0, cascata.topo]} tick={{ fontSize: 10 }}
+                            tickFormatter={fmtDinheiroCurto}
+                            stroke="hsl(var(--muted-foreground))" width={72}
                           />
-                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipContribuicao} />
-                          {/* O zero é o centro: à esquerda a obra tira do cliente,
-                              à direita ela devolve. */}
-                          <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" />
-                          <Bar dataKey="contribuicao" radius={3} barSize={22}>
+                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipCascata} />
+                          {/* Base transparente: é ela que faz o degrau flutuar
+                              na altura em que a obra pega a cascata. */}
+                          <Bar dataKey="de" stackId="c" fill="transparent" isAnimationActive={false} />
+                          <Bar dataKey="tamanho" stackId="c" radius={[3, 3, 0, 0]}>
                             <LabelList
-                              dataKey="contribuicao" fontSize={11}
-                              position="right"
-                              formatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} p.p.`}
+                              dataKey="delta" position="top" fontSize={10}
+                              formatter={(v: number) => fmtDinheiroCurto(v)}
                             />
-                            {contribuicoes.itens.map((c) => (
-                              <Cell key={c.id} fill={c.contribuicao < 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom} />
+                            {cascata.barras.map((b, i) => (
+                              <Cell
+                                key={i}
+                                fill={b.tipo === 'total' ? COR_GRAFICO.neutro
+                                  : b.delta < 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom}
+                              />
                             ))}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+
+                    <p className={cn(
+                      'text-xs mt-1 px-3 py-2 rounded-lg border',
+                      analise.medicao!.realizadoTotal < analise.medicao!.previstoTotal
+                        ? 'border-destructive/40 bg-destructive/5 text-foreground'
+                        : 'border-success/40 bg-success/5 text-foreground',
+                    )}>
+                      Previsto <strong>{fmtDinheiro(analise.medicao!.previstoTotal)}</strong> para o mês,
+                      medido <strong>{fmtDinheiro(analise.medicao!.realizadoTotal)}</strong> até{' '}
+                      {analise.semana.texto ? <strong>{analise.semana.texto}</strong> : 'a data de status'}
+                      {' — '}
+                      <strong>
+                        {fmtDinheiro(analise.medicao!.realizadoTotal - analise.medicao!.previstoTotal)}
+                      </strong>.
+                    </p>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      As barras somam exatamente o desvio ({pp(dados.desvio)}): cada obra entra com o
-                      seu atraso multiplicado pelo peso dela no cliente
-                      {dados.ponderacao === 'contrato' ? ' (valor de contrato)' : ' (peso igual)'}.
-                      É isso que impede uma obra pequena e muito atrasada de parecer o problema.
+                      Cada degrau é uma obra: o quanto ela tirou ou devolveu à medição do mês. As
+                      parcelas fecham a conta — previsto + degraus = realizado. O realizado é o
+                      acumulado do mês somando as obras; o previsto vem do valor de cada uma.
                     </p>
                   </>
                 )}

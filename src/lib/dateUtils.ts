@@ -235,3 +235,15 @@ export const formatISOLocal = (d: Date): string =>
  */
 export const anoDeReferencia = (atualizadoEm?: string): number =>
   parseISOLocal(atualizadoEm ?? '')?.getFullYear() ?? new Date().getFullYear();
+
+/**
+ * A semana de análise da obra.
+ *
+ * Sai da data de "Atualizado em" — é a mesma coisa dita de outro jeito, e
+ * deixá-la digitável criava a chance de o cabeçalho anunciar SEM 30 num
+ * relatório com data de status na SEM 32. O valor antigo, digitado à mão,
+ * ainda serve de reserva para obra sem data de status.
+ */
+export const semanaDaAnalise = (
+  info?: { atualizadoEm?: string; semanaAnalise?: string } | null,
+): string => semanaISO(info?.atualizadoEm ?? '') || String(info?.semanaAnalise ?? '').trim();
