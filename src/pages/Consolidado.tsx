@@ -98,16 +98,18 @@ const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
  * relatório, para a tela caber no assunto da hora.
  */
 const Bloco = ({
-  n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenomear,
+  n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenomear, aoRenumerar,
   posicao, arrumar, children, aside,
 }: {
-  n: number;
+  /** O número mostrado no selo — texto, porque é editável. */
+  n: string;
   titulo: string;
   ferramenta: string;
   aberto: boolean;
   aoAlternar: () => void;
   podeEditar: boolean;
   aoRenomear: (texto: string) => void;
+  aoRenumerar: (numero: string) => void;
   /** Onde ele fica na grade — vem da arrumação. */
   posicao: PosicaoBloco;
   /** Controles de arrumação; ausente fora do modo de arrumar. */
@@ -117,11 +119,19 @@ const Bloco = ({
 }) => {
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState(titulo);
+  const [editandoN, setEditandoN] = useState(false);
+  const [rascunhoN, setRascunhoN] = useState(n);
 
   const salvar = () => {
     const limpo = rascunho.trim();
     if (limpo) aoRenomear(limpo);
     setEditando(false);
+  };
+
+  const salvarNumero = () => {
+    const limpo = rascunhoN.trim();
+    if (limpo) aoRenumerar(limpo);
+    setEditandoN(false);
   };
 
   /**
@@ -147,7 +157,10 @@ const Bloco = ({
       className={cn(
         'rounded-xl border border-border bg-card card-shadow p-4 min-w-0 flex flex-col',
         posicao.inteira && 'lg:col-span-2',
-        posicao.oculto && 'hidden',
+        // Oculto some da tela — MENOS no modo arrumar, onde ele aparece
+        // esmaecido. Escondê-lo ali também tirava o único caminho de volta:
+        // ocultar viraria uma exclusão sem desfazer.
+        posicao.oculto && (arrumar ? 'opacity-40' : 'hidden'),
         arrumar && 'ring-2 ring-primary/40',
       )}
     >
@@ -163,9 +176,34 @@ const Bloco = ({
           >
             <ChevronRight className={cn('h-4 w-4 transition-transform', aberto && 'rotate-90')} />
           </button>
-          <span className="shrink-0 h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-            {n}
-          </span>
+          {/* O número também se edita: arrumar os blocos faz a numeração
+              deixar de seguir a leitura, e um roteiro 1, 5, 2, 3 vira ruído
+              justamente onde ele deveria guiar a reunião. */}
+          {editandoN ? (
+            <input
+              autoFocus
+              value={rascunhoN}
+              onChange={(e) => setRascunhoN(e.target.value.slice(0, 3))}
+              onBlur={salvarNumero}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') salvarNumero();
+                if (e.key === 'Escape') { setRascunhoN(n); setEditandoN(false); }
+              }}
+              className="shrink-0 h-6 w-9 rounded-full bg-background text-center text-xs font-bold outline-none ring-1 ring-primary/50"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => { if (podeEditar) { setRascunhoN(n); setEditandoN(true); } }}
+              title={podeEditar ? 'Renumerar' : undefined}
+              className={cn(
+                'shrink-0 h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center',
+                podeEditar && 'hover:ring-2 hover:ring-primary/40',
+              )}
+            >
+              {n}
+            </button>
+          )}
 
           {editando ? (
             <input
@@ -374,7 +412,7 @@ const TooltipResultado = ({ active, payload }: any) => {
 };
 
 const Consolidado = () => {
-  const { projects, selectProject, acessoRestrito, setInfoDoProjeto, setTituloConsolidado } = useProjectStore();
+  const { projects, selectProject, acessoRestrito, setInfoDoProjeto, setTituloConsolidado, setNumeroConsolidado } = useProjectStore();
   const { canEdit, isAdmin } = useAuth();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -608,6 +646,7 @@ const Consolidado = () => {
    * trocar de cliente no seletor.
    */
   const titulos = projects.find((p) => p.titulosConsolidado)?.titulosConsolidado ?? {};
+  const numeros = projects.find((p) => p.numerosConsolidado)?.numerosConsolidado ?? {};
   const tituloDoBloco = (n: number, padrao: string) => titulos[`b${n}`]?.trim() || padrao;
 
   const mexerNoLayout = (novo: ItemLayoutRelatorio[]) => setLayoutConsolidado(novo);
@@ -621,6 +660,8 @@ const Consolidado = () => {
       aoAlternar: () => alternarSecao(n),
       podeEditar: canEdit,
       aoRenomear: (texto: string) => setTituloConsolidado(id, texto),
+      n: numeros[id]?.trim() || String(n),
+      aoRenumerar: (numero: string) => setNumeroConsolidado(id, numero),
       posicao: pos,
       arrumar: arrumando ? (
         <div className="flex items-center gap-1 flex-wrap mb-2 pb-2 border-b border-border">
@@ -863,7 +904,7 @@ const Consolidado = () => {
             <div className="grid gap-4 lg:grid-cols-2 items-start">
             {/* ── 1. O QUE ACONTECEU ─────────────────────────────────── */}
             <Bloco
-              n={1}
+
               titulo={tituloDoBloco(1, "O que aconteceu?")}
               ferramenta={foco
                 ? `Analisando ${nomeFocado} — clique de novo na linha para voltar ao cliente`
@@ -981,7 +1022,7 @@ const Consolidado = () => {
             <>
               {/* ── 2. POR QUÊ ───────────────────────────────────────── */}
               <Bloco
-                n={2}
+
                 titulo={tituloDoBloco(2, "Por quê?")}
                 ferramenta="Cascata da medição do mês: previsto → realizado, obra a obra"
                 {...cabecalho(2)}
@@ -1069,7 +1110,7 @@ const Consolidado = () => {
 
               {/* ── 3. ONDE ESTÁ O PROBLEMA ──────────────────────────── */}
               <Bloco
-                n={3}
+
                 titulo={tituloDoBloco(3, "Onde está o problema?")}
                 ferramenta="Semana a semana — clique para abrir o que não fechou"
                 {...cabecalho(3)}
@@ -1201,7 +1242,7 @@ const Consolidado = () => {
             <>
               {/* ── 4. TENDÊNCIA DE PRAZO ────────────────────────────── */}
               <Bloco
-                n={4}
+
                 titulo={tituloDoBloco(4, "Qual a tendência do prazo?")}
                 ferramenta="Término da linha de base × término projetado, mês a mês"
                 {...cabecalho(4)}
@@ -1281,7 +1322,7 @@ const Consolidado = () => {
 
               {/* ── 5. QUANTO VAI SOBRAR ─────────────────────────────── */}
               <Bloco
-                n={5}
+
                 titulo={tituloDoBloco(5, "Quanto vai sobrar?")}
                 ferramenta="Contrato − impostos − custo = resultado líquido projetado"
                 {...cabecalho(5)}
@@ -1426,7 +1467,7 @@ const Consolidado = () => {
             <>
               {/* ── 6. QUAL O RISCO ──────────────────────────────────── */}
               <Bloco
-                n={6}
+
                 titulo={tituloDoBloco(6, "Qual o risco?")}
                 ferramenta="Impacto × probabilidade, por obra"
                 {...cabecalho(6)}
@@ -1495,7 +1536,7 @@ const Consolidado = () => {
 
               {/* ── 7. O QUE DEVEMOS FAZER ───────────────────────────── */}
               <Bloco
-                n={7}
+
                 titulo={tituloDoBloco(7, "O que devemos fazer?")}
                 ferramenta="Prioridades da semana, do maior risco para baixo"
                 {...cabecalho(7)}

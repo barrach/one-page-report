@@ -279,6 +279,8 @@ export interface Project {
   riscoConsolidado?: RiscoConsolidado;
   /** Títulos das perguntas do consolidado, quando renomeadas. Iguais para todos. */
   titulosConsolidado?: Record<string, string>;
+  /** Numeração das perguntas, quando renumeradas. Iguais para todas as obras. */
+  numerosConsolidado?: Record<string, string>;
   /** Motivos do desvio do mês, anotados à mão no consolidado. */
   motivosDesvio?: MotivoDesvio[];
   /** @deprecated campo único anterior — a lista acima o absorve na leitura. */
@@ -453,6 +455,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
     motivosDesvio: (d.motivosDesvio as MotivoDesvio[]) ?? undefined,
     titulosConsolidado: (d.titulosConsolidado as Record<string, string>) ?? undefined,
+    numerosConsolidado: (d.numerosConsolidado as Record<string, string>) ?? undefined,
   };
 };
 
@@ -486,6 +489,7 @@ const projectToDb = (p: Project): any => ({
     notaProblemas: p.notaProblemas || null,
     motivosDesvio: p.motivosDesvio || null,
     titulosConsolidado: p.titulosConsolidado || null,
+    numerosConsolidado: p.numerosConsolidado || null,
   },
 });
 
@@ -560,6 +564,8 @@ interface ProjectStoreState {
   setActionsDoProjeto: (projectId: string, actions: ActionItem[]) => void;
   /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
   setTituloConsolidado: (chave: string, texto: string) => void;
+  /** Renumera uma pergunta do consolidado — vale para todas as obras. */
+  setNumeroConsolidado: (chave: string, numero: string) => void;
   /** Anota num card do relatório, carimbando a data. */
   addObservacaoCard: (card: string, texto: string, autor?: string) => void;
   removeObservacaoCard: (card: string, id: string) => void;
@@ -967,6 +973,22 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     const updated = s.projects.map((p) => (p.id === projectId ? { ...p, actions } : p));
     const alvo = updated.find((p) => p.id === projectId);
     if (alvo) debouncedSave(alvo);
+    return { projects: updated };
+  }),
+
+  /**
+   * Renumera uma pergunta do consolidado.
+   *
+   * Existe porque a numeração deixa de bater com a leitura assim que alguém
+   * arruma os blocos: o roteiro passa a ser 1, 5, 2, 3 e a sequência que devia
+   * guiar a reunião vira ruído. Como o layout, vale para todas as obras.
+   */
+  setNumeroConsolidado: (chave, numero) => set((s) => {
+    const updated = s.projects.map((p) => ({
+      ...p,
+      numerosConsolidado: { ...(p.numerosConsolidado ?? {}), [chave]: numero },
+    }));
+    updated.forEach((p) => debouncedSave(p));
     return { projects: updated };
   }),
 
