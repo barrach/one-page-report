@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Building2, TrendingDown, TrendingUp, Minus, ArrowRight, ArrowDown, AlertTriangle,
+  Building2, TrendingDown, TrendingUp, Minus, ArrowRight, ArrowDown, AlertTriangle, X,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
@@ -163,7 +163,30 @@ const Consolidado = () => {
     [projects, clienteAtivo],
   );
 
-  const dados = useMemo(() => consolidarObras(doCliente), [doCliente]);
+  /**
+   * Foco numa obra.
+   *
+   * Clicar numa linha da tabela recorta a página inteira para aquela obra: as
+   * sete perguntas passam a ser sobre ela. É a mesma leitura, um nível abaixo —
+   * e evita ter que sair do consolidado, abrir o relatório da obra e perder o
+   * fio da conversa só para responder "e o SPCI, por quê?".
+   */
+  const [obraFocada, setObraFocada] = useState<string | null>(null);
+  // Trocar de cliente limpa o foco: a obra selecionada não existe no outro.
+  const foco = obraFocada && doCliente.some((p) => p.id === obraFocada) ? obraFocada : null;
+
+  const emAnalise = useMemo(
+    () => (foco ? doCliente.filter((p) => p.id === foco) : doCliente),
+    [doCliente, foco],
+  );
+
+  /** O cliente inteiro — é o que a tabela do item 1 lista, com foco ou sem. */
+  const dadosCliente = useMemo(() => consolidarObras(doCliente), [doCliente]);
+  const dados = useMemo(
+    () => (foco ? consolidarObras(emAnalise) : dadosCliente),
+    [foco, emAnalise, dadosCliente],
+  );
+  const nomeFocado = foco ? dadosCliente.obras.find((o) => o.id === foco)?.nome ?? '' : '';
 
   const analise = useMemo(() => {
     const pesos = pesosDasObras(dados.obras, dados.ponderacao);
@@ -172,22 +195,22 @@ const Consolidado = () => {
     const status = dados.obras.map((o) => o.atualizadoEm).filter(Boolean).sort().pop() ?? '';
     const riscos = riscoDasObras(dados.obras, dados.ponderacao);
 
-    const abertas = acoesAbertas(doCliente);
+    const abertas = acoesAbertas(emAnalise);
 
     return {
       pesos,
       ponte: pontePorObra(dados.obras, dados.ponderacao),
       matriz: matrizDeVariacao(dados.obras, abertas),
       medicao: cascataDaMedicao(dados.obras),
-      semana: semanaDeAnalise(doCliente),
-      prazo: tendenciaDePrazo(doCliente, pesos, status),
+      semana: semanaDeAnalise(emAnalise),
+      prazo: tendenciaDePrazo(emAnalise, pesos, status),
       entregaPrazo: entregaNoPrazo(dados.obras),
       riscos,
-      acoes: prioridades(riscos, doCliente, dados.obras),
+      acoes: prioridades(riscos, emAnalise, dados.obras),
       abertas,
       status,
     };
-  }, [dados, doCliente]);
+  }, [dados, emAnalise]);
 
   /** A análise vale para o cliente: fica em todas as obras dele, e a mais recente manda. */
   const riscoSalvo = useMemo(() => {
@@ -204,28 +227,31 @@ const Consolidado = () => {
    * São os números que já estão na tela — nada de mandar o projeto inteiro:
    * quanto mais contexto irrelevante, mais o modelo inventa. E o prompt do
    * lado do servidor proíbe usar qualquer coisa fora daqui.
+   *
+   * Sempre o CLIENTE inteiro, mesmo com foco numa obra: a análise é gravada
+   * como a do cliente, e gerá-la olhando uma obra só produziria um texto sobre
+   * o SPCI salvo como se fosse o diagnóstico da UNIPAR.
    */
   const dadosParaIa = useMemo(() => ({
     data: {
-      obras: dados.obras.map((o) => ({
+      obras: dadosCliente.obras.map((o) => ({
         nome: o.nome, prev: o.avancoPrev, real: o.avancoReal, desvio: o.desvio,
         idp: o.idp, diasAlemDaLB: o.desvioDias, contrato: o.valorContrato,
-        acoesAbertas: analise.abertas[o.id] ?? 0,
+        previstoMes: o.previstoMes, realizadoMes: o.realizadoMes,
       })),
-      ponte: analise.ponte,
-      riscos: analise.riscos,
-      prazo: analise.prazo,
-      entrega: analise.entregaPrazo,
-      acoes: analise.acoes,
+      ponte: pontePorObra(dadosCliente.obras, dadosCliente.ponderacao),
+      riscos: riscoDasObras(dadosCliente.obras, dadosCliente.ponderacao),
+      entrega: entregaNoPrazo(dadosCliente.obras),
+      acoesAbertas: acoesAbertas(doCliente),
     },
     projectInfo: {
       cliente: clienteAtivo,
       atualizadoEm: analise.status,
-      avancoPrev: dados.avancoPrev,
-      avancoReal: dados.avancoReal,
-      ponderacao: dados.ponderacao,
+      avancoPrev: dadosCliente.avancoPrev,
+      avancoReal: dadosCliente.avancoReal,
+      ponderacao: dadosCliente.ponderacao,
     },
-  }), [dados, analise, clienteAtivo]);
+  }), [dadosCliente, doCliente, analise.status, clienteAtivo]);
 
   /**
    * A cascata da medição do mês, em barras flutuantes.
@@ -300,11 +326,25 @@ const Consolidado = () => {
               One Page Consolidado
             </h1>
             <p className="text-xs text-muted-foreground">
-              Resultado → Driver → Risco → Ação · todas as obras do cliente numa leitura só
+              Resultado → Driver → Risco → Ação ·{' '}
+              {foco ? 'recortado numa obra' : 'todas as obras do cliente numa leitura só'}
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+            {/* Com foco ativo, o escopo precisa estar visível o tempo todo: um
+                número recortado lido como se fosse o do cliente é o erro mais
+                caro que esta tela pode causar. */}
+            {foco && (
+              <button
+                onClick={() => setObraFocada(null)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                title="Voltar ao cliente inteiro"
+              >
+                Só {nomeFocado}
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
             <Building2 className="h-4 w-4 text-muted-foreground" />
             <Select value={clienteAtivo} onValueChange={setCliente}>
               <SelectTrigger className="h-9 min-w-[180px] max-w-[280px]">
@@ -335,33 +375,17 @@ const Consolidado = () => {
         ) : (
           <>
             {/* ── 1. O QUE ACONTECEU ─────────────────────────────────── */}
-            <Bloco n={1} pergunta="O que aconteceu?" ferramenta="Indicadores do cliente">
-              <div className={cn('grid gap-3 grid-cols-2', canEdit ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
-                <Kpi rotulo="Obras" valor={String(dados.obras.length)} detalhe={clienteAtivo} />
-                <Kpi rotulo="Avanço previsto" valor={pct(dados.avancoPrev)} />
-                <Kpi
-                  rotulo="Avanço real"
-                  valor={pct(dados.avancoReal)}
-                  detalhe={dados.ponderacao === 'contrato'
-                    ? 'ponderado pelo valor de contrato'
-                    : 'média simples entre as obras'}
-                />
-                <Kpi rotulo="Desvio" valor={pct(dados.desvio)} cor={corDesvio} />
-                {/* Valor de contrato é do mesmo trio que vê o card Financeiro. */}
-                {canEdit && (
-                  <Kpi
-                    rotulo="Contratado"
-                    valor={fmtDinheiro(dados.valorContrato)}
-                    detalhe={`${fmtDinheiro(dados.realizadoMes)} medidos no mês`}
-                  />
-                )}
-              </div>
-
-              {/* Com mais de uma obra, o número consolidado sozinho esconde de
-                  onde ele veio: 42% pode ser duas obras a 42 ou uma a 80 e
-                  outra a 4, e essas são reuniões completamente diferentes. */}
-              {dados.obras.length > 1 && (
-                <div className="overflow-x-auto mt-3">
+            <Bloco
+              n={1}
+              pergunta="O que aconteceu?"
+              ferramenta={foco
+                ? `Analisando ${nomeFocado} — clique de novo na linha para voltar ao cliente`
+                : 'Clique numa obra para recortar a página inteira nela'}
+            >
+              {/* Sem cartões de resumo: a linha "Consolidado" ao pé da tabela
+                  traz os mesmos números, e ali eles aparecem ao lado das
+                  parcelas que os formam — que é o que prova a conta. */}
+              <div className="overflow-x-auto">
                   <table className="w-full border-collapse min-w-[52rem]">
                     <thead>
                       <tr className="bg-table-header text-table-header-foreground">
@@ -379,49 +403,85 @@ const Consolidado = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {dados.obras.map((o) => (
-                        <tr key={o.id} className="hover:bg-muted/40 transition-colors">
-                          <td className={cn(td, 'font-medium text-foreground')}>{o.nome}</td>
-                          <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
-                          <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
-                          <td className={cn(
-                            td, 'text-right tabular-nums font-semibold',
-                            o.desvio < 0 ? 'text-destructive' : o.desvio > 0 ? 'text-success' : '',
-                          )}>
-                            {pct(o.desvio)}
-                          </td>
-                          {canEdit && <Dinheiro classe={td} valor={o.valorContrato} />}
-                          {canEdit && <Dinheiro classe={td} valor={o.acumulado} />}
-                          {canEdit && <Dinheiro classe={td} valor={o.previstoMes} />}
-                          {canEdit && (
-                            // Realizado abaixo do previsto no mês é medição que
-                            // não saiu — o número já diz, a cor faz enxergar.
-                            <Dinheiro
-                              classe={cn(
-                                td,
-                                o.previstoMes > 0 && o.realizadoMes < o.previstoMes && 'text-destructive',
-                              )}
-                              valor={o.realizadoMes}
-                            />
+                      {/* A tabela lista SEMPRE o cliente inteiro, mesmo com foco
+                          numa obra — é ela o seletor, e sumir com as outras
+                          linhas tiraria o caminho de volta. */}
+                      {dadosCliente.obras.map((o) => {
+                        const ativa = o.id === foco;
+                        return (
+                          <tr
+                            key={o.id}
+                            onClick={() => setObraFocada(ativa ? null : o.id)}
+                            title={ativa ? 'Voltar ao cliente inteiro' : `Analisar só ${o.nome}`}
+                            className={cn(
+                              'cursor-pointer transition-colors',
+                              ativa ? 'bg-primary/10' : 'hover:bg-muted/40',
+                              // Com foco, as outras obras ficam apagadas: o que
+                              // está na tela abaixo não fala mais delas.
+                              foco && !ativa && 'opacity-45',
+                            )}
+                          >
+                            <td className={cn(td, 'font-medium text-foreground')}>
+                              <span className={cn('inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle', ativa ? 'bg-primary' : 'bg-transparent')} />
+                              {o.nome}
+                            </td>
+                            <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
+                            <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
+                            <td className={cn(
+                              td, 'text-right tabular-nums font-semibold',
+                              o.desvio < 0 ? 'text-destructive' : o.desvio > 0 ? 'text-success' : '',
+                            )}>
+                              {pct(o.desvio)}
+                            </td>
+                            {canEdit && <Dinheiro classe={td} valor={o.valorContrato} />}
+                            {canEdit && <Dinheiro classe={td} valor={o.acumulado} />}
+                            {canEdit && <Dinheiro classe={td} valor={o.previstoMes} />}
+                            {canEdit && (
+                              // Realizado abaixo do previsto no mês é medição que
+                              // não saiu — o número já diz, a cor faz enxergar.
+                              <Dinheiro
+                                classe={cn(
+                                  td,
+                                  o.previstoMes > 0 && o.realizadoMes < o.previstoMes && 'text-destructive',
+                                )}
+                                valor={o.realizadoMes}
+                              />
+                            )}
+                          </tr>
+                        );
+                      })}
+                      {/* O total do CLIENTE, com foco ou sem: é a referência
+                          contra a qual se lê a obra escolhida. */}
+                      {dadosCliente.obras.length > 1 && (
+                        <tr
+                          onClick={() => setObraFocada(null)}
+                          title="Ver o cliente inteiro"
+                          className={cn(
+                            'font-semibold cursor-pointer transition-colors',
+                            foco ? 'bg-muted/40 hover:bg-muted/60' : 'bg-primary/10',
                           )}
+                        >
+                          <td className={cn(td, 'text-foreground')}>
+                            <span className={cn('inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle', foco ? 'bg-transparent' : 'bg-primary')} />
+                            Consolidado
+                          </td>
+                          <td className={cn(td, 'text-right tabular-nums')}>{pct(dadosCliente.avancoPrev)}</td>
+                          <td className={cn(td, 'text-right tabular-nums')}>{pct(dadosCliente.avancoReal)}</td>
+                          <td className={cn(
+                            td, 'text-right tabular-nums',
+                            dadosCliente.desvio < 0 ? 'text-destructive' : dadosCliente.desvio > 0 ? 'text-success' : '',
+                          )}>
+                            {pct(dadosCliente.desvio)}
+                          </td>
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.valorContrato} />}
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.acumulado} />}
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.previstoMes} />}
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />}
                         </tr>
-                      ))}
-                      {/* O total fecha a tabela: é o mesmo número dos cartões
-                          acima, e vê-lo ao pé das parcelas é o que prova a conta. */}
-                      <tr className="bg-muted/40 font-semibold">
-                        <td className={cn(td, 'text-foreground')}>Consolidado</td>
-                        <td className={cn(td, 'text-right tabular-nums')}>{pct(dados.avancoPrev)}</td>
-                        <td className={cn(td, 'text-right tabular-nums')}>{pct(dados.avancoReal)}</td>
-                        <td className={cn(td, 'text-right tabular-nums', corDesvio)}>{pct(dados.desvio)}</td>
-                        {canEdit && <Dinheiro classe={td} valor={dados.valorContrato} />}
-                        {canEdit && <Dinheiro classe={td} valor={dados.acumulado} />}
-                        {canEdit && <Dinheiro classe={td} valor={dados.previstoMes} />}
-                        {canEdit && <Dinheiro classe={td} valor={dados.realizadoMes} />}
-                      </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
-              )}
 
               {/* Aviso de ponderação: a diferença entre os dois métodos muda o
                   número, e quem lê precisa saber qual está vendo. Nomear as
