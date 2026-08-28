@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AppRole } from '@/context/AuthContext';
 
@@ -17,6 +17,13 @@ interface UserRow {
   email: string;
   roles: AppRole[];
   assignments: string[];
+}
+
+/** Resposta das ações que criam ou renovam acesso. */
+interface RespostaAcesso {
+  senha?: string;
+  emailEnviado?: boolean;
+  emailErro?: string | null;
 }
 
 const roleLabels: Record<AppRole, string> = {
@@ -38,6 +45,8 @@ const Admin = () => {
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<AppRole>('visualizador');
   const [creating, setCreating] = useState(false);
+  // Só aparece quando o e-mail não saiu — é a saída de emergência, não a rotina.
+  const [senhaNaTela, setSenhaNaTela] = useState<{ senha: string; motivo: string } | null>(null);
 
   const callAdmin = useCallback(async (body: Record<string, unknown>) => {
     const { data: { session } } = await oprDataClient.auth.getSession();
@@ -68,18 +77,50 @@ const Admin = () => {
     }
   }, [loadUsers]);
 
+  /**
+   * Conta o que aconteceu com o e-mail.
+   *
+   * Quando o envio falha, a senha aparece na tela: sem isso o administrador
+   * fica com um usuário criado e nenhuma forma de dizer a senha a ele.
+   */
+  const avisarEnvio = (r: RespostaAcesso, quandoDeuCerto: string) => {
+    if (r?.emailEnviado) { toast.success(quandoDeuCerto); return; }
+    setSenhaNaTela({ senha: r?.senha ?? '', motivo: r?.emailErro ?? 'Motivo não informado' });
+    toast.warning('Usuário pronto, mas o e-mail não saiu — a senha está na tela.');
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
     try {
-      await callAdmin({ action: 'create-user', email: newEmail, password: newPassword, display_name: newName, role: newRole });
-      toast.success('Usuário criado com sucesso!');
+      const r = await callAdmin({ action: 'create-user', email: newEmail, password: newPassword, display_name: newName, role: newRole });
+      avisarEnvio(r, `Usuário criado. E-mail de boas-vindas enviado para ${newEmail}.`);
       setNewEmail(''); setNewName(''); setNewPassword(''); setNewRole('visualizador');
       loadUsers();
     } catch (err: any) {
       toast.error('Erro: ' + err.message);
     }
     setCreating(false);
+  };
+
+  /**
+   * Reenviar acesso — o que existe no lugar de "ver a senha atual".
+   *
+   * Ninguém consegue ler a senha em uso, nem o administrador: o Supabase guarda
+   * o hash. Quem esqueceu recebe uma NOVA senha provisória por e-mail, e a
+   * anterior deixa de valer nesse instante — por isso a confirmação.
+   */
+  const handleReenviar = async (u: UserRow) => {
+    if (!confirm(
+      `Gerar uma senha nova para ${u.email} e enviar por e-mail?\n\n`
+      + 'A senha atual deixa de funcionar imediatamente.',
+    )) return;
+    try {
+      const r = await callAdmin({ action: 'resend-welcome', user_id: u.user_id });
+      avisarEnvio(r, `Acesso reenviado para ${u.email}.`);
+    } catch (err: any) {
+      toast.error('Erro: ' + err.message);
+    }
   };
 
   const handleRoleChange = async (userId: string, newRole: AppRole) => {
@@ -156,14 +197,15 @@ const Admin = () => {
               onChange={(e) => setNewEmail(e.target.value)}
               required
             />
+            {/* Deixar em branco é o caminho recomendado: a função gera uma
+                provisória forte e ela nunca passa pelas mãos de ninguém aqui. */}
             <Input
               type="password"
               name="novo-usuario-senha"
               autoComplete="new-password"
-              placeholder="Senha"
+              placeholder="Senha (vazio = gerar)"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              required
               minLength={6}
             />
             <Select value={newRole} onValueChange={(v) => setNewRole(v as AppRole)}>
@@ -178,6 +220,30 @@ const Admin = () => {
               <Plus className="h-4 w-4" /> {creating ? 'Criando...' : 'Criar'}
             </Button>
           </form>
+
+          <p className="text-xs text-muted-foreground mt-3">
+            Ao criar, o usuário recebe um e-mail de boas-vindas com o endereço do app, o login
+            e a senha provisória, e o app pede a troca no primeiro acesso.
+          </p>
+
+          {/* Saída de emergência: o e-mail não saiu e o administrador precisa
+              passar a senha por outro canal. Some ao ser fechada — deixar senha
+              parada na tela de quem está numa reunião não ajuda ninguém. */}
+          {senhaNaTela && (
+            <div className="mt-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-foreground">O e-mail não foi enviado.</p>
+                  <p className="text-xs text-muted-foreground break-words">{senhaNaTela.motivo}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Senha provisória — passe por um canal seguro:</p>
+                  <code className="text-base font-bold tracking-wider break-all">{senhaNaTela.senha}</code>
+                </div>
+                <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => setSenhaNaTela(null)}>
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Users list */}
@@ -207,11 +273,18 @@ const Admin = () => {
                           ))}
                         </SelectContent>
                       </Select>
-                      {(
-                        <Button size="sm" variant="destructive" className="h-8" onClick={() => handleDelete(u.user_id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-1.5 text-xs"
+                        onClick={() => handleReenviar(u)}
+                        title="Gera uma senha provisória nova e reenvia o e-mail de acesso"
+                      >
+                        <Mail className="h-3.5 w-3.5" /> Reenviar acesso
+                      </Button>
+                      <Button size="sm" variant="destructive" className="h-8" onClick={() => handleDelete(u.user_id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
                   {/* Project assignments */}

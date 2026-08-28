@@ -40,7 +40,12 @@ const Configuracoes = () => {
 
     setSalvando(true);
     try {
-      const { error } = await oprDataClient.auth.updateUser({ password: senha });
+      // A marca de provisória sai junto com a troca: é esta gravação que faz o
+      // aviso de "senha do e-mail" desaparecer do app.
+      const { error } = await oprDataClient.auth.updateUser({
+        password: senha,
+        data: { senha_provisoria: false },
+      });
       if (error) throw error;
       toast.success('Senha alterada. Ela já vale para o próximo acesso.');
       setSenha('');

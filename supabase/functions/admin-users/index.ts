@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { enviarBoasVindas, senhaProvisoria } from "./email.ts";
+
+const URL_APP_PADRAO = "https://one-page-report-megasteam.vercel.app";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -27,20 +30,79 @@ serve(async (req) => {
 
     const { action, ...params } = await req.json();
 
+    const urlApp = Deno.env.get("APP_URL") ?? URL_APP_PADRAO;
+
     if (action === "create-user") {
       const { email, password, display_name, role } = params;
+      // Senha em branco vira provisória gerada aqui: o administrador não
+      // precisa inventar uma, e ela nasce forte.
+      const senha = String(password || "").trim() || senhaProvisoria();
+
       const { data: newUser, error: createErr } = await supabaseAdmin.auth.admin.createUser({
         email,
-        password,
+        password: senha,
         email_confirm: true,
-        user_metadata: { display_name },
+        // A marca de provisória é o que faz o app pedir a troca no primeiro
+        // acesso; ela é apagada quando a pessoa troca a senha em Configurações.
+        user_metadata: { display_name, senha_provisoria: true },
       });
       if (createErr) return new Response(JSON.stringify({ error: createErr.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
       // Assign role
       await supabaseAdmin.from("user_roles").insert({ user_id: newUser.user.id, role });
 
-      return new Response(JSON.stringify({ user: { id: newUser.user.id, email, display_name, role } }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      // E-mail depois da conta, e o erro dele NÃO derruba a criação: a conta é
+      // o que importa, e a senha volta na resposta para o administrador passar
+      // por outro canal se o envio falhar.
+      const erroEmail = await enviarBoasVindas({
+        para: email, nome: display_name, senha, papel: role, urlApp,
+      });
+
+      return new Response(JSON.stringify({
+        user: { id: newUser.user.id, email, display_name, role },
+        senha,
+        emailEnviado: erroEmail == null,
+        emailErro: erroEmail,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    /**
+     * Reenviar acesso: gera uma senha provisória NOVA e manda o e-mail de novo.
+     *
+     * É o que existe no lugar de "ver a senha atual", que é impossível — o
+     * Supabase guarda hash, não a senha. Quem esqueceu recebe uma nova; ninguém
+     * consegue ler a que estava em uso, nem o administrador.
+     */
+    if (action === "resend-welcome") {
+      const { user_id } = params;
+
+      const { data: alvo, error: buscaErr } = await supabaseAdmin.auth.admin.getUserById(user_id);
+      if (buscaErr || !alvo?.user?.email) {
+        return new Response(JSON.stringify({ error: "Usuário não encontrado" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
+      const senha = senhaProvisoria();
+      const { error: updErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
+        password: senha,
+        user_metadata: { ...(alvo.user.user_metadata ?? {}), senha_provisoria: true },
+      });
+      if (updErr) return new Response(JSON.stringify({ error: updErr.message }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      const { data: papeis } = await supabaseAdmin.from("user_roles").select("role").eq("user_id", user_id);
+
+      const erroEmail = await enviarBoasVindas({
+        para: alvo.user.email,
+        nome: String(alvo.user.user_metadata?.display_name ?? ""),
+        senha,
+        papel: String(papeis?.[0]?.role ?? "visualizador"),
+        urlApp,
+      });
+
+      return new Response(JSON.stringify({
+        senha,
+        emailEnviado: erroEmail == null,
+        emailErro: erroEmail,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "list-users") {

@@ -16,6 +16,7 @@ import ClimaCard from '@/components/ClimaCard';
 import EvidenciasCard from '@/components/EvidenciasCard';
 import FinanceiroCard from '@/components/FinanceiroCard';
 import CardArrumavel from '@/components/CardArrumavel';
+import AvisoSenhaProvisoria from '@/components/AvisoSenhaProvisoria';
 import {
   normalizarLayout, moverCard, reordenarCard, alternarLargura, ajustarAltura, alternarOculto,
   grupoDeCadaCard,
@@ -530,6 +531,9 @@ const Index = () => {
     <div className={`flex bg-background ${tvMode ? 'h-screen overflow-hidden' : presentationMode ? 'min-h-screen overflow-auto' : 'min-h-screen'}`}>
       {!presentationMode && !tvMode && <AppSidebar />}
       <div className="flex-1 min-w-0">
+      {/* Fora da apresentação e da TV: no telão da obra o aviso não tem a quem
+          falar, e atrapalharia a leitura de todo mundo. */}
+      {!presentationMode && !tvMode && <AvisoSenhaProvisoria />}
       {/* Barra superior — só no mobile. No desktop os controles ficam dentro do
           cabeçalho do relatório (ver `reportActions`). */}
       {!presentationMode && !tvMode && (

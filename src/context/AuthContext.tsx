@@ -26,6 +26,14 @@ interface AuthState {
   canEdit: boolean;
   loading: boolean;
   isAdmin: boolean;
+  /**
+   * A senha em uso é a provisória que veio no e-mail de boas-vindas.
+   *
+   * Marcada na criação do usuário e apagada quando ele troca a senha em
+   * Configurações. Enquanto for verdade, o app pede a troca: senha que passou
+   * por e-mail está na caixa de entrada de quem a recebeu, para sempre.
+   */
+  senhaProvisoria: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -84,6 +92,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Enquanto o papel não chegou, ninguém edita: liberar por padrão daria uma
     // janela em que o cliente enxerga os campos abertos.
     canEdit: role != null && PAPEIS_QUE_EDITAM.includes(role),
+    senhaProvisoria: user?.user_metadata?.senha_provisoria === true,
     signOut: async () => {
       setUser(null);
       setRole(null);
