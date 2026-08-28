@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, ArrowRight, AlertTriangle, X, ChevronRight, Pencil,
+  ArrowUp, ArrowDown, ChevronUp, ChevronDown, Expand, Shrink, Eye, EyeOff, LayoutGrid,
   MoreVertical, Presentation, Moon, Sun, Smartphone,
 } from 'lucide-react';
 import {
@@ -15,6 +16,13 @@ import { cn } from '@/lib/utils';
 import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
 import { fmtDinheiro, fmtDinheiroCurto, lerValor } from '@/lib/eapFinanceira';
 import { consolidarObras } from '@/lib/consolidado';
+import {
+  ajustarAltura, alternarLargura, alternarOculto, moverCard, type ItemLayoutRelatorio,
+} from '@/lib/layoutRelatorio';
+import {
+  nomeDoBloco, normalizarLayoutConsolidado, posicoesDoLayout, secaoDeCadaBloco,
+  type PosicaoBloco,
+} from '@/lib/layoutConsolidado';
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
   prioridades, riscoDasObras, cascataDaMedicao, semanaDeAnalise,
@@ -58,6 +66,26 @@ const COR_GRAFICO = {
   neutro: 'hsl(var(--muted-foreground))',
 };
 
+/**
+ * Uma cor por obra nas cascatas.
+ *
+ * Tons distintos e não variações do mesmo azul: numa cascata cada degrau é uma
+ * obra diferente, e com a mesma cor a leitura vira "olhe o rótulo" — que é
+ * exatamente o que a cor deveria dispensar. Ficam fora o azul do previsto, o
+ * verde do bom e o vermelho do ruim, que já significam outra coisa aqui.
+ */
+const CORES_OBRA = [
+  'hsl(262 60% 55%)',  // roxo
+  'hsl(28 90% 55%)',   // laranja
+  'hsl(190 70% 42%)',  // ciano
+  'hsl(330 65% 55%)',  // rosa
+  'hsl(45 85% 47%)',   // âmbar
+  'hsl(160 50% 40%)',  // verde-azulado
+  'hsl(210 15% 45%)',  // cinza-azulado
+];
+
+const corDaObra = (i: number) => CORES_OBRA[i % CORES_OBRA.length];
+
 const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
 
 
@@ -68,7 +96,10 @@ const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
  * de fábrica é um palpite. Recolhe e abre pelo cabeçalho, como as seções do
  * relatório, para a tela caber no assunto da hora.
  */
-const Bloco = ({ n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenomear, children, aside }: {
+const Bloco = ({
+  n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenomear,
+  posicao, arrumar, children, aside,
+}: {
   n: number;
   titulo: string;
   ferramenta: string;
@@ -76,6 +107,10 @@ const Bloco = ({ n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenome
   aoAlternar: () => void;
   podeEditar: boolean;
   aoRenomear: (texto: string) => void;
+  /** Onde ele fica na grade — vem da arrumação. */
+  posicao: PosicaoBloco;
+  /** Controles de arrumação; ausente fora do modo de arrumar. */
+  arrumar?: ReactNode;
   children: ReactNode;
   aside?: ReactNode;
 }) => {
@@ -88,8 +123,34 @@ const Bloco = ({ n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenome
     setEditando(false);
   };
 
+  /**
+   * Duplo clique no card abre e fecha.
+   *
+   * Fora dos elementos que já respondem ao duplo clique por conta própria:
+   * selecionar uma palavra numa tabela ou num texto não pode fechar a seção
+   * inteira embaixo de quem estava lendo.
+   */
+  const aoDuploClique = (e: React.MouseEvent) => {
+    const alvo = e.target as HTMLElement;
+    if (alvo.closest('input, textarea, button, a, select, table, .recharts-wrapper, svg')) return;
+    aoAlternar();
+  };
+
   return (
-    <section className="rounded-xl border border-border bg-card card-shadow p-4 min-w-0">
+    <section
+      onDoubleClick={aoDuploClique}
+      // `order` e `col-span` saem da arrumação: mover um bloco é mudar o CSS,
+      // e não recriar o trecho — recriar remontaria gráficos e perderia a
+      // rolagem das tabelas a cada arrastada.
+      style={{ order: posicao.ordem, minHeight: aberto ? posicao.altura : undefined }}
+      className={cn(
+        'rounded-xl border border-border bg-card card-shadow p-4 min-w-0 flex flex-col',
+        posicao.inteira && 'lg:col-span-2',
+        posicao.oculto && 'hidden',
+        arrumar && 'ring-2 ring-primary/40',
+      )}
+    >
+      {arrumar}
       <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
         <div className="flex items-start gap-2.5 min-w-0 flex-1">
           {/* O chevron abre e fecha; clicar no cabeçalho inteiro também. */}
@@ -152,6 +213,20 @@ const Bloco = ({ n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenome
 
 const Vazio = ({ children }: { children: ReactNode }) => (
   <p className="text-xs text-muted-foreground py-6 text-center">{children}</p>
+);
+
+/** Botão da barra de arrumação — pequeno, para caber seis num bloco estreito. */
+const BotaoArrumar = ({ titulo, onClick, children }: {
+  titulo: string; onClick: () => void; children: ReactNode;
+}) => (
+  <button
+    type="button"
+    title={titulo}
+    onClick={onClick}
+    className="p-1 rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+  >
+    {children}
+  </button>
 );
 
 /**
@@ -299,7 +374,7 @@ const TooltipResultado = ({ active, payload }: any) => {
 
 const Consolidado = () => {
   const { projects, selectProject, acessoRestrito, setInfoDoProjeto, setTituloConsolidado } = useProjectStore();
-  const { canEdit } = useAuth();
+  const { canEdit, isAdmin } = useAuth();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
@@ -439,7 +514,7 @@ const Consolidado = () => {
     if (!c) return null;
 
     let acum = c.previstoTotal;
-    const passos = c.passos.map((p) => {
+    const passos = c.passos.map((p, i) => {
       const fim = acum + p.delta;
       const barra = {
         nome: p.nome,
@@ -449,6 +524,7 @@ const Consolidado = () => {
         previsto: p.previsto,
         realizado: p.realizado,
         tipo: 'obra' as const,
+        cor: corDaObra(i),
       };
       acum = fim;
       return barra;
@@ -462,11 +538,15 @@ const Consolidado = () => {
         {
           nome: 'Previsto do mês', de: 0, tamanho: c.previstoTotal, delta: c.previstoTotal,
           previsto: c.previstoTotal, realizado: 0, tipo: 'total' as const,
+          cor: COR_GRAFICO.previsto,
         },
         ...passos,
         {
           nome: 'Realizado', de: 0, tamanho: c.realizadoTotal, delta: c.realizadoTotal,
           previsto: 0, realizado: c.realizadoTotal, tipo: 'total' as const,
+          // Verde quando a medição alcançou o previsto, vermelho quando ficou
+          // abaixo: é o veredito do mês, e ele não precisa de leitura de eixo.
+          cor: c.realizadoTotal >= c.previstoTotal ? COR_GRAFICO.bom : COR_GRAFICO.ruim,
         },
       ],
     };
@@ -487,9 +567,34 @@ const Consolidado = () => {
     }
   });
 
+  /**
+   * Arrumação dos blocos.
+   *
+   * Vale para todas as obras, como o layout do relatório: o consolidado é a
+   * mesma tela para qualquer cliente, e duas pessoas na mesma reunião não podem
+   * discutir ordens diferentes.
+   */
+  const setLayoutConsolidado = useProjectStore((s) => s.setLayoutConsolidado);
+  const [arrumando, setArrumando] = useState(false);
+  const layout = useMemo(
+    () => normalizarLayoutConsolidado(projects.find((p) => p.layoutConsolidado)?.layoutConsolidado),
+    [projects],
+  );
+  const posicoes = useMemo(() => posicoesDoLayout(layout), [layout]);
+  const secoes = useMemo(() => secaoDeCadaBloco(layout), [layout]);
+
+  /**
+   * Fechar um bloco fecha a SEÇÃO dele — a linha inteira da grade.
+   *
+   * Fechar metade de uma linha deixava a tela torta, com um card sozinho ao
+   * lado de um espaço vazio. A seção sai do layout, e não de uma lista fixa:
+   * arrumar os blocos muda quem divide a linha com quem.
+   */
   const alternarSecao = (n: number) => setSecoesFechadas((atual) => {
+    const secao = (secoes[`b${n}`] ?? [`b${n}`]).map((id) => Number(id.slice(1)));
+    const fechando = !atual.has(n);
     const proximo = new Set(atual);
-    if (proximo.has(n)) proximo.delete(n); else proximo.add(n);
+    secao.forEach((k) => { if (fechando) proximo.add(k); else proximo.delete(k); });
     try { localStorage.setItem('opr_consolidado_fechados', JSON.stringify([...proximo])); } catch { /* quota */ }
     return proximo;
   });
@@ -504,13 +609,51 @@ const Consolidado = () => {
   const titulos = projects.find((p) => p.titulosConsolidado)?.titulosConsolidado ?? {};
   const tituloDoBloco = (n: number, padrao: string) => titulos[`b${n}`]?.trim() || padrao;
 
-  /** As props de cabeçalho que todo bloco recebe igual. */
-  const cabecalho = (n: number) => ({
-    aberto: !secoesFechadas.has(n),
-    aoAlternar: () => alternarSecao(n),
-    podeEditar: canEdit,
-    aoRenomear: (texto: string) => setTituloConsolidado(`b${n}`, texto),
-  });
+  const mexerNoLayout = (novo: ItemLayoutRelatorio[]) => setLayoutConsolidado(novo);
+
+  /** As props de cabeçalho e posição que todo bloco recebe igual. */
+  const cabecalho = (n: number) => {
+    const id = `b${n}`;
+    const pos = posicoes[id] ?? { ordem: n, inteira: false, oculto: false };
+    return {
+      aberto: !secoesFechadas.has(n),
+      aoAlternar: () => alternarSecao(n),
+      podeEditar: canEdit,
+      aoRenomear: (texto: string) => setTituloConsolidado(id, texto),
+      posicao: pos,
+      arrumar: arrumando ? (
+        <div className="flex items-center gap-1 flex-wrap mb-2 pb-2 border-b border-border">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+            {nomeDoBloco(id)}
+          </span>
+          <BotaoArrumar titulo="Subir" onClick={() => mexerNoLayout(moverCard(layout, id, -1))}>
+            <ArrowUp className="h-3.5 w-3.5" />
+          </BotaoArrumar>
+          <BotaoArrumar titulo="Descer" onClick={() => mexerNoLayout(moverCard(layout, id, 1))}>
+            <ArrowDown className="h-3.5 w-3.5" />
+          </BotaoArrumar>
+          <BotaoArrumar
+            titulo={pos.inteira ? 'Meia largura' : 'Largura inteira'}
+            onClick={() => mexerNoLayout(alternarLargura(layout, id))}
+          >
+            {pos.inteira ? <Shrink className="h-3.5 w-3.5" /> : <Expand className="h-3.5 w-3.5" />}
+          </BotaoArrumar>
+          <BotaoArrumar titulo="Menor" onClick={() => mexerNoLayout(ajustarAltura(layout, id, -1))}>
+            <ChevronUp className="h-3.5 w-3.5" />
+          </BotaoArrumar>
+          <BotaoArrumar titulo="Maior" onClick={() => mexerNoLayout(ajustarAltura(layout, id, 1))}>
+            <ChevronDown className="h-3.5 w-3.5" />
+          </BotaoArrumar>
+          <BotaoArrumar
+            titulo={pos.oculto ? 'Mostrar' : 'Ocultar'}
+            onClick={() => mexerNoLayout(alternarOculto(layout, id))}
+          >
+            {pos.oculto ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+          </BotaoArrumar>
+        </div>
+      ) : undefined,
+    };
+  };
 
   /** Semanas abertas no item 3. Fechadas por padrão: aberto tudo, ninguém lê. */
   const [semanasAbertas, setSemanasAbertas] = useState<Set<string>>(new Set());
@@ -587,10 +730,13 @@ const Consolidado = () => {
     return {
       dados: r,
       topo,
+      // Cores distintas por parcela: impostos e custo são dois cortes de
+      // natureza diferente — um é imposição, o outro é decisão de execução — e
+      // pintá-los igual escondia justamente qual dos dois come a margem.
       barras: [
-        { nome: 'Contrato', de: 0, tamanho: r.contrato, delta: r.contrato, tipo: 'total' as const, cor: COR_GRAFICO.neutro },
-        { nome: 'Impostos', de: aposImpostos, tamanho: r.impostos, delta: -r.impostos, tipo: 'corte' as const, cor: COR_GRAFICO.ruim },
-        { nome: 'Custo', de: Math.max(0, r.liquido), tamanho: Math.min(r.custo, aposImpostos), delta: -r.custo, tipo: 'corte' as const, cor: COR_GRAFICO.ruim },
+        { nome: 'Contrato', de: 0, tamanho: r.contrato, delta: r.contrato, tipo: 'total' as const, cor: COR_GRAFICO.previsto },
+        { nome: 'Impostos', de: aposImpostos, tamanho: r.impostos, delta: -r.impostos, tipo: 'corte' as const, cor: corDaObra(4) },
+        { nome: 'Custo', de: Math.max(0, r.liquido), tamanho: Math.min(r.custo, aposImpostos), delta: -r.custo, tipo: 'corte' as const, cor: corDaObra(1) },
         {
           nome: 'Líquido', de: 0, tamanho: Math.max(0, r.liquido), delta: r.liquido, tipo: 'total' as const,
           cor: r.liquido >= 0 ? COR_GRAFICO.bom : COR_GRAFICO.ruim,
@@ -674,6 +820,13 @@ const Consolidado = () => {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+{/* Arrumar é do administrador: o layout vale para todo mundo. */}
+                {isAdmin && (
+                  <DropdownMenuItem onClick={() => setArrumando((v) => !v)}>
+                    <LayoutGrid className="h-4 w-4 mr-2" />
+                    {arrumando ? 'Concluir arrumação' : 'Arrumar consolidado'}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem onClick={alternarApresentacao}>
                   <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
                 </DropdownMenuItem>
@@ -704,6 +857,9 @@ const Consolidado = () => {
           </div>
         ) : (
           <>
+            {/* Uma grade só para os sete blocos: a ordem e a largura de cada um
+                saem da arrumação, via CSS `order` e `col-span`. */}
+            <div className="grid gap-4 lg:grid-cols-2 items-start">
             {/* ── 1. O QUE ACONTECEU ─────────────────────────────────── */}
             <Bloco
               n={1}
@@ -801,35 +957,6 @@ const Consolidado = () => {
                           </tr>
                         );
                       })}
-                      {/* O total do CLIENTE, com foco ou sem: é a referência
-                          contra a qual se lê a obra escolhida. */}
-                      {dadosCliente.obras.length > 1 && (
-                        <tr
-                          onClick={() => setObraFocada(null)}
-                          title="Ver o cliente inteiro"
-                          className={cn(
-                            'font-semibold cursor-pointer transition-colors',
-                            foco ? 'bg-muted/40 hover:bg-muted/60' : 'bg-primary/10',
-                          )}
-                        >
-                          <td className={cn(td, 'text-foreground')}>
-                            <span className={cn('inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle', foco ? 'bg-transparent' : 'bg-primary')} />
-                            Consolidado
-                          </td>
-                          <td className={cn(td, 'text-right tabular-nums')}>{pct(dadosCliente.avancoPrev)}</td>
-                          <td className={cn(td, 'text-right tabular-nums')}>{pct(dadosCliente.avancoReal)}</td>
-                          <td className={cn(
-                            td, 'text-right tabular-nums',
-                            dadosCliente.desvio < 0 ? 'text-destructive' : dadosCliente.desvio > 0 ? 'text-success' : '',
-                          )}>
-                            {pct(dadosCliente.desvio)}
-                          </td>
-                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.valorContrato} />}
-                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.acumulado} />}
-                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.previstoMes} />}
-                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />}
-                        </tr>
-                      )}
                     </tbody>
                   </table>
                 </div>
@@ -850,7 +977,7 @@ const Consolidado = () => {
               )}
             </Bloco>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <>
               {/* ── 2. POR QUÊ ───────────────────────────────────────── */}
               <Bloco
                 n={2}
@@ -909,11 +1036,7 @@ const Consolidado = () => {
                               formatter={(v: number) => fmtDinheiroCurto(v)}
                             />
                             {cascata.barras.map((b, i) => (
-                              <Cell
-                                key={i}
-                                fill={b.tipo === 'total' ? COR_GRAFICO.neutro
-                                  : b.delta < 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom}
-                              />
+                              <Cell key={i} fill={b.cor} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -1072,9 +1195,9 @@ const Consolidado = () => {
                   medir o que executou e deixar ação parada.
                 </p>
               </Bloco>
-            </div>
+            </>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <>
               {/* ── 4. TENDÊNCIA DE PRAZO ────────────────────────────── */}
               <Bloco
                 n={4}
@@ -1244,9 +1367,25 @@ const Consolidado = () => {
                             {resultado.dados.porObra.map((r) => (
                               <tr key={r.id} className={cn(r.incompleto && 'opacity-50')}>
                                 <td className={cn(td, 'font-medium text-foreground')}>{r.nome}</td>
-                                <Dinheiro classe={td} valor={r.contrato} />
-                                <Dinheiro classe={td} valor={r.impostos} />
-                                <Dinheiro classe={td} valor={r.custo} />
+                                <DinheiroEditavel
+                                  classe={td} valor={r.contrato} manual={false} podeEditar={canEdit}
+                                  aoSalvar={(n) => setInfoDoProjeto(r.id, { valorContrato: n })}
+                                />
+                                {/* O imposto é guardado como ALÍQUOTA, não como
+                                    valor: editando em reais, a taxa volta da
+                                    divisão pelo contrato. Sem contrato lançado
+                                    não há como derivar, e o campo não grava. */}
+                                <DinheiroEditavel
+                                  classe={td} valor={r.impostos} manual={false}
+                                  podeEditar={canEdit && r.contrato > 0}
+                                  aoSalvar={(n) => setInfoDoProjeto(r.id, {
+                                    impostoPercentual: r.contrato > 0 ? (n / r.contrato) * 100 : 0,
+                                  })}
+                                />
+                                <DinheiroEditavel
+                                  classe={td} valor={r.custo} manual={false} podeEditar={canEdit}
+                                  aoSalvar={(n) => setInfoDoProjeto(r.id, { custoObra: n })}
+                                />
                                 <td className={cn(
                                   td, 'text-right tabular-nums font-semibold whitespace-nowrap',
                                   r.incompleto ? 'text-muted-foreground' : r.liquido >= 0 ? 'text-success' : 'text-destructive',
@@ -1281,9 +1420,9 @@ const Consolidado = () => {
                   </>
                 )}
               </Bloco>
-            </div>
+            </>
 
-            <div className="grid gap-4 lg:grid-cols-2">
+            <>
               {/* ── 6. QUAL O RISCO ──────────────────────────────────── */}
               <Bloco
                 n={6}
@@ -1403,6 +1542,7 @@ const Consolidado = () => {
                   </ol>
                 )}
               </Bloco>
+            </>
             </div>
 
             {/* Faixa do método — o mesmo roteiro, na ordem em que se lê. */}

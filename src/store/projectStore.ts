@@ -268,6 +268,8 @@ export interface Project {
   aiInsights?: Record<string, string>; // chartType -> insight text
   /** Arrumação dos cards do relatório — do projeto, não de quem olha. */
   layoutRelatorio?: ItemLayoutRelatorio[];
+  /** Arrumação dos blocos do consolidado — igual para todas as obras. */
+  layoutConsolidado?: ItemLayoutRelatorio[];
   /** Anotações de reunião por card do relatório: chave do card → histórico. */
   observacoesCards?: Record<string, ObservacaoCard[]>;
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; schedule?: string; curvaSFinanceira?: string; progSemanal?: string };
@@ -443,6 +445,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     aiInsights: (d.aiInsights as Record<string, string>) ?? {},
     observacoesCards: (d.observacoesCards as Record<string, ObservacaoCard[]>) ?? {},
     layoutRelatorio: (d.layoutRelatorio as ItemLayoutRelatorio[]) ?? undefined,
+    layoutConsolidado: (d.layoutConsolidado as ItemLayoutRelatorio[]) ?? undefined,
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
     programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
     desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
@@ -475,6 +478,7 @@ const projectToDb = (p: Project): any => ({
     aiInsights: p.aiInsights || {},
     observacoesCards: p.observacoesCards || {},
     layoutRelatorio: p.layoutRelatorio || null,
+    layoutConsolidado: p.layoutConsolidado || null,
     lastImports: p.lastImports || {},
     programacaoSemanal: p.programacaoSemanal || [],
     desvioAnalise: p.desvioAnalise || null,
@@ -546,6 +550,8 @@ interface ProjectStoreState {
   setAiInsight: (chartType: string, insight: string) => void;
   /** Arrumação dos cards do relatório. `null` volta ao padrão. */
   setLayoutRelatorio: (layout: ItemLayoutRelatorio[] | null) => void;
+  /** Arrumação dos blocos do consolidado — vale para todas as obras. */
+  setLayoutConsolidado: (layout: ItemLayoutRelatorio[] | null) => void;
   /** Análise de risco do consolidado — grava a mesma em todas as obras do cliente. */
   setRiscoConsolidado: (idsDoCliente: string[], texto: string, porIa: boolean, autor?: string) => void;
   /** Motivos do desvio do mes anotados numa obra. */
@@ -913,6 +919,12 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
    * procurando onde foi parar o card. Por isso o layout é gravado em todos os
    * projetos, e não só no que está aberto.
    */
+  setLayoutConsolidado: (layout) => set((s) => {
+    const updated = s.projects.map((p) => ({ ...p, layoutConsolidado: layout ?? undefined }));
+    updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
   setLayoutRelatorio: (layout) => set((s) => {
     const updated = s.projects.map((p) => ({ ...p, layoutRelatorio: layout ?? undefined }));
     updated.forEach((p) => debouncedSave(p));

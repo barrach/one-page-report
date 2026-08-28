@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { useTvMode } from '@/hooks/use-tv-mode';
@@ -20,21 +20,6 @@ import {
  * para o navegador, então quem abrir o DevTools ainda alcança os valores.
  * Proteger de verdade exige RLS no banco — hoje desligado.
  */
-
-const KpiFinanceiro = ({
-  rotulo, valor, detalhe, cor,
-}: {
-  rotulo: string;
-  valor: string;
-  detalhe?: string;
-  cor?: string;
-}) => (
-  <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 min-w-0">
-    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{rotulo}</div>
-    <div className={cn('text-base font-bold tabular-nums truncate', cor ?? 'text-foreground')}>{valor}</div>
-    {detalhe && <div className="text-[10px] text-muted-foreground truncate">{detalhe}</div>}
-  </div>
-);
 
 /** Valor já formatado de um campo conhecido — usado quando não há colagem. */
 const valorDoCampo = (it: ItemEapFinanceira, campo?: CampoEap): string => {
@@ -64,6 +49,12 @@ const totalDaColuna = (campo: CampoEap | undefined, t: TotaisEap): string => {
  * Colunas quando a EAP foi digitada à mão, sem colagem: o mesmo conjunto de
  * antes, para a tabela não ficar vazia.
  */
+/** Mesmos degraus do cronograma: 1 a 5 e "Todos". */
+const NIVEIS = [
+  { rotulo: '1', valor: 1 }, { rotulo: '2', valor: 2 }, { rotulo: '3', valor: 3 },
+  { rotulo: '4', valor: 4 }, { rotulo: '5', valor: 5 }, { rotulo: 'Todos', valor: 99 },
+];
+
 const COLUNAS_PADRAO: ColunaEap[] = [
   { chave: 'p0', titulo: 'EAP', campo: 'codigo' },
   { chave: 'p1', titulo: 'Descrição', campo: 'descricao' },
@@ -77,8 +68,17 @@ const FinanceiroCard = () => {
   const { canEdit } = useAuth();
   const { tvMode } = useTvMode();
 
-  const itens = eapFinanceira ?? [];
-  const totais = useMemo(() => totaisDaEap(itens), [itens]);
+  const [nivelMax, setNivelMax] = useState(99);
+
+  const todos = eapFinanceira ?? [];
+  // Os totais somam SEMPRE a EAP inteira, e não o que está na tela: recolher
+  // níveis é escolha de leitura, e um total que muda com ela viraria outro
+  // número a cada clique.
+  const totais = useMemo(() => totaisDaEap(todos), [todos]);
+  const itens = useMemo(
+    () => todos.filter((it) => nivelDoCodigo(it.codigo) <= nivelMax),
+    [todos, nivelMax],
+  );
   // Só valem as colunas que os itens realmente trazem: EAP antiga, sem
   // `celulas`, continua na tabela padrão em vez de virar uma grade de traços.
   const colunas = (eapColunas ?? []).length > 0 && itens.some((it) => it.celulas)
@@ -88,7 +88,7 @@ const FinanceiroCard = () => {
   // Mesmo trio que edita: administrador, gestor e planejador.
   if (!canEdit) return null;
   if (tvMode) return null;
-  if (itens.length === 0) return null;
+  if (todos.length === 0) return null;
 
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
@@ -99,27 +99,29 @@ const FinanceiroCard = () => {
             EAP do contrato · visível apenas para administrador, gestor e planejador
           </p>
         </div>
+
+        {/* Mesmo controle do cronograma. Aqui o nível vem do CÓDIGO da EAP —
+            "1.2.3" é nível 3 —, então recolher a três esconde os subitens sem
+            mexer nos totais: eles somam as folhas, apareçam elas ou não. */}
+        <div data-pdf-hide className="flex items-center gap-1.5 text-[11px] flex-wrap shrink-0">
+          <span className="text-muted-foreground">Exibir até nível:</span>
+          {NIVEIS.map((b) => (
+            <button
+              key={b.valor}
+              onClick={() => setNivelMax(b.valor)}
+              className={cn(
+                'px-2 py-0.5 rounded border font-medium transition-colors',
+                nivelMax === b.valor
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'bg-background text-foreground border-border hover:bg-muted',
+              )}
+            >
+              {b.rotulo}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 mb-4">
-        <KpiFinanceiro rotulo="Valor do contrato" valor={fmtDinheiro(totais.valorContrato)} />
-        <KpiFinanceiro
-          rotulo="Acumulado"
-          valor={fmtDinheiro(totais.acumulado)}
-          detalhe={`${fmtPercentual(totais.percentualAcumulado)} do contrato`}
-        />
-        <KpiFinanceiro rotulo="Previsto no mês" valor={fmtDinheiro(totais.previstoMes)} />
-        <KpiFinanceiro
-          rotulo="Realizado no mês"
-          valor={fmtDinheiro(totais.realizadoMes)}
-          detalhe={totais.previstoMes > 0
-            ? `${fmtPercentual((totais.realizadoMes / totais.previstoMes) * 100)} do previsto`
-            : undefined}
-          // Medir abaixo do previsto é o que dói: fica em vermelho.
-          cor={totais.desvioMes < 0 ? 'text-destructive' : 'text-success'}
-        />
-        <KpiFinanceiro rotulo="Saldo a medir" valor={fmtDinheiro(totais.saldo)} />
-      </div>
 
       <div className="overflow-x-auto">
         <table className="w-full text-[10px] sm:text-xs border-collapse">
