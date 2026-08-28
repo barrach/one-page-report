@@ -290,7 +290,7 @@ const HistogramChart = () => {
       </div>
       <p className="text-xs text-muted-foreground mb-4">
         {legenda}
-        {periodo !== 'tudo' && ` · ${ROTULO_PERIODO[periodo]} em torno da data de status`}
+        {periodo !== 'tudo' && ` · ${ROTULO_PERIODO[periodo]} a partir da semana de análise`}
       </p>
       {/* Altura mínima como piso; a sobra da linha do grid é absorvida pelo flex-1. */}
       {chartContent('flex-1 min-h-[260px] sm:min-h-[450px]')}

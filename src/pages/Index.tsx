@@ -504,6 +504,28 @@ const Index = () => {
     </>
   );
 
+  // Visualizador ou cliente sem obra atribuída. Cair num relatório vazio, com
+  // todos os cards zerados, faria a pessoa achar que a obra dela se perdeu —
+  // aqui a tela diz o que aconteceu e a quem pedir.
+  if (projects.length === 0) {
+    return (
+      <div className="min-h-screen flex bg-background">
+        <AppSidebar />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md text-center space-y-2">
+            <h1 className="text-lg font-bold text-foreground uppercase tracking-widest">
+              Nenhuma obra liberada
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              O seu acesso ainda não tem nenhuma obra atribuída. Peça ao administrador
+              do One Page Report para liberar as obras que você precisa acompanhar.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex bg-background ${tvMode ? 'h-screen overflow-hidden' : presentationMode ? 'min-h-screen overflow-auto' : 'min-h-screen'}`}>
       {!presentationMode && !tvMode && <AppSidebar />}

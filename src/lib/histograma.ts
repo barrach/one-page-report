@@ -183,8 +183,16 @@ export const ROTULO_PERIODO: Record<PeriodoHistograma, string> = {
 };
 
 /**
- * Recorte em torno da data de status — metade para trás, metade para frente,
- * para o card mostrar o que acabou de acontecer e o que vem pela frente.
+ * Recorte de 15 ou 30 dias a partir da SEMANA DE ANÁLISE, para frente.
+ *
+ * Antes a janela era centrada na data de status, metade para trás. Mas o
+ * histograma é o gráfico de decisão de efetivo: o que a reunião resolve é
+ * quanta gente colocar nas próximas semanas — a semana que já passou está
+ * apontada, e enche metade do card com número que ninguém vai mudar.
+ *
+ * O começo é a data da PRÓPRIA coluna de status, não a data de status: a
+ * semana costuma ser rotulada pelo seu primeiro dia, e cortar pela data exata
+ * jogaria a semana em análise para fora do próprio recorte.
  *
  * Recorte que não sobra nada devolve a série inteira: card vazio esconderia o
  * dado sem explicar por quê.
@@ -198,10 +206,12 @@ export const filtrarPeriodo = <T extends { date: string }>(
   const ref = parseISOLocal(atualizadoEm);
   if (!ref) return dados;
 
-  const meia = (periodo === '15' ? 15 : 30) / 2;
-  const inicio = somarDias(ref, -meia).getTime();
-  const fim = somarDias(ref, meia).getTime();
   const anoRef = ref.getFullYear();
+  const idx = indiceDaSemanaDeStatus(dados, atualizadoEm);
+  const inicioDt = idx >= 0 ? dataDoRotulo(dados[idx].date, anoRef) : null;
+
+  const inicio = (inicioDt ?? ref).getTime();
+  const fim = somarDias(ref, periodo === '15' ? 15 : 30).getTime();
 
   const recorte = dados.filter((d) => {
     const dt = dataDoRotulo(d.date, anoRef);

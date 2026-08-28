@@ -2,11 +2,11 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { User } from '@supabase/supabase-js';
 import { oprDataClient } from '@/integrations/supabase/oprDataClient';
 
-export type AppRole = 'admin' | 'planejador' | 'gestor' | 'visualizador' | 'cliente';
+// O tipo e a ordem de precedência moram em lib/acesso: o carregamento das obras
+// também precisa deles, e o store não deve importar um módulo React.
+import { melhorPapel, type AppRole } from '@/lib/acesso';
 
-// Da maior para a menor permissão: quando o usuário tem mais de um papel, vale o
-// primeiro desta lista.
-const ROLE_PRIORITY: AppRole[] = ['admin', 'planejador', 'gestor', 'visualizador', 'cliente'];
+export type { AppRole };
 
 /** Quem lança número no app: administrador, gestor e planejador. */
 const PAPEIS_QUE_EDITAM: AppRole[] = ['admin', 'gestor', 'planejador'];
@@ -39,9 +39,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchRole = async (userId: string) => {
     try {
       const { data } = await oprDataClient.from('user_roles').select('role').eq('user_id', userId);
-      const roles = (data ?? []).map((r) => r.role as AppRole);
-      const best = ROLE_PRIORITY.find((r) => roles.includes(r)) ?? null;
-      setRole(best);
+      setRole(melhorPapel((data ?? []).map((r) => String(r.role))));
     } catch {
       setRole(null);
     } finally {

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { formatDateBR } from '@/lib/dateUtils';
 import { fmtDinheiro } from '@/lib/eapFinanceira';
 import { consolidarObras, ROTULO_STATUS, type StatusObra } from '@/lib/consolidado';
+import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 /**
@@ -21,8 +22,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
  * layout arrastável, export em A4 e cards que só fazem sentido com uma obra por
  * vez. Misturar os dois deixaria as duas piores.
  */
-
-const SEM_CLIENTE = 'Sem cliente';
 
 const CORES_STATUS: Record<StatusObra, string> = {
   ok: 'text-success border-success/40 bg-success/10',
@@ -44,19 +43,18 @@ const Kpi = ({ rotulo, valor, detalhe, cor }: {
 const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
 
 const Consolidado = () => {
-  const { projects, selectProject } = useProjectStore();
+  const { projects, selectProject, acessoRestrito } = useProjectStore();
   const { canEdit } = useAuth();
 
-  const clientes = useMemo(() => {
-    const nomes = new Set(projects.map((p) => p.info?.cliente?.trim() || SEM_CLIENTE));
-    return [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  }, [projects]);
+  // `projects` já vem recortado pelo papel: um cliente cujo nome aparece no
+  // seletor entrega que ele existe, então a lista sai das obras visíveis.
+  const clientes = useMemo(() => clientesVisiveis(projects), [projects]);
 
-  const [cliente, setCliente] = useState<string>(() => clientes[0] ?? SEM_CLIENTE);
-  const clienteAtivo = clientes.includes(cliente) ? cliente : (clientes[0] ?? SEM_CLIENTE);
+  const [cliente, setCliente] = useState<string>(() => clientes[0] ?? '');
+  const clienteAtivo = clientes.includes(cliente) ? cliente : (clientes[0] ?? '');
 
   const doCliente = useMemo(
-    () => projects.filter((p) => (p.info?.cliente?.trim() || SEM_CLIENTE) === clienteAtivo),
+    () => projects.filter((p) => clienteDaObra(p) === clienteAtivo),
     [projects, clienteAtivo],
   );
 
@@ -120,6 +118,16 @@ const Consolidado = () => {
             />
           )}
         </div>
+
+        {/* Um consolidado parcial apresentado como se fosse o total é pior que
+            não ter consolidado: quem lê precisa saber que a conta é só das obras
+            liberadas para ele, e não de tudo que o cliente tem com a Megasteam. */}
+        {acessoRestrito && dados.obras.length > 0 && (
+          <p className="text-xs text-muted-foreground border-l-2 border-border pl-3">
+            Você está vendo apenas as obras liberadas para o seu acesso. O consolidado
+            soma só elas.
+          </p>
+        )}
 
         {/* Aviso de ponderação: a diferença entre os dois métodos muda o número,
             e quem lê precisa saber qual está vendo. */}

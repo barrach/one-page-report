@@ -67,14 +67,23 @@ describe('filtrarPeriodo', () => {
     expect(filtrarPeriodo(dados, '2025-12-15', 'tudo')).toHaveLength(5);
   });
 
-  it('15 dias pega uma semana para cada lado do status', () => {
+  it('15 dias começa na semana de análise e vai para frente', () => {
+    // O que a reunião decide é o efetivo das próximas semanas; a semana que já
+    // passou está apontada e só ocuparia metade do card.
     expect(filtrarPeriodo(dados, '2025-12-15', '15').map((d) => d.date))
-      .toEqual(['08/dez', '15/dez', '22/dez']);
+      .toEqual(['15/dez', '22/dez', '29/dez']);
   });
 
-  it('30 dias abre a janela', () => {
+  it('30 dias abre a janela, sempre para frente', () => {
     expect(filtrarPeriodo(dados, '2025-12-15', '30').map((d) => d.date))
-      .toEqual(['01/dez', '08/dez', '15/dez', '22/dez', '29/dez']);
+      .toEqual(['15/dez', '22/dez', '29/dez']);
+  });
+
+  it('a semana de análise entra mesmo com a data de status no meio dela', () => {
+    // A coluna é rotulada pelo primeiro dia da semana; cortar pela data exata
+    // do status jogaria a própria semana em análise para fora do recorte.
+    expect(filtrarPeriodo(dados, '2025-12-17', '15').map((d) => d.date))
+      .toContain('15/dez');
   });
 
   it('recorte que não sobra nada devolve tudo, em vez de card vazio', () => {

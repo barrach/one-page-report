@@ -6,6 +6,7 @@ import type { ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
 import type { ColunaCronograma } from '@/lib/parseCronogramaColado';
 import type { Evidencia } from '@/lib/evidencias';
 import type { ItemEapFinanceira, ColunaEap } from '@/lib/eapFinanceira';
+import { acessoRestrito, melhorPapel, obrasVisiveis, type AppRole } from '@/lib/acesso';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
 
@@ -333,6 +334,37 @@ const saveProjectsLS = (projects: Project[]) => {
   try { localStorage.setItem(LS_PROJECTS_KEY, JSON.stringify(projects)); } catch { /* quota/ignore */ }
 };
 
+/**
+ * Papel e obras liberadas para quem está logado.
+ *
+ * Vai ao banco em vez de esperar o AuthContext porque o carregamento das obras
+ * roda na montagem do app, antes de o papel ter chegado — e liberar tudo "só
+ * enquanto carrega" é exatamente a janela que o recorte existe para fechar.
+ */
+const lerAcessoDoUsuario = async (): Promise<{
+  papel: AppRole | null;
+  atribuidas: string[];
+  falhou: boolean;
+}> => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { papel: null, atribuidas: [], falhou: false };
+
+    const [papeis, atrib] = await Promise.all([
+      supabase.from('user_roles').select('role').eq('user_id', user.id),
+      supabase.from('project_assignments').select('project_id').eq('user_id', user.id),
+    ]);
+
+    return {
+      papel: melhorPapel((papeis.data ?? []).map((r) => String(r.role))),
+      atribuidas: (atrib.data ?? []).map((a) => String(a.project_id)),
+      falhou: Boolean(papeis.error || atrib.error),
+    };
+  } catch {
+    return { papel: null, atribuidas: [], falhou: true };
+  }
+};
+
 const dbToProject = (row: { id: string; name: string; data: Record<string, unknown> }): Project => {
   const d = row.data as Partial<Project>;
   return {
@@ -407,6 +439,8 @@ const debouncedSave = (project: Project, delay = 800) => {
 interface ProjectStoreState {
   projects: Project[];
   selectedProjectId: string;
+  /** Papel restrito (visualizador/cliente): a tela avisa que a lista foi recortada. */
+  acessoRestrito: boolean;
   loading: boolean;
   loadProjects: () => Promise<void>;
   selectProject: (id: string) => void;
@@ -465,6 +499,7 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   projects: [seedProject],
   selectedProjectId: 'guaxe',
   loading: false,
+  acessoRestrito: false,
 
   loadProjects: async () => {
     set({ loading: true });
@@ -490,10 +525,26 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     // 3. Último recurso: projeto seed
     if (!projects || projects.length === 0) projects = [seedProject];
 
+    // 4. Recorte por papel. O seed do passo 3 também passa por aqui: liberar
+    //    um projeto de exemplo para quem não tem obra atribuída seria dar
+    //    justamente o acesso que este recorte existe para negar.
+    const { papel, atribuidas, falhou } = await lerAcessoDoUsuario();
+    const visiveis = obrasVisiveis(projects, papel, atribuidas);
+    // Papel restrito com consulta de atribuição quebrada fecha a porta: numa
+    // regra de acesso, o erro tem que negar, não liberar.
+    const finais = acessoRestrito(papel) && falhou ? [] : visiveis;
+
     const currentId = get().selectedProjectId;
-    const validId = projects.find(p => p.id === currentId) ? currentId : projects[0].id;
-    set({ projects, selectedProjectId: validId, loading: false });
-    saveProjectsLS(projects);
+    const validId = finais.find(p => p.id === currentId) ? currentId : (finais[0]?.id ?? '');
+    set({
+      projects: finais,
+      selectedProjectId: validId,
+      loading: false,
+      acessoRestrito: acessoRestrito(papel),
+    });
+    // Só o que a pessoa pode ver vai para o localStorage — senão a obra
+    // escondida ficaria no disco da máquina dela.
+    saveProjectsLS(finais);
   },
 
   selectProject: (id) => set({ selectedProjectId: id }),
@@ -877,7 +928,11 @@ useProjectStore.subscribe((state) => saveProjectsLS(state.projects));
 export const useCurrentProject = () => {
   const projects = useProjectStore(s => s.projects);
   const selectedProjectId = useProjectStore(s => s.selectedProjectId);
-  const project = projects.find(p => p.id === selectedProjectId) || projects[0];
+  // Lista vazia é caso real desde que a visão passou a ser recortada por
+  // atribuição: sem este fallback, cada card quebraria ao ler o projeto nulo.
+  const project = projects.find(p => p.id === selectedProjectId)
+    || projects[0]
+    || createDefaultProject('', '');
   return {
     ...project,
     histogramData: project.histogramData || [{ date: '', semana: '', previsto: 0, real: 0 }],
