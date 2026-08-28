@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Building2, TrendingDown, TrendingUp, Minus, ArrowRight, ArrowDown, AlertTriangle, X, ChevronRight,
+  Building2, ArrowRight, AlertTriangle, X, ChevronRight,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
@@ -13,14 +13,15 @@ import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
 import { fmtDinheiro, fmtDinheiroCurto } from '@/lib/eapFinanceira';
-import { consolidarObras, ROTULO_STATUS, type StatusObra } from '@/lib/consolidado';
+import { consolidarObras } from '@/lib/consolidado';
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
   prioridades, riscoDasObras, cascataDaMedicao, semanaDeAnalise,
-  problemasPorSemana, tendenciaDeDatas, MAX_SEMANAS,
+  problemasPorSemana, tendenciaDeDatas, resultadoProjetado, MAX_SEMANAS,
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
+import NotaEditavel from '@/components/NotaEditavel';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -36,12 +37,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
  * arrastável, export em A4 e cards que só fazem sentido com uma obra por vez.
  */
 
-const CORES_STATUS: Record<StatusObra, string> = {
-  ok: 'text-success border-success/40 bg-success/10',
-  risco: 'text-amber-600 dark:text-amber-500 border-amber-500/40 bg-amber-500/10',
-  atrasada: 'text-destructive border-destructive/40 bg-destructive/10',
-  sem_dado: 'text-muted-foreground border-border bg-muted/30',
-};
 
 const FUNDO_SEVERIDADE: Record<Severidade, string> = {
   ok: 'bg-success/10 text-success',
@@ -59,17 +54,7 @@ const COR_GRAFICO = {
 };
 
 const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
-const pp = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2).replace('.', ',')} p.p.`;
 
-const Kpi = ({ rotulo, valor, detalhe, cor }: {
-  rotulo: string; valor: string; detalhe?: string; cor?: string;
-}) => (
-  <div className="rounded-xl border border-border bg-card px-4 py-3 card-shadow min-w-0">
-    <div className="text-[10px] uppercase tracking-widest text-muted-foreground">{rotulo}</div>
-    <div className={cn('text-xl font-bold tabular-nums truncate', cor ?? 'text-foreground')}>{valor}</div>
-    {detalhe && <div className="text-[11px] text-muted-foreground truncate">{detalhe}</div>}
-  </div>
-);
 
 /** Cada bloco é uma pergunta numerada — a numeração é o roteiro da reunião. */
 const Bloco = ({ n, pergunta, ferramenta, children, aside }: {
@@ -149,8 +134,8 @@ const TooltipCascata = ({ active, payload }: any) => {
 };
 
 const Consolidado = () => {
-  const { projects, selectProject, acessoRestrito } = useProjectStore();
-  const { canEdit } = useAuth();
+  const { projects, selectProject, acessoRestrito, setNotaProblemas } = useProjectStore();
+  const { canEdit, user } = useAuth();
 
   // `projects` já vem recortado pelo papel: um cliente cujo nome aparece no
   // seletor entrega que ele existe, então a lista sai das obras visíveis.
@@ -337,14 +322,41 @@ const Consolidado = () => {
     };
   }, [doCliente, idDoPrazo, analise.status]);
 
+  /**
+   * A cascata do resultado: contrato − impostos − custo = líquido.
+   *
+   * Os dois totais nascem do zero; os cortes descem do contrato até o líquido.
+   * É a mesma mecânica da cascata da medição, e funciona pelo mesmo motivo:
+   * tudo em dinheiro, então corte e total têm tamanho comparável.
+   */
+  const resultado = useMemo(() => {
+    const r = resultadoProjetado(dados.obras);
+    if (!r) return null;
+
+    const aposImpostos = r.contrato - r.impostos;
+    const topo = Math.max(r.contrato, 1) * 1.15;
+
+    return {
+      dados: r,
+      topo,
+      barras: [
+        { nome: 'Contrato', de: 0, tamanho: r.contrato, delta: r.contrato, tipo: 'total' as const, cor: COR_GRAFICO.neutro },
+        { nome: 'Impostos', de: aposImpostos, tamanho: r.impostos, delta: -r.impostos, tipo: 'corte' as const, cor: COR_GRAFICO.ruim },
+        { nome: 'Custo', de: Math.max(0, r.liquido), tamanho: Math.min(r.custo, aposImpostos), delta: -r.custo, tipo: 'corte' as const, cor: COR_GRAFICO.ruim },
+        {
+          nome: 'Líquido', de: 0, tamanho: Math.max(0, r.liquido), delta: r.liquido, tipo: 'total' as const,
+          cor: r.liquido >= 0 ? COR_GRAFICO.bom : COR_GRAFICO.ruim,
+        },
+      ],
+    };
+  }, [dados.obras]);
+
   /** Quem está sem valor — é por elas que a ponderação por contrato não liga. */
   const semValor = useMemo(
     () => dados.obras.filter((o) => o.valorContrato <= 0).map((o) => o.nome),
     [dados.obras],
   );
 
-  const DesvioIcon = dados.desvio < 0 ? TrendingDown : dados.desvio > 0 ? TrendingUp : Minus;
-  const corDesvio = dados.desvio < 0 ? 'text-destructive' : dados.desvio > 0 ? 'text-success' : 'text-foreground';
 
   const th = 'px-3 py-2 text-xs font-semibold uppercase tracking-wider whitespace-nowrap';
   const td = 'px-3 py-2 text-sm border-t border-border';
@@ -656,10 +668,20 @@ const Consolidado = () => {
                         </div>
 
                         {obra.semProgramacao ? (
-                          <p className="px-3 py-3 text-xs text-muted-foreground">
-                            Sem Programação Semanal importada nesta obra — é dela que sai o que não
-                            fechou em cada semana e por quê.
-                          </p>
+                          // Sem a Programação Semanal, a reunião ainda tem
+                          // problema para registrar — e sem campo aqui, essa
+                          // conversa acontece fora do relatório, onde se perde.
+                          <div className="px-3 py-3">
+                            <NotaEditavel
+                              nota={doCliente.find((p) => p.id === obra.id)?.notaProblemas}
+                              podeEditar={canEdit}
+                              aoSalvar={(t) => setNotaProblemas(obra.id, t, user?.email ?? undefined)}
+                              placeholder={`O que travou na ${obra.nome} nesta semana? Causa e responsável.`}
+                              vazio={canEdit
+                                ? 'Sem Programação Semanal importada — escreva aqui os problemas da semana.'
+                                : 'Sem Programação Semanal importada e nenhum problema anotado.'}
+                            />
+                          </div>
                         ) : obra.semanas.length === 0 ? (
                           <p className="px-3 py-3 text-xs text-muted-foreground">Nenhuma semana lançada.</p>
                         ) : (
@@ -832,43 +854,40 @@ const Consolidado = () => {
                 )}
               </Bloco>
 
-              {/* ── 5. VAMOS ENTREGAR NO PRAZO ───────────────────────── */}
-              <Bloco n={5} pergunta="Vamos entregar no prazo?" ferramenta="Término da linha de base × término projetado">
-                {!analise.entregaPrazo ? (
-                  <Vazio>Nenhuma obra deste cliente tem término de linha de base lançado.</Vazio>
+              {/* ── 5. QUANTO VAI SOBRAR ─────────────────────────────── */}
+              <Bloco
+                n={5}
+                pergunta="Quanto vai sobrar?"
+                ferramenta="Contrato − impostos − custo = resultado líquido projetado"
+              >
+                {!resultado ? (
+                  <Vazio>
+                    Falta <strong>valor do contrato</strong> ou <strong>custo da obra</strong>{' '}
+                    lançado nas Informações do Projeto para calcular o resultado.
+                  </Vazio>
                 ) : (
                   <>
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      <Kpi rotulo="Término LB" valor={formatDateBR(analise.entregaPrazo.terminoBase) || '—'} />
-                      <Kpi
-                        rotulo="Projetado"
-                        valor={formatDateBR(analise.entregaPrazo.terminoProjetado) || '—'}
-                        detalhe={analise.entregaPrazo.obraCritica ? `por ${analise.entregaPrazo.obraCritica}` : undefined}
-                        cor={analise.entregaPrazo.desvioDias > 0 ? 'text-destructive' : 'text-success'}
-                      />
-                      <Kpi
-                        rotulo="Desvio"
-                        valor={`${analise.entregaPrazo.desvioDias > 0 ? '+' : ''}${analise.entregaPrazo.desvioDias} d`}
-                        cor={analise.entregaPrazo.desvioDias > 0 ? 'text-destructive' : 'text-success'}
-                      />
-                    </div>
-
-                    <div className="h-[170px]">
+                    <div className="h-[240px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={analise.entregaPrazo.porObra}
-                          layout="vertical"
-                          margin={{ top: 4, right: 28, left: 8, bottom: 4 }}
-                        >
+                        <BarChart data={resultado.barras} margin={{ top: 20, right: 8, left: 4, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis type="number" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}d`} />
-                          <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={90} stroke="hsl(var(--muted-foreground))" />
-                          <Tooltip contentStyle={ESTILO_TOOLTIP} formatter={(v: number) => [`${v > 0 ? '+' : ''}${v} dias`, 'Desvio']} />
-                          <ReferenceLine x={0} stroke={COR_GRAFICO.neutro} />
-                          <Bar dataKey="dias" radius={[0, 3, 3, 0]}>
-                            <LabelList dataKey="dias" position="right" fontSize={10} formatter={(v: number) => `${v > 0 ? '+' : ''}${v}d`} />
-                            {analise.entregaPrazo.porObra.map((o) => (
-                              <Cell key={o.id} fill={o.dias > 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom} />
+                          <XAxis
+                            dataKey="nome" tick={{ fontSize: 10 }} interval={0}
+                            stroke="hsl(var(--muted-foreground))"
+                          />
+                          <YAxis
+                            domain={[0, resultado.topo]} tick={{ fontSize: 10 }}
+                            tickFormatter={fmtDinheiroCurto}
+                            stroke="hsl(var(--muted-foreground))" width={72}
+                          />
+                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipCascata} />
+                          {/* Base transparente: faz o degrau descer do contrato
+                              até o líquido em vez de nascer do zero. */}
+                          <Bar dataKey="de" stackId="r" fill="transparent" isAnimationActive={false} />
+                          <Bar dataKey="tamanho" stackId="r" radius={[3, 3, 0, 0]}>
+                            <LabelList dataKey="delta" position="top" fontSize={10} formatter={fmtDinheiroCurto} />
+                            {resultado.barras.map((b, i) => (
+                              <Cell key={i} fill={b.cor} />
                             ))}
                           </Bar>
                         </BarChart>
@@ -876,30 +895,70 @@ const Consolidado = () => {
                     </div>
 
                     <p className={cn(
-                      'text-xs mt-2 px-3 py-2 rounded-lg border',
-                      analise.entregaPrazo.desvioDias > 0
-                        ? 'border-destructive/40 bg-destructive/5 text-foreground'
-                        : 'border-success/40 bg-success/5 text-foreground',
+                      'text-xs mt-1 px-3 py-2 rounded-lg border',
+                      resultado.dados.liquido >= 0
+                        ? 'border-success/40 bg-success/5 text-foreground'
+                        : 'border-destructive/40 bg-destructive/5 text-foreground',
                     )}>
-                      {analise.entregaPrazo.desvioDias > 0 ? (
-                        <>
-                          O cliente fecha <strong>{analise.entregaPrazo.desvioDias} dias</strong> depois
-                          do previsto, e quem define essa data é a obra{' '}
-                          <strong>{analise.entregaPrazo.obraCritica}</strong>.{' '}
-                          {analise.entregaPrazo.atrasadas} de {analise.entregaPrazo.porObra.length} obras
-                          estão além da linha de base.
-                        </>
-                      ) : (
-                        <>No ritmo atual, todas as obras chegam dentro da linha de base.</>
-                      )}
-                      {analise.entregaPrazo.semProjecao > 0 && (
-                        <> {analise.entregaPrazo.semProjecao} obra(s) sem projeção — falta avanço lançado.</>
-                      )}
+                      {foco ? <strong>{nomeFocado}</strong> : <strong>{clienteAtivo}</strong>}:{' '}
+                      de {fmtDinheiro(resultado.dados.contrato)} contratados sobram{' '}
+                      <strong>{fmtDinheiro(resultado.dados.liquido)}</strong>{' '}
+                      ({resultado.dados.margem.toFixed(1).replace('.', ',')}% de margem).
                     </p>
+
+                    {/* Por obra: a margem do cliente pode estar boa com uma obra
+                        no vermelho sustentada por outra, e é a do vermelho que
+                        precisa de decisão. */}
+                    {resultado.dados.porObra.length > 1 && (
+                      <div className="overflow-x-auto mt-2">
+                        <table className="w-full border-collapse min-w-[34rem]">
+                          <thead>
+                            <tr className="bg-table-header text-table-header-foreground">
+                              <th className={cn(th, 'text-left')}>Obra</th>
+                              <th className={cn(th, 'text-right')}>Contrato</th>
+                              <th className={cn(th, 'text-right')}>Impostos</th>
+                              <th className={cn(th, 'text-right')}>Custo</th>
+                              <th className={cn(th, 'text-right')}>Líquido</th>
+                              <th className={cn(th, 'text-right')}>Margem</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {resultado.dados.porObra.map((r) => (
+                              <tr key={r.id} className={cn(r.incompleto && 'opacity-50')}>
+                                <td className={cn(td, 'font-medium text-foreground')}>{r.nome}</td>
+                                <Dinheiro classe={td} valor={r.contrato} />
+                                <Dinheiro classe={td} valor={r.impostos} />
+                                <Dinheiro classe={td} valor={r.custo} />
+                                <td className={cn(
+                                  td, 'text-right tabular-nums font-semibold whitespace-nowrap',
+                                  r.incompleto ? 'text-muted-foreground' : r.liquido >= 0 ? 'text-success' : 'text-destructive',
+                                )}>
+                                  {r.incompleto ? 'incompleto' : fmtDinheiro(r.liquido)}
+                                </td>
+                                <td className={cn(
+                                  td, 'text-right tabular-nums font-semibold',
+                                  r.incompleto ? 'text-muted-foreground' : r.margem >= 0 ? 'text-success' : 'text-destructive',
+                                )}>
+                                  {r.incompleto ? '—' : `${r.margem.toFixed(1).replace('.', ',')}%`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                    {resultado.dados.incompletas.length > 0 && (
+                      <p className="text-xs text-muted-foreground border-l-2 border-amber-500 pl-3 mt-2">
+                        Fora da conta: <strong>{resultado.dados.incompletas.join(', ')}</strong> —
+                        falta valor de contrato ou custo lançado. Somá-las entraria com o contrato
+                        inteiro e nenhum custo, o que dá 100% de margem e ninguém questiona.
+                      </p>
+                    )}
+
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      O contrato do cliente termina quando termina a <strong>última</strong> obra.
-                      Média de datas de término não corresponde a entrega nenhuma: com uma obra
-                      fechando em março e outra em dezembro, a média daria agosto.
+                      Impostos saem da alíquota lançada em cada obra sobre o valor de contrato dela;
+                      alíquotas diferentes não se somam como percentual, só o dinheiro que produzem.
                     </p>
                   </>
                 )}
@@ -1036,93 +1095,6 @@ const Consolidado = () => {
               ))}
             </div>
 
-            {/* Detalhe: é para onde se vai depois de decidir onde olhar. */}
-            <section className="rounded-xl border border-border bg-card card-shadow overflow-hidden">
-              <div className="px-4 pt-3 flex items-center gap-2">
-                <ArrowDown className="h-3.5 w-3.5 text-muted-foreground" />
-                <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Obra a obra</h2>
-              </div>
-              <div className="overflow-x-auto mt-2">
-                <table className="w-full border-collapse min-w-[52rem]">
-                  <thead>
-                    <tr className="bg-table-header text-table-header-foreground">
-                      <th className={cn(th, 'text-left')}>Obra</th>
-                      <th className={th}>Status</th>
-                      <th className={cn(th, 'text-right')}>Prev.</th>
-                      <th className={cn(th, 'text-right')}>Real</th>
-                      <th className={cn(th, 'text-right')}>Desvio</th>
-                      <th className={cn(th, 'text-right')}>IDP</th>
-                      <th className={th}>Término LB</th>
-                      <th className={th}>Projetado</th>
-                      {canEdit && <th className={cn(th, 'text-right')}>Contrato</th>}
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dados.obras.map((o) => (
-                      <tr key={o.id} className="hover:bg-muted/40 transition-colors">
-                        <td className={cn(td, 'font-medium text-foreground')}>{o.nome}</td>
-                        <td className={cn(td, 'text-center')}>
-                          <span className={cn(
-                            'inline-block rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap',
-                            CORES_STATUS[o.status],
-                          )}>
-                            {ROTULO_STATUS[o.status]}
-                          </span>
-                        </td>
-                        <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
-                        <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
-                        <td className={cn(
-                          td, 'text-right tabular-nums font-semibold',
-                          o.desvio < 0 ? 'text-destructive' : o.desvio > 0 ? 'text-success' : '',
-                        )}>
-                          {pct(o.desvio)}
-                        </td>
-                        <td className={cn(td, 'text-right tabular-nums')}>{o.idp.toFixed(0)}%</td>
-                        <td className={cn(td, 'text-center whitespace-nowrap')}>
-                          {formatDateBR(o.terminoBase) || '—'}
-                        </td>
-                        <td className={cn(td, 'text-center whitespace-nowrap')}>
-                          {o.terminoProjetado ? (
-                            <span className={cn((o.desvioDias ?? 0) > 0 && 'text-destructive font-semibold')}>
-                              {formatDateBR(o.terminoProjetado)}
-                              {o.desvioDias != null && o.desvioDias !== 0 && (
-                                <span className="block text-[10px] font-normal text-muted-foreground">
-                                  {o.desvioDias > 0 ? `+${o.desvioDias}` : o.desvioDias} dias
-                                </span>
-                              )}
-                            </span>
-                          ) : '—'}
-                        </td>
-                        {canEdit && (
-                          <td className={cn(td, 'text-right tabular-nums whitespace-nowrap')}>
-                            {o.valorContrato > 0 ? fmtDinheiro(o.valorContrato) : '—'}
-                          </td>
-                        )}
-                        <td className={cn(td, 'text-right')}>
-                          <Link
-                            to="/"
-                            onClick={() => selectProject(o.id)}
-                            className="inline-flex items-center gap-1 text-xs text-primary hover:underline whitespace-nowrap"
-                          >
-                            Abrir <ArrowRight className="h-3 w-3" />
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <p className="text-[11px] text-muted-foreground max-w-[80ch] flex items-start gap-1.5">
-              <DesvioIcon className={cn('h-3.5 w-3.5 shrink-0 mt-0.5', corDesvio)} />
-              <span>
-                O IDP é o avanço real dividido pelo previsto. O término projetado estica a
-                duração da linha de base nesse mesmo ritmo — é a data que o desempenho aponta,
-                não a que foi digitada na obra.
-              </span>
-            </p>
           </>
         )}
       </div>

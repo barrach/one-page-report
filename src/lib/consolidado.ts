@@ -35,6 +35,10 @@ export interface LinhaObra {
   /** Dias além (ou aquém) da linha de base. */
   desvioDias: number | null;
   valorContrato: number;
+  /** Custo de execução lançado na obra. */
+  custo: number;
+  /** Alíquota de impostos sobre a receita, em %. */
+  impostoPercentual: number;
   /** Previsto de medição para o mês, da EAP financeira. */
   previstoMes: number;
   realizadoMes: number;
@@ -49,6 +53,10 @@ export interface Consolidado {
   avancoReal: number;
   desvio: number;
   valorContrato: number;
+  /** Soma do custo de execução das obras. */
+  custo: number;
+  /** Soma dos impostos em R$ — cada obra tem a sua alíquota. */
+  impostos: number;
   /** Soma do previsto de medição do mês nas obras do cliente. */
   previstoMes: number;
   realizadoMes: number;
@@ -88,10 +96,13 @@ export const linhaDaObra = (p: Project): LinhaObra => {
     terminoBase: info.terminoLB ?? '',
     terminoProjetado: previsao?.data ?? null,
     desvioDias: previsao?.desvioDias ?? null,
-    // Sem valor na EAP, vale o "Custo da obra" das Informações do Projeto: é o
-    // mesmo número, digitado em outro lugar, e sem esta queda o consolidado
-    // caía em média simples mesmo com a obra valorizada na aba Dados.
-    valorContrato: totais.valorContrato || Number(info.custoObra) || 0,
+    // Sem valor na EAP, vale o campo "Valor do contrato" das Informações do
+    // Projeto. NÃO o custo da obra: custo é o que a Megasteam gasta, contrato é
+    // o que o cliente paga, e trocar um pelo outro estraga a ponderação e
+    // qualquer conta de resultado.
+    valorContrato: totais.valorContrato || Number(info.valorContrato) || 0,
+    custo: Number(info.custoObra) || 0,
+    impostoPercentual: Number(info.impostoPercentual) || 0,
     previstoMes: totais.previstoMes,
     realizadoMes: totais.realizadoMes,
     acumulado: totais.acumulado,
@@ -131,6 +142,10 @@ export const consolidarObras = (projetos: Project[]): Consolidado => {
     avancoReal,
     desvio: r2(avancoReal - avancoPrev),
     valorContrato: obras.reduce((s, o) => s + o.valorContrato, 0),
+    custo: obras.reduce((s, o) => s + o.custo, 0),
+    // Imposto é por obra: alíquotas diferentes não se somam como percentual,
+    // só o dinheiro que elas produzem é que soma.
+    impostos: obras.reduce((s, o) => s + (o.valorContrato * o.impostoPercentual) / 100, 0),
     previstoMes: obras.reduce((s, o) => s + o.previstoMes, 0),
     realizadoMes: obras.reduce((s, o) => s + o.realizadoMes, 0),
     acumulado: obras.reduce((s, o) => s + o.acumulado, 0),

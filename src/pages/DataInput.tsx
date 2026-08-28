@@ -114,7 +114,11 @@ const INFO_FIELDS: {
   { label: 'Gestor', key: 'gestor', type: 'text' },
   { label: 'Planejador', key: 'planejador', type: 'text' },
   { label: 'Tipo de obra', key: 'tipoObra', type: 'text' },
+  // Os três formam o resultado projetado da obra: contrato − impostos − custo.
+  // Só quem lança dado vê — resultado de obra não se mostra ao cliente dela.
+  { label: 'Valor do contrato (R$)', key: 'valorContrato', type: 'number', papeis: ['admin', 'gestor', 'planejador'] },
   { label: 'Custo da obra (R$)', key: 'custoObra', type: 'number', papeis: ['admin', 'gestor', 'planejador'] },
+  { label: 'Impostos (%)', key: 'impostoPercentual', type: 'number', papeis: ['admin', 'gestor', 'planejador'] },
   { label: 'Início', key: 'inicio', type: 'date' },
   { label: 'Término LB', key: 'terminoLB', type: 'date' },
   { label: 'Término Prev.', key: 'terminoPrev', type: 'date' },

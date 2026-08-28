@@ -30,8 +30,12 @@ export interface ProjectInfo {
   semanaAnalise?: string;
   /** Natureza da obra (montagem eletromecânica, caldeiraria, parada...). */
   tipoObra?: string;
-  /** Custo da obra em R$ — só admin, gestor e planejador enxergam. */
+  /** Custo de execução da obra em R$ — o que a Megasteam gasta. */
   custoObra?: number;
+  /** Valor do contrato em R$ — usado quando a EAP financeira não tem valor. */
+  valorContrato?: number;
+  /** Alíquota de impostos sobre a receita, em % — entra no resultado projetado. */
+  impostoPercentual?: number;
   // ── Curva S vinda do MS Project (Trabalho ou Custo acumulado) ──
   /** Em que unidade o Project exportou a curva. */
   curvaBase?: 'trabalho' | 'custo';
@@ -203,7 +207,7 @@ export interface DesvioAnalise {
  * no banco — é um campo de texto da obra. Ela é gravada em TODAS as obras do
  * cliente, como o layout do relatório já faz, e lida da mais recente.
  */
-export interface RiscoConsolidado {
+export interface NotaDeTexto {
   texto: string;
   /** ISO de quando foi salva — é ela que decide qual cópia vale. */
   atualizadoEm: string;
@@ -211,6 +215,9 @@ export interface RiscoConsolidado {
   /** Veio da IA e ainda não foi editada por gente. */
   porIa?: boolean;
 }
+/** Nome antigo, mantido porque a análise de risco já referencia este tipo. */
+export type RiscoConsolidado = NotaDeTexto;
+
 
 export interface Project {
   id: string;
@@ -243,6 +250,8 @@ export interface Project {
   desvioAnalise?: DesvioAnalise;
   /** Análise de risco do consolidado do cliente — a mesma em todas as obras dele. */
   riscoConsolidado?: RiscoConsolidado;
+  /** Problemas anotados à mão no consolidado, quando não há Programação Semanal. */
+  notaProblemas?: NotaDeTexto;
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -409,6 +418,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
     desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
     riscoConsolidado: (d.riscoConsolidado as RiscoConsolidado) ?? undefined,
+    notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
   };
 };
 
@@ -438,6 +448,7 @@ const projectToDb = (p: Project): any => ({
     programacaoSemanal: p.programacaoSemanal || [],
     desvioAnalise: p.desvioAnalise || null,
     riscoConsolidado: p.riscoConsolidado || null,
+    notaProblemas: p.notaProblemas || null,
   },
 });
 
@@ -502,6 +513,8 @@ interface ProjectStoreState {
   setLayoutRelatorio: (layout: ItemLayoutRelatorio[] | null) => void;
   /** Análise de risco do consolidado — grava a mesma em todas as obras do cliente. */
   setRiscoConsolidado: (idsDoCliente: string[], texto: string, porIa: boolean, autor?: string) => void;
+  /** Problemas anotados a mao numa obra, quando nao ha Programacao Semanal. */
+  setNotaProblemas: (projectId: string, texto: string, autor?: string) => void;
   /** Anota num card do relatório, carimbando a data. */
   addObservacaoCard: (card: string, texto: string, autor?: string) => void;
   removeObservacaoCard: (card: string, id: string) => void;
@@ -862,6 +875,21 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
    * que alguém trocasse a obra selecionada. A leitura pega a cópia mais
    * recente, então uma obra criada depois não apaga o que já estava escrito.
    */
+  /**
+   * Problemas anotados à mão numa obra.
+   *
+   * Existe porque nem toda obra importa a Programação Semanal, e a reunião tem
+   * problema para registrar do mesmo jeito. Fica na obra, não no cliente.
+   */
+  setNotaProblemas: (projectId, texto, autor) => set((s) => {
+    const updated = s.projects.map((p) => (p.id === projectId
+      ? { ...p, notaProblemas: { texto: texto.trim(), atualizadoEm: new Date().toISOString(), autor } }
+      : p));
+    const alvo = updated.find((p) => p.id === projectId);
+    if (alvo) debouncedSave(alvo);
+    return { projects: updated };
+  }),
+
   setRiscoConsolidado: (idsDoCliente, texto, porIa, autor) => set((s) => {
     const alvo = new Set(idsDoCliente);
     const valor: RiscoConsolidado = {

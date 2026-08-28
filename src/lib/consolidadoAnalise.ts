@@ -639,6 +639,79 @@ export const projecaoDeEntrega = (
   };
 };
 
+// ─── 5b. RESULTADO PROJETADO ────────────────────────────────────────────
+
+export interface ResultadoObra {
+  id: string;
+  nome: string;
+  contrato: number;
+  impostos: number;
+  custo: number;
+  /** Contrato − impostos − custo. */
+  liquido: number;
+  /** Líquido sobre o contrato, em %. */
+  margem: number;
+  /** Falta contrato ou custo lançado — o resultado seria uma conta pela metade. */
+  incompleto: boolean;
+}
+
+export interface ResultadoConsolidado {
+  contrato: number;
+  impostos: number;
+  custo: number;
+  liquido: number;
+  margem: number;
+  porObra: ResultadoObra[];
+  /** Obras sem contrato ou sem custo lançado, pelo nome. */
+  incompletas: string[];
+}
+
+/**
+ * O que sobra da obra: contrato − impostos − custo.
+ *
+ * Obra sem contrato OU sem custo lançado fica marcada como incompleta em vez de
+ * entrar com zero: uma obra de R$ 2 milhões sem custo digitado apareceria com
+ * 100% de margem, e esse é o tipo de número que ninguém questiona numa reunião
+ * porque é o que todo mundo queria ver.
+ */
+export const resultadoProjetado = (obras: LinhaObra[]): ResultadoConsolidado | null => {
+  const linhas: ResultadoObra[] = obras.map((o) => {
+    const impostos = (o.valorContrato * o.impostoPercentual) / 100;
+    const liquido = o.valorContrato - impostos - o.custo;
+    return {
+      id: o.id,
+      nome: o.nome,
+      contrato: o.valorContrato,
+      impostos,
+      custo: o.custo,
+      liquido,
+      margem: o.valorContrato > 0 ? r2((liquido / o.valorContrato) * 100) : 0,
+      incompleto: o.valorContrato <= 0 || o.custo <= 0,
+    };
+  });
+
+  // Só as completas entram no total: somar uma obra sem custo inflaria o
+  // resultado do cliente pelo contrato inteiro dela.
+  const completas = linhas.filter((l) => !l.incompleto);
+  if (completas.length === 0) return null;
+
+  const soma = (pegar: (l: ResultadoObra) => number) =>
+    completas.reduce((s, l) => s + pegar(l), 0);
+
+  const contrato = soma((l) => l.contrato);
+  const liquido = soma((l) => l.liquido);
+
+  return {
+    contrato,
+    impostos: soma((l) => l.impostos),
+    custo: soma((l) => l.custo),
+    liquido,
+    margem: contrato > 0 ? r2((liquido / contrato) * 100) : 0,
+    porObra: linhas.sort((a, b) => a.margem - b.margem),
+    incompletas: linhas.filter((l) => l.incompleto).map((l) => l.nome),
+  };
+};
+
 // ─── 6. QUAL O RISCO — impacto × probabilidade ──────────────────────────
 
 export interface PontoRisco {
