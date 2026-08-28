@@ -153,7 +153,16 @@ const normalizar = (v: string): string =>
  */
 const RECONHECEDORES: Array<{ campo: CampoEap; casa: (h: string) => boolean }> = [
   { campo: 'acumulado', casa: (h) => /acumulad/.test(h) },
-  { campo: 'valorContrato', casa: (h) => /contrato|valor total|preco total|orcado|or[cç]amento/.test(h) },
+  // "Valor", "Preço" e "Total" sozinhos também são o valor do contrato — é como
+  // metade das planilhas de medição nomeia a coluna. A segunda condição existe
+  // para não roubar "Valor realizado no mês" nem "Total acumulado", que casariam
+  // aqui antes de chegar ao reconhecedor certo.
+  {
+    campo: 'valorContrato',
+    casa: (h) => /contrato|valor total|preco total|orcado|or[cç]amento/.test(h)
+      // O cabeçalho chega sem acento e em minúsculas (ver `normalizar`).
+      || (/^(valor|preco|total)\b/.test(h) && !/previst|planejad|realizad|medi|executad|acumulad|mes|saldo|%/.test(h)),
+  },
   { campo: 'previstoMes', casa: (h) => /previsto|planejad/.test(h) },
   { campo: 'realizadoMes', casa: (h) => /realizad|medi(do|cao)|executad/.test(h) },
   { campo: 'codigo', casa: (h) => /^(eap|edt|wbs|item|codigo|cod|n|no)$/.test(h) },

@@ -84,7 +84,10 @@ export const linhaDaObra = (p: Project): LinhaObra => {
     terminoBase: info.terminoLB ?? '',
     terminoProjetado: previsao?.data ?? null,
     desvioDias: previsao?.desvioDias ?? null,
-    valorContrato: totais.valorContrato,
+    // Sem valor na EAP, vale o "Custo da obra" das Informações do Projeto: é o
+    // mesmo número, digitado em outro lugar, e sem esta queda o consolidado
+    // caía em média simples mesmo com a obra valorizada na aba Dados.
+    valorContrato: totais.valorContrato || Number(info.custoObra) || 0,
     realizadoMes: totais.realizadoMes,
     acumulado: totais.acumulado,
     atualizadoEm: info.atualizadoEm ?? '',

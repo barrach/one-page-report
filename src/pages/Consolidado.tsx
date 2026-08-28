@@ -103,19 +103,18 @@ const ESTILO_TOOLTIP = {
   fontSize: 12,
 };
 
-/** Tooltip da ponte: mostra o degrau, e não as duas barras que o compõem. */
+/** Tooltip da contribuição: mostra também o peso, que explica o tamanho da barra. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const TooltipPonte = ({ active, payload }: any) => {
+const TooltipContribuicao = ({ active, payload }: any) => {
   const ponto = active ? payload?.[0]?.payload : null;
   if (!ponto) return null;
 
   return (
     <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs card-shadow">
       <div className="font-semibold text-foreground">{ponto.nome}</div>
+      <div className="text-muted-foreground">Contribuição {pp(ponto.contribuicao)}</div>
       <div className="text-muted-foreground">
-        {ponto.tipo === 'total'
-          ? `Avanço ${pct(ponto.delta)}`
-          : `Contribuição ${pp(ponto.delta)}`}
+        Peso no cliente: {ponto.peso.toFixed(1).replace('.', ',')}%
       </div>
     </div>
   );
@@ -200,43 +199,26 @@ const Consolidado = () => {
   }), [dados, analise, clienteAtivo]);
 
   /**
-   * A ponte, em barras flutuantes.
+   * A contribuição de cada obra, em barras divergentes a partir do zero.
    *
-   * O eixo é recortado em torno dos valores: numa escala de 0 a 100 a
-   * contribuição de cada obra — um ou dois pontos percentuais — viraria um
-   * traço invisível, e é justamente ela o assunto do gráfico.
+   * A primeira versão era uma ponte de barras flutuantes, como a do modelo
+   * financeiro. Não serviu: numa carteira o degrau de cada obra é de poucos
+   * pontos percentuais contra totais de 40 a 80, então as barras dos totais
+   * ocupavam o gráfico inteiro e o assunto — quanto cada obra puxa — virava um
+   * risco de dois pixels. Aqui o zero é o centro, e a barra É a contribuição.
    */
-  const ponte = useMemo(() => {
+  const contribuicoes = useMemo(() => {
     if (analise.ponte.length === 0) return null;
+    const maior = Math.max(...analise.ponte.map((c) => Math.abs(c.contribuicao)), 1);
+    // Folga de 25% para o rótulo não encostar na borda.
+    return { itens: analise.ponte, limite: Math.ceil(maior * 1.25) };
+  }, [analise.ponte]);
 
-    const marcos: number[] = [dados.avancoPrev, dados.avancoReal];
-    let acum = dados.avancoPrev;
-    const passos = analise.ponte.map((c) => {
-      const fim = acum + c.contribuicao;
-      marcos.push(acum, fim);
-      const passo = {
-        nome: c.nome,
-        de: Math.min(acum, fim),
-        tamanho: Math.abs(c.contribuicao),
-        delta: c.contribuicao,
-        tipo: 'obra' as const,
-      };
-      acum = fim;
-      return passo;
-    });
-
-    const min = Math.max(0, Math.floor(Math.min(...marcos)) - 2);
-    const max = Math.ceil(Math.max(...marcos)) + 2;
-
-    return {
-      dominio: [min, max] as [number, number],
-      barras: [
-        { nome: 'Previsto', de: min, tamanho: dados.avancoPrev - min, delta: dados.avancoPrev, tipo: 'total' as const },
-        ...passos,
-        { nome: 'Real', de: min, tamanho: dados.avancoReal - min, delta: dados.avancoReal, tipo: 'total' as const },
-      ],
-    };
-  }, [analise.ponte, dados.avancoPrev, dados.avancoReal]);
+  /** Quem está sem valor — é por elas que a ponderação por contrato não liga. */
+  const semValor = useMemo(
+    () => dados.obras.filter((o) => o.valorContrato <= 0).map((o) => o.nome),
+    [dados.obras],
+  );
 
   const DesvioIcon = dados.desvio < 0 ? TrendingDown : dados.desvio > 0 ? TrendingUp : Minus;
   const corDesvio = dados.desvio < 0 ? 'text-destructive' : dados.desvio > 0 ? 'text-success' : 'text-foreground';
@@ -315,66 +297,132 @@ const Consolidado = () => {
                 )}
               </div>
 
+              {/* Com mais de uma obra, o número consolidado sozinho esconde de
+                  onde ele veio: 42% pode ser duas obras a 42 ou uma a 80 e
+                  outra a 4, e essas são reuniões completamente diferentes. */}
+              {dados.obras.length > 1 && (
+                <div className="overflow-x-auto mt-3">
+                  <table className="w-full border-collapse min-w-[30rem]">
+                    <thead>
+                      <tr className="bg-table-header text-table-header-foreground">
+                        <th className={cn(th, 'text-left')}>Obra</th>
+                        <th className={cn(th, 'text-right')}>Avanço previsto</th>
+                        <th className={cn(th, 'text-right')}>Avanço real</th>
+                        <th className={cn(th, 'text-right')}>Desvio</th>
+                        {canEdit && <th className={cn(th, 'text-right')}>Valor da obra</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dados.obras.map((o) => (
+                        <tr key={o.id} className="hover:bg-muted/40 transition-colors">
+                          <td className={cn(td, 'font-medium text-foreground')}>{o.nome}</td>
+                          <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
+                          <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
+                          <td className={cn(
+                            td, 'text-right tabular-nums font-semibold',
+                            o.desvio < 0 ? 'text-destructive' : o.desvio > 0 ? 'text-success' : '',
+                          )}>
+                            {pct(o.desvio)}
+                          </td>
+                          {canEdit && (
+                            <td className={cn(td, 'text-right tabular-nums whitespace-nowrap')}>
+                              {o.valorContrato > 0
+                                ? fmtDinheiro(o.valorContrato)
+                                : <span className="text-muted-foreground">não lançado</span>}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                      {/* O total fecha a tabela: é o mesmo número dos cartões
+                          acima, e vê-lo ao pé das parcelas é o que prova a conta. */}
+                      <tr className="bg-muted/40 font-semibold">
+                        <td className={cn(td, 'text-foreground')}>Consolidado</td>
+                        <td className={cn(td, 'text-right tabular-nums')}>{pct(dados.avancoPrev)}</td>
+                        <td className={cn(td, 'text-right tabular-nums')}>{pct(dados.avancoReal)}</td>
+                        <td className={cn(td, 'text-right tabular-nums', corDesvio)}>{pct(dados.desvio)}</td>
+                        {canEdit && (
+                          <td className={cn(td, 'text-right tabular-nums whitespace-nowrap')}>
+                            {fmtDinheiro(dados.valorContrato)}
+                          </td>
+                        )}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               {/* Aviso de ponderação: a diferença entre os dois métodos muda o
-                  número, e quem lê precisa saber qual está vendo. */}
+                  número, e quem lê precisa saber qual está vendo. Nomear as
+                  obras evita a caça ao tesouro que "preencha a EAP" provocava. */}
               {dados.ponderacao === 'media' && dados.obras.length > 1 && (
                 <p className="text-xs text-muted-foreground border-l-2 border-amber-500 pl-3 mt-3">
-                  O avanço consolidado está em <strong>média simples</strong> porque nem toda obra
-                  deste cliente tem valor de contrato lançado. Média simples dá o mesmo peso a uma
-                  obra de R$ 5 milhões e a uma de R$ 50 mil — preencha a EAP financeira das obras
-                  para o consolidado passar a ponderar pelo contrato.
+                  O avanço consolidado está em <strong>média simples</strong> porque{' '}
+                  {semValor.length === dados.obras.length
+                    ? 'nenhuma obra deste cliente tem valor lançado'
+                    : <>falta valor em <strong>{semValor.join(', ')}</strong></>}.
+                  Média simples dá o mesmo peso a uma obra de R$ 5 milhões e a uma de R$ 50 mil.
+                  O valor sai da EAP financeira ou do campo <strong>Custo da obra</strong>, nas
+                  Informações do Projeto — o que vier primeiro.
                 </p>
               )}
             </Bloco>
 
             <div className="grid gap-4 lg:grid-cols-2">
               {/* ── 2. POR QUÊ ───────────────────────────────────────── */}
-              <Bloco n={2} pergunta="Por quê?" ferramenta="Ponte do previsto ao real — quanto cada obra explica">
-                {!ponte ? (
-                  <Vazio>Sem avanço lançado para montar a ponte.</Vazio>
+              <Bloco n={2} pergunta="Por quê?" ferramenta="Quanto cada obra puxa o desvio do cliente">
+                {!contribuicoes ? (
+                  <Vazio>Sem avanço lançado para explicar o desvio.</Vazio>
                 ) : (
                   <>
-                    <div className="h-[260px]">
+                    {/* O caminho em uma linha: os totais são contexto, não o
+                        assunto — por isso texto, e não barra concorrendo. */}
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Previsto <strong className="text-foreground">{pct(dados.avancoPrev)}</strong>
+                      {' → '}real <strong className="text-foreground">{pct(dados.avancoReal)}</strong>
+                      {' · desvio '}
+                      <strong className={corDesvio}>{pp(dados.desvio)}</strong>
+                    </p>
+
+                    <div style={{ height: Math.max(150, contribuicoes.itens.length * 46) }}>
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={ponte.barras} margin={{ top: 18, right: 8, left: -12, bottom: 4 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <BarChart
+                          data={contribuicoes.itens}
+                          layout="vertical"
+                          margin={{ top: 4, right: 12, left: 8, bottom: 4 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
                           <XAxis
-                            dataKey="nome" tick={{ fontSize: 10 }} interval={0}
-                            angle={-30} textAnchor="end" height={58}
-                            stroke="hsl(var(--muted-foreground))"
+                            type="number"
+                            domain={[-contribuicoes.limite, contribuicoes.limite]}
+                            tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))"
+                            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}`}
                           />
                           <YAxis
-                            domain={ponte.dominio} tick={{ fontSize: 11 }}
-                            tickFormatter={(v: number) => `${v}%`}
-                            stroke="hsl(var(--muted-foreground))"
+                            type="category" dataKey="nome" width={92}
+                            tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))"
                           />
-                          {/* Conteúdo próprio: a barra-base é só um espaçador, e
-                              o tooltip padrão a listaria como se fosse um valor. */}
-                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipPonte} />
-                          {/* A base é transparente: é ela que faz a barra flutuar
-                              na altura certa do degrau. */}
-                          <Bar dataKey="de" stackId="p" fill="transparent" isAnimationActive={false} />
-                          <Bar dataKey="tamanho" stackId="p" radius={[3, 3, 0, 0]}>
+                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipContribuicao} />
+                          {/* O zero é o centro: à esquerda a obra tira do cliente,
+                              à direita ela devolve. */}
+                          <ReferenceLine x={0} stroke="hsl(var(--muted-foreground))" />
+                          <Bar dataKey="contribuicao" radius={3} barSize={22}>
                             <LabelList
-                              dataKey="delta" position="top" fontSize={10}
-                              formatter={(v: number) => (Math.abs(v) >= 0.05 ? v.toFixed(1).replace('.', ',') : '')}
+                              dataKey="contribuicao" fontSize={11}
+                              position="right"
+                              formatter={(v: number) => `${v > 0 ? '+' : ''}${v.toFixed(2).replace('.', ',')} p.p.`}
                             />
-                            {ponte.barras.map((b, i) => (
-                              <Cell
-                                key={i}
-                                fill={b.tipo === 'total' ? COR_GRAFICO.neutro
-                                  : b.delta < 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom}
-                              />
+                            {contribuicoes.itens.map((c) => (
+                              <Cell key={c.id} fill={c.contribuicao < 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom} />
                             ))}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      As contribuições somam exatamente o desvio: cada obra entra com o seu atraso
-                      multiplicado pelo peso dela no cliente
+                      As barras somam exatamente o desvio ({pp(dados.desvio)}): cada obra entra com o
+                      seu atraso multiplicado pelo peso dela no cliente
                       {dados.ponderacao === 'contrato' ? ' (valor de contrato)' : ' (peso igual)'}.
-                      Eixo recortado para a variação caber na tela.
+                      É isso que impede uma obra pequena e muito atrasada de parecer o problema.
                     </p>
                   </>
                 )}

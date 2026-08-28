@@ -141,3 +141,37 @@ describe('colunas da EAP colada', () => {
     expect(colunas.find((c) => c.campo === 'descricao')?.titulo).toBe('Discriminação dos serviços');
   });
 });
+
+describe('reconhecimento da coluna de valor', () => {
+  const colar = (cabecalho: string) => lerEapColada(
+    `Item\tDescricao\t${cabecalho}\tRealizado no mes\n1\tMontagem\t1.000.000,00\t50.000,00`,
+  );
+
+  it('aceita a coluna nomeada so como "Valor"', () => {
+    // Metade das planilhas de medicao chama assim, e antes o valor ficava zero
+    // - o que derrubava o consolidado inteiro para media simples.
+    expect(colar('Valor').itens[0].valorContrato).toBe(1_000_000);
+  });
+
+  it('aceita "Total" e "Preco"', () => {
+    expect(colar('Total').itens[0].valorContrato).toBe(1_000_000);
+    expect(colar('Preco Unitario').itens[0].valorContrato).toBe(1_000_000);
+  });
+
+  it('nao rouba a coluna do realizado', () => {
+    // "Valor realizado no mes" comeca com "valor" mas nao e o contrato.
+    const r = lerEapColada(
+      'Item\tDescricao\tValor do contrato\tValor realizado no mes\n1\tMontagem\t1.000.000,00\t50.000,00',
+    );
+    expect(r.itens[0].valorContrato).toBe(1_000_000);
+    expect(r.itens[0].realizadoMes).toBe(50_000);
+  });
+
+  it('nao rouba a coluna do acumulado', () => {
+    const r = lerEapColada(
+      'Item\tDescricao\tValor\tTotal acumulado\n1\tMontagem\t1.000.000,00\t300.000,00',
+    );
+    expect(r.itens[0].valorContrato).toBe(1_000_000);
+    expect(r.itens[0].acumulado).toBe(300_000);
+  });
+});
