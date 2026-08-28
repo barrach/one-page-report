@@ -15,10 +15,11 @@ import { formatDateBR } from '@/lib/dateUtils';
 import { fmtDinheiro } from '@/lib/eapFinanceira';
 import { consolidarObras, ROTULO_STATUS, type StatusObra } from '@/lib/consolidado';
 import {
-  acoesAbertas, matrizDeVariacao, pesosDasObras, pontePorObra, prioridades,
-  projecaoDeEntrega, riscoDasObras, tendenciaConsolidada,
+  acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
+  prioridades, riscoDasObras, tendenciaDePrazo,
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
+import AnaliseDeRisco from '@/components/AnaliseDeRisco';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -145,17 +146,58 @@ const Consolidado = () => {
     const status = dados.obras.map((o) => o.atualizadoEm).filter(Boolean).sort().pop() ?? '';
     const riscos = riscoDasObras(dados.obras, dados.ponderacao);
 
+    const abertas = acoesAbertas(doCliente);
+
     return {
       pesos,
       ponte: pontePorObra(dados.obras, dados.ponderacao),
-      matriz: matrizDeVariacao(dados.obras, acoesAbertas(doCliente)),
-      tendencia: tendenciaConsolidada(doCliente, pesos, status),
-      entrega: projecaoDeEntrega(dados.obras, pesos),
+      matriz: matrizDeVariacao(dados.obras, abertas),
+      prazo: tendenciaDePrazo(doCliente, pesos, status),
+      entregaPrazo: entregaNoPrazo(dados.obras),
       riscos,
       acoes: prioridades(riscos, doCliente, dados.obras),
+      abertas,
       status,
     };
   }, [dados, doCliente]);
+
+  /** A análise vale para o cliente: fica em todas as obras dele, e a mais recente manda. */
+  const riscoSalvo = useMemo(() => {
+    const todas = doCliente
+      .map((p) => p.riscoConsolidado)
+      .filter((r): r is NonNullable<typeof r> => Boolean(r?.texto?.trim()))
+      .sort((a, b) => String(a.atualizadoEm).localeCompare(String(b.atualizadoEm)));
+    return todas.at(-1) ?? null;
+  }, [doCliente]);
+
+  /**
+   * O que a IA recebe.
+   *
+   * São os números que já estão na tela — nada de mandar o projeto inteiro:
+   * quanto mais contexto irrelevante, mais o modelo inventa. E o prompt do
+   * lado do servidor proíbe usar qualquer coisa fora daqui.
+   */
+  const dadosParaIa = useMemo(() => ({
+    data: {
+      obras: dados.obras.map((o) => ({
+        nome: o.nome, prev: o.avancoPrev, real: o.avancoReal, desvio: o.desvio,
+        idp: o.idp, diasAlemDaLB: o.desvioDias, contrato: o.valorContrato,
+        acoesAbertas: analise.abertas[o.id] ?? 0,
+      })),
+      ponte: analise.ponte,
+      riscos: analise.riscos,
+      prazo: analise.prazo,
+      entrega: analise.entregaPrazo,
+      acoes: analise.acoes,
+    },
+    projectInfo: {
+      cliente: clienteAtivo,
+      atualizadoEm: analise.status,
+      avancoPrev: dados.avancoPrev,
+      avancoReal: dados.avancoReal,
+      ponderacao: dados.ponderacao,
+    },
+  }), [dados, analise, clienteAtivo]);
 
   /**
    * A ponte, em barras flutuantes.
@@ -377,86 +419,115 @@ const Consolidado = () => {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              {/* ── 4. QUAL A TENDÊNCIA ──────────────────────────────── */}
-              <Bloco n={4} pergunta="Qual a tendência?" ferramenta="Avanço consolidado mês a mês">
-                {analise.tendencia.length === 0 ? (
+              {/* ── 4. TENDÊNCIA DE PRAZO ────────────────────────────── */}
+              <Bloco n={4} pergunta="Qual a tendência do prazo?" ferramenta="Dias além da linha de base, mês a mês">
+                {analise.prazo.length === 0 ? (
                   <Vazio>
-                    Nenhuma obra deste cliente tem Curva S com data de início lançada.
+                    Falta Curva S com data de início, término da linha de base ou realizado
+                    lançado para projetar prazo.
                   </Vazio>
                 ) : (
                   <>
                     <div className="h-[260px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={analise.tendencia} margin={{ top: 8, right: 8, left: -12, bottom: 4 }}>
+                        <LineChart data={analise.prazo} margin={{ top: 8, right: 8, left: -8, bottom: 4 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis dataKey="rotulo" tick={{ fontSize: 10 }} interval="preserveStartEnd" stroke="hsl(var(--muted-foreground))" />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v}%`} stroke="hsl(var(--muted-foreground))" />
+                          <YAxis
+                            tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))"
+                            tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}d`}
+                          />
                           <Tooltip
                             contentStyle={ESTILO_TOOLTIP}
-                            formatter={(v: number, n: string) => [v == null ? '—' : pct(v), n === 'previsto' ? 'Previsto' : 'Real']}
+                            formatter={(v: number) => [`${v > 0 ? '+' : ''}${v} dias`, 'Desvio de prazo']}
                           />
-                          <Line type="monotone" dataKey="previsto" stroke={COR_GRAFICO.previsto} strokeWidth={2} dot={false} />
-                          {/* connectNulls fica FALSO: a linha do real tem que
-                              parar na data de status, e não atravessar o futuro. */}
-                          <Line type="monotone" dataKey="real" stroke={COR_GRAFICO.real} strokeWidth={2.5} dot={false} connectNulls={false} />
+                          {/* O zero é a linha de base: acima dela é atraso. */}
+                          <ReferenceLine y={0} stroke={COR_GRAFICO.neutro} strokeDasharray="4 4" />
+                          <Line
+                            type="monotone" dataKey="desvioDias" strokeWidth={2.5} dot={false}
+                            stroke={(analise.prazo.at(-1)?.desvioDias ?? 0) > 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom}
+                          />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Por mês do calendário, e não por semana de obra: as obras do cliente começam
-                      em datas diferentes. O real para na data de status — projetar realizado é inventar.
+                      Cada mês responde: com o ritmo <em>até ali</em>, a obra terminaria quantos dias
+                      além da linha de base? A inclinação é o que importa — subindo, o cliente está
+                      perdendo prazo mesmo com o avanço crescendo. Meses com menos de 5% planejado
+                      ficam de fora: ali um ponto de diferença vira meses de projeção.
                     </p>
                   </>
                 )}
               </Bloco>
 
-              {/* ── 5. VAMOS ENTREGAR ────────────────────────────────── */}
-              <Bloco n={5} pergunta="Vamos entregar o contrato?" ferramenta="Real hoje + projeção no ritmo atual">
-                {!analise.entrega ? (
-                  <Vazio>Sem avanço lançado para projetar a entrega.</Vazio>
+              {/* ── 5. VAMOS ENTREGAR NO PRAZO ───────────────────────── */}
+              <Bloco n={5} pergunta="Vamos entregar no prazo?" ferramenta="Término da linha de base × término projetado">
+                {!analise.entregaPrazo ? (
+                  <Vazio>Nenhuma obra deste cliente tem término de linha de base lançado.</Vazio>
                 ) : (
                   <>
-                    <div className="h-[220px]">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <Kpi rotulo="Término LB" valor={formatDateBR(analise.entregaPrazo.terminoBase) || '—'} />
+                      <Kpi
+                        rotulo="Projetado"
+                        valor={formatDateBR(analise.entregaPrazo.terminoProjetado) || '—'}
+                        detalhe={analise.entregaPrazo.obraCritica ? `por ${analise.entregaPrazo.obraCritica}` : undefined}
+                        cor={analise.entregaPrazo.desvioDias > 0 ? 'text-destructive' : 'text-success'}
+                      />
+                      <Kpi
+                        rotulo="Desvio"
+                        valor={`${analise.entregaPrazo.desvioDias > 0 ? '+' : ''}${analise.entregaPrazo.desvioDias} d`}
+                        cor={analise.entregaPrazo.desvioDias > 0 ? 'text-destructive' : 'text-success'}
+                      />
+                    </div>
+
+                    <div className="h-[170px]">
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart
-                          data={[
-                            { nome: 'Real hoje', valor: analise.entrega.hoje, cor: COR_GRAFICO.real },
-                            { nome: 'Projetado no término', valor: analise.entrega.projetado, cor: COR_GRAFICO.previsto },
-                            { nome: 'Meta', valor: 100, cor: COR_GRAFICO.neutro },
-                          ]}
-                          margin={{ top: 20, right: 8, left: -12, bottom: 4 }}
+                          data={analise.entregaPrazo.porObra}
+                          layout="vertical"
+                          margin={{ top: 4, right: 28, left: 8, bottom: 4 }}
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="nome" tick={{ fontSize: 10 }} interval={0} stroke="hsl(var(--muted-foreground))" />
-                          <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${v}%`} stroke="hsl(var(--muted-foreground))" />
-                          <Tooltip contentStyle={ESTILO_TOOLTIP} formatter={(v: number) => [pct(v), 'Avanço']} />
-                          <ReferenceLine y={100} stroke={COR_GRAFICO.neutro} strokeDasharray="4 4" />
-                          <Bar dataKey="valor" radius={[4, 4, 0, 0]}>
-                            <LabelList dataKey="valor" position="top" fontSize={11} formatter={(v: number) => `${v.toFixed(1).replace('.', ',')}%`} />
-                            {[COR_GRAFICO.real, COR_GRAFICO.previsto, COR_GRAFICO.neutro].map((c, i) => (
-                              <Cell key={i} fill={c} />
+                          <XAxis type="number" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" tickFormatter={(v: number) => `${v > 0 ? '+' : ''}${v}d`} />
+                          <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={90} stroke="hsl(var(--muted-foreground))" />
+                          <Tooltip contentStyle={ESTILO_TOOLTIP} formatter={(v: number) => [`${v > 0 ? '+' : ''}${v} dias`, 'Desvio']} />
+                          <ReferenceLine x={0} stroke={COR_GRAFICO.neutro} />
+                          <Bar dataKey="dias" radius={[0, 3, 3, 0]}>
+                            <LabelList dataKey="dias" position="right" fontSize={10} formatter={(v: number) => `${v > 0 ? '+' : ''}${v}d`} />
+                            {analise.entregaPrazo.porObra.map((o) => (
+                              <Cell key={o.id} fill={o.dias > 0 ? COR_GRAFICO.ruim : COR_GRAFICO.bom} />
                             ))}
                           </Bar>
                         </BarChart>
                       </ResponsiveContainer>
                     </div>
+
                     <p className={cn(
-                      'text-xs mt-1 px-3 py-2 rounded-lg border',
-                      analise.entrega.lacuna > 0
+                      'text-xs mt-2 px-3 py-2 rounded-lg border',
+                      analise.entregaPrazo.desvioDias > 0
                         ? 'border-destructive/40 bg-destructive/5 text-foreground'
                         : 'border-success/40 bg-success/5 text-foreground',
                     )}>
-                      {analise.entrega.lacuna > 0 ? (
+                      {analise.entregaPrazo.desvioDias > 0 ? (
                         <>
-                          Mantido o ritmo atual, o cliente fecha em{' '}
-                          <strong>{pct(analise.entrega.projetado)}</strong> na data da linha de base —
-                          faltam <strong>{pct(analise.entrega.lacuna)}</strong>, com{' '}
-                          <strong>{analise.entrega.obrasEmFalta}</strong>{' '}
-                          {analise.entrega.obrasEmFalta > 1 ? 'obras' : 'obra'} abaixo do plano.
+                          O cliente fecha <strong>{analise.entregaPrazo.desvioDias} dias</strong> depois
+                          do previsto, e quem define essa data é a obra{' '}
+                          <strong>{analise.entregaPrazo.obraCritica}</strong>.{' '}
+                          {analise.entregaPrazo.atrasadas} de {analise.entregaPrazo.porObra.length} obras
+                          estão além da linha de base.
                         </>
                       ) : (
-                        <>No ritmo atual, todas as obras chegam ao término previsto.</>
+                        <>No ritmo atual, todas as obras chegam dentro da linha de base.</>
                       )}
+                      {analise.entregaPrazo.semProjecao > 0 && (
+                        <> {analise.entregaPrazo.semProjecao} obra(s) sem projeção — falta avanço lançado.</>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      O contrato do cliente termina quando termina a <strong>última</strong> obra.
+                      Média de datas de término não corresponde a entrega nenhuma: com uma obra
+                      fechando em março e outra em dezembro, a média daria agosto.
                     </p>
                   </>
                 )}
@@ -517,6 +588,15 @@ const Consolidado = () => {
                     </p>
                   </>
                 )}
+
+                {/* A análise escrita é o que o gráfico não diz: risco que se
+                    soma entre obras, causa conhecida, decisão da semana. */}
+                <AnaliseDeRisco
+                  cliente={clienteAtivo}
+                  idsDoCliente={doCliente.map((p) => p.id)}
+                  salvo={riscoSalvo}
+                  dadosParaIa={dadosParaIa}
+                />
               </Bloco>
 
               {/* ── 7. O QUE DEVEMOS FAZER ───────────────────────────── */}

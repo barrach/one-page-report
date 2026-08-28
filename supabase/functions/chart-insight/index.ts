@@ -139,11 +139,55 @@ Ações em andamento: ${JSON.stringify(data?.actions || [])}
 Observações: ${JSON.stringify(data?.observations || [])}
 
 Gere um resumo executivo completo e estruturado do projeto.`;
+    } else if (chartType === "risco-consolidado") {
+      // Risco do CLIENTE, não de uma obra: o que se decide aqui é para onde a
+      // diretoria manda gente na semana, entre obras que competem pelo mesmo
+      // efetivo. Por isso o prompt proíbe recomendação genérica — "acompanhar
+      // de perto" não é decisão, e é o que um modelo escreve quando não tem o
+      // que dizer.
+      systemPrompt = `Você é um gestor sênior de obras industriais eletromecânicas analisando a CARTEIRA de um cliente.
+Escreva uma análise de risco em português, de 3 a 5 parágrafos curtos, para ser lida numa reunião de diretoria.
+
+Cubra, nesta ordem:
+1. Qual obra concentra o maior risco para o cliente e por quê (peso no contrato × aderência ao plano).
+2. O que o desvio de prazo indica sobre a data final do cliente.
+3. Riscos que se somam entre obras: mesma equipe, mesmo fornecedor, mesma frente, datas que se atropelam.
+4. O que decidir nesta semana, com o nome da obra em cada recomendação.
+
+Regras:
+- Use SOMENTE os números fornecidos. Não invente causa, fornecedor, evento ou percentual que não esteja nos dados.
+- Nada de recomendação genérica do tipo "acompanhar de perto" ou "reforçar a comunicação".
+- Se um dado necessário não veio, diga que ele falta em vez de supor.
+- Sem preâmbulo e sem título: comece pela análise.`;
+      userPrompt = `Cliente: ${(projectInfo as any)?.cliente || "N/A"}
+Data de status: ${(projectInfo as any)?.atualizadoEm || "N/A"}
+Avanço previsto consolidado: ${projectInfo?.avancoPrev ?? 0}%
+Avanço real consolidado: ${projectInfo?.avancoReal ?? 0}%
+Ponderação usada: ${(projectInfo as any)?.ponderacao === "contrato" ? "valor de contrato" : "média simples (nem toda obra tem contrato lançado)"}
+
+Obras (nome, avanço previsto, real, desvio p.p., IDP, dias além da linha de base, valor de contrato, ações abertas):
+${JSON.stringify(data?.obras ?? [])}
+
+Contribuição de cada obra para o desvio consolidado (p.p.):
+${JSON.stringify(data?.ponte ?? [])}
+
+Risco por obra (impacto = fatia do contrato; probabilidade = 100 − IDP):
+${JSON.stringify(data?.riscos ?? [])}
+
+Tendência do desvio de prazo, mês a mês (dias além da linha de base):
+${JSON.stringify(data?.prazo ?? [])}
+
+Entrega do cliente: ${JSON.stringify(data?.entrega ?? null)}
+
+Ações abertas por obra:
+${JSON.stringify(data?.acoes ?? [])}
+
+Escreva a análise de risco da carteira deste cliente.`;
     } else {
       throw new Error("chartType inválido");
     }
 
-    const executivo = chartType === "executive";
+    const executivo = chartType === "executive" || chartType === "risco-consolidado";
     const corpo = JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],

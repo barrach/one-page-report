@@ -228,7 +228,150 @@ export const tendenciaConsolidada = (
   });
 };
 
-// ─── 5. VAMOS ENTREGAR? ─────────────────────────────────────────────────
+// ─── 4b. TENDÊNCIA DE PRAZO ─────────────────────────────────────────────
+
+export interface PontoPrazo {
+  mes: string;
+  rotulo: string;
+  /** Dias além (+) ou aquém (−) da linha de base, no ritmo daquele mês. */
+  desvioDias: number;
+}
+
+/**
+ * IDP mínimo para a projeção de prazo valer alguma coisa.
+ *
+ * Nos primeiros meses o previsto acumulado é de 2 ou 3 por cento; um ponto de
+ * diferença ali vira meses de projeção e a linha começa com um pico que não
+ * significa nada. Abaixo deste avanço planejado o mês simplesmente não entra.
+ */
+const AVANCO_MINIMO_PARA_PROJETAR = 5;
+
+const diasEntre = (a: Date, b: Date) =>
+  Math.round((b.getTime() - a.getTime()) / (24 * 60 * 60 * 1000));
+
+/**
+ * Quantos dias o cliente está ganhando ou perdendo, mês a mês.
+ *
+ * Cada mês responde: com o ritmo ATÉ ALI, a obra terminaria quantos dias além
+ * da linha de base? A inclinação da linha é o que interessa — subindo, a obra
+ * está perdendo prazo mesmo que o avanço continue crescendo; descendo, está
+ * recuperando. É o que a curva de avanço não conta.
+ */
+export const tendenciaDePrazo = (
+  projetos: Project[],
+  pesos: Record<string, number>,
+  atualizadoEm: string,
+): PontoPrazo[] => {
+  const corte = parseISOLocal(atualizadoEm);
+
+  const porObra = projetos.map((p) => {
+    const inicio = parseISOLocal(p.info?.inicio ?? '');
+    const termino = parseISOLocal(p.info?.terminoLB ?? '');
+    const duracaoLB = inicio && termino ? diasEntre(inicio, termino) : 0;
+
+    const curva = p.sCurveData ?? [];
+    const datas = datasDaCurva(
+      curva.length,
+      p.info?.curvaInicio || p.info?.inicio || '',
+      p.info?.curvaPeriodicidade ?? 'semanal',
+    );
+
+    const meses = new Map<string, number>();
+    if (duracaoLB > 0) {
+      curva.forEach((ponto, i) => {
+        const d = datas[i];
+        if (!d) return;
+        if (corte && d.getTime() > corte.getTime()) return;
+
+        const previsto = Number(ponto.previsto) || 0;
+        const real = Number(ponto.real) || 0;
+        if (previsto < AVANCO_MINIMO_PARA_PROJETAR || real <= 0) return;
+
+        const idp = real / previsto;
+        meses.set(chaveMes(d), Math.round(duracaoLB / idp) - duracaoLB);
+      });
+    }
+    return { id: p.id, meses };
+  });
+
+  const todos = [...new Set(porObra.flatMap((o) => [...o.meses.keys()]))].sort();
+
+  return todos.map((mes) => {
+    let soma = 0;
+    let peso = 0;
+    porObra.forEach((o) => {
+      const dias = o.meses.get(mes);
+      if (dias == null) return;
+      const w = pesos[o.id] ?? 0;
+      soma += dias * w;
+      peso += w;
+    });
+
+    const [ano, m] = mes.split('-');
+    return {
+      mes: `${mes}-01`,
+      rotulo: `${MESES[Number(m) - 1]}/${ano.slice(2)}`,
+      desvioDias: peso > 0 ? Math.round(soma / peso) : 0,
+    };
+  });
+};
+
+// ─── 5. VAMOS ENTREGAR NO PRAZO? ────────────────────────────────────────
+
+export interface EntregaNoPrazo {
+  /** Última data de término da linha de base entre as obras do cliente. */
+  terminoBase: string;
+  /** Última data projetada — quando o cliente realmente fecha. */
+  terminoProjetado: string;
+  /** Dias entre as duas. */
+  desvioDias: number;
+  /** A obra que define a data final projetada. */
+  obraCritica: string;
+  noPrazo: number;
+  atrasadas: number;
+  semProjecao: number;
+  /** Desvio de cada obra, da pior para a melhor. */
+  porObra: Array<{ id: string; nome: string; dias: number }>;
+}
+
+/**
+ * Quando o cliente realmente fecha.
+ *
+ * O contrato do cliente termina quando termina a ÚLTIMA obra — não na média
+ * das datas. Média de datas de término é um número que não corresponde a
+ * entrega nenhuma: com uma obra fechando em março e outra em dezembro, a média
+ * daria agosto, e em agosto o cliente não recebeu nada.
+ */
+export const entregaNoPrazo = (obras: LinhaObra[]): EntregaNoPrazo | null => {
+  const comData = obras.filter((o) => o.terminoBase);
+  if (comData.length === 0) return null;
+
+  const terminoBase = comData.map((o) => o.terminoBase).sort().pop() ?? '';
+
+  const comProjecao = comData.filter((o) => o.terminoProjetado);
+  const critica = comProjecao.length > 0
+    ? comProjecao.reduce((pior, o) => (o.terminoProjetado! > pior.terminoProjetado! ? o : pior))
+    : null;
+
+  const base = parseISOLocal(terminoBase);
+  const proj = parseISOLocal(critica?.terminoProjetado ?? '');
+
+  return {
+    terminoBase,
+    terminoProjetado: critica?.terminoProjetado ?? '',
+    desvioDias: base && proj ? diasEntre(base, proj) : 0,
+    obraCritica: critica?.nome ?? '',
+    noPrazo: comData.filter((o) => (o.desvioDias ?? 0) <= 0 && o.desvioDias != null).length,
+    atrasadas: comData.filter((o) => (o.desvioDias ?? 0) > 0).length,
+    semProjecao: comData.filter((o) => o.desvioDias == null).length,
+    porObra: comData
+      .filter((o) => o.desvioDias != null)
+      .map((o) => ({ id: o.id, nome: o.nome, dias: o.desvioDias as number }))
+      .sort((a, b) => b.dias - a.dias),
+  };
+};
+
+// ─── 5b. (mantido) projeção de avanço ───────────────────────────────────
 
 export interface ProjecaoEntrega {
   /** Avanço real consolidado hoje. */

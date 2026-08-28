@@ -196,6 +196,22 @@ export interface DesvioAnalise {
   savedAt?: string;
 }
 
+/**
+ * Análise de risco do consolidado, escrita pela equipe (com ou sem ajuda da IA).
+ *
+ * Vive no projeto e não numa tabela de clientes porque cliente não é entidade
+ * no banco — é um campo de texto da obra. Ela é gravada em TODAS as obras do
+ * cliente, como o layout do relatório já faz, e lida da mais recente.
+ */
+export interface RiscoConsolidado {
+  texto: string;
+  /** ISO de quando foi salva — é ela que decide qual cópia vale. */
+  atualizadoEm: string;
+  autor?: string;
+  /** Veio da IA e ainda não foi editada por gente. */
+  porIa?: boolean;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -225,6 +241,8 @@ export interface Project {
   lastImports?: { sCurve?: string; weekly?: string; month?: string; histogram?: string; schedule?: string; curvaSFinanceira?: string; progSemanal?: string };
   programacaoSemanal?: ProgramacaoSemanal[];
   desvioAnalise?: DesvioAnalise;
+  /** Análise de risco do consolidado do cliente — a mesma em todas as obras dele. */
+  riscoConsolidado?: RiscoConsolidado;
 }
 
 const defaultProjectData: Omit<Project, 'id' | 'name'> = {
@@ -390,6 +408,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     lastImports: (d.lastImports as Project['lastImports']) ?? {},
     programacaoSemanal: (d.programacaoSemanal as ProgramacaoSemanal[]) ?? [],
     desvioAnalise: (d.desvioAnalise as DesvioAnalise) ?? undefined,
+    riscoConsolidado: (d.riscoConsolidado as RiscoConsolidado) ?? undefined,
   };
 };
 
@@ -418,6 +437,7 @@ const projectToDb = (p: Project): any => ({
     lastImports: p.lastImports || {},
     programacaoSemanal: p.programacaoSemanal || [],
     desvioAnalise: p.desvioAnalise || null,
+    riscoConsolidado: p.riscoConsolidado || null,
   },
 });
 
@@ -480,6 +500,8 @@ interface ProjectStoreState {
   setAiInsight: (chartType: string, insight: string) => void;
   /** Arrumação dos cards do relatório. `null` volta ao padrão. */
   setLayoutRelatorio: (layout: ItemLayoutRelatorio[] | null) => void;
+  /** Análise de risco do consolidado — grava a mesma em todas as obras do cliente. */
+  setRiscoConsolidado: (idsDoCliente: string[], texto: string, porIa: boolean, autor?: string) => void;
   /** Anota num card do relatório, carimbando a data. */
   addObservacaoCard: (card: string, texto: string, autor?: string) => void;
   removeObservacaoCard: (card: string, id: string) => void;
@@ -829,6 +851,28 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
   setLayoutRelatorio: (layout) => set((s) => {
     const updated = s.projects.map((p) => ({ ...p, layoutRelatorio: layout ?? undefined }));
     updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
+  /**
+   * Análise de risco do consolidado.
+   *
+   * Grava a MESMA análise em todas as obras do cliente — cliente não é tabela
+   * no banco, é um campo de texto da obra, e sem isso a análise sumiria assim
+   * que alguém trocasse a obra selecionada. A leitura pega a cópia mais
+   * recente, então uma obra criada depois não apaga o que já estava escrito.
+   */
+  setRiscoConsolidado: (idsDoCliente, texto, porIa, autor) => set((s) => {
+    const alvo = new Set(idsDoCliente);
+    const valor: RiscoConsolidado = {
+      texto,
+      atualizadoEm: new Date().toISOString(),
+      autor,
+      porIa,
+    };
+    const updated = s.projects.map((p) =>
+      (alvo.has(p.id) ? { ...p, riscoConsolidado: valor } : p));
+    updated.filter((p) => alvo.has(p.id)).forEach((p) => debouncedSave(p));
     return { projects: updated };
   }),
 

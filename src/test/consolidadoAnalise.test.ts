@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { LinhaObra } from '@/lib/consolidado';
 import {
   acoesAbertas, matrizDeVariacao, pesosDasObras, pontePorObra, prioridades,
-  projecaoDeEntrega, riscoDasObras, tendenciaConsolidada,
+  projecaoDeEntrega, riscoDasObras, tendenciaConsolidada, tendenciaDePrazo, entregaNoPrazo,
 } from '@/lib/consolidadoAnalise';
 
 const obra = (p: Partial<LinhaObra>): LinhaObra => ({
@@ -201,5 +201,86 @@ describe('pesosDasObras', () => {
 
   it('peso é igual na média simples', () => {
     expect(pesosDasObras([obra({ id: 'a', valorContrato: 500 })], 'media')).toEqual({ a: 1 });
+  });
+});
+
+describe('entregaNoPrazo', () => {
+  it('o cliente fecha quando fecha a ULTIMA obra, nao na media das datas', () => {
+    // Com marco e dezembro, a media daria agosto - e em agosto o cliente nao
+    // recebeu nada.
+    const obras = [
+      obra({ id: 'a', nome: 'A', terminoBase: '2026-03-31', terminoProjetado: '2026-04-10', desvioDias: 10 }),
+      obra({ id: 'b', nome: 'B', terminoBase: '2026-12-20', terminoProjetado: '2027-02-10', desvioDias: 52 }),
+    ];
+    const e = entregaNoPrazo(obras)!;
+    expect(e.terminoBase).toBe('2026-12-20');
+    expect(e.terminoProjetado).toBe('2027-02-10');
+    expect(e.obraCritica).toBe('B');
+    expect(e.desvioDias).toBe(52);
+  });
+
+  it('separa no prazo, atrasada e sem projecao', () => {
+    const obras = [
+      obra({ id: 'a', terminoBase: '2026-03-31', terminoProjetado: '2026-03-20', desvioDias: -11 }),
+      obra({ id: 'b', terminoBase: '2026-04-30', terminoProjetado: '2026-05-30', desvioDias: 30 }),
+      obra({ id: 'c', terminoBase: '2026-05-30', terminoProjetado: null, desvioDias: null }),
+    ];
+    const e = entregaNoPrazo(obras)!;
+    expect(e.noPrazo).toBe(1);
+    expect(e.atrasadas).toBe(1);
+    expect(e.semProjecao).toBe(1);
+    expect(e.porObra).toHaveLength(2);
+  });
+
+  it('sem termino de linha de base nao ha o que projetar', () => {
+    expect(entregaNoPrazo([obra({ terminoBase: '' })])).toBeNull();
+  });
+});
+
+describe('tendenciaDePrazo', () => {
+  const projeto = (id: string, curva: { previsto: number; real: number }[]) => ({
+    id,
+    info: {
+      inicio: '2026-01-05', terminoLB: '2026-04-05',
+      curvaInicio: '2026-01-05', curvaPeriodicidade: 'semanal',
+    },
+    sCurveData: curva.map((c) => ({ date: '', ...c, tendencia: 0 })),
+  });
+
+  it('IDP de 50% dobra a duracao projetada', () => {
+    // 90 dias de linha de base a metade do ritmo = 180 dias, ou seja +90.
+    const serie = tendenciaDePrazo(
+      [projeto('a', [{ previsto: 20, real: 10 }])] as never,
+      { a: 1 },
+      '2026-12-31',
+    );
+    expect(serie[0].desvioDias).toBe(90);
+  });
+
+  it('mes com pouco planejado fica de fora - ali um ponto vira meses', () => {
+    const serie = tendenciaDePrazo(
+      [projeto('a', [{ previsto: 2, real: 1 }])] as never,
+      { a: 1 },
+      '2026-12-31',
+    );
+    expect(serie).toEqual([]);
+  });
+
+  it('nao projeta depois da data de status', () => {
+    const serie = tendenciaDePrazo(
+      [projeto('a', [{ previsto: 20, real: 10 }])] as never,
+      { a: 1 },
+      '2026-01-01',
+    );
+    expect(serie).toEqual([]);
+  });
+
+  it('obra sem termino de linha de base nao entra', () => {
+    const semTermino = {
+      id: 'a',
+      info: { inicio: '2026-01-05', terminoLB: '', curvaInicio: '2026-01-05', curvaPeriodicidade: 'semanal' },
+      sCurveData: [{ date: '', previsto: 20, real: 10, tendencia: 0 }],
+    };
+    expect(tendenciaDePrazo([semTermino] as never, { a: 1 }, '2026-12-31')).toEqual([]);
   });
 });
