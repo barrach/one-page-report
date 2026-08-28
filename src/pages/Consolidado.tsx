@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, ArrowRight, AlertTriangle, X, ChevronRight, Pencil,
-  ArrowUp, ArrowDown, ChevronUp, ChevronDown, Expand, Shrink, Eye, EyeOff, LayoutGrid,
+  ArrowUp, ArrowDown, ChevronUp, ChevronDown, Expand, Shrink, Eye, EyeOff, LayoutGrid, Maximize2,
   MoreVertical, Presentation, Moon, Sun, Smartphone,
 } from 'lucide-react';
 import {
@@ -120,6 +120,7 @@ const Bloco = ({
   const [editando, setEditando] = useState(false);
   const [rascunho, setRascunho] = useState(titulo);
   const [editandoN, setEditandoN] = useState(false);
+  const [ampliado, setAmpliado] = useState(false);
   const [rascunhoN, setRascunhoN] = useState(n);
 
   const salvar = () => {
@@ -241,11 +242,59 @@ const Bloco = ({
             </div>
           )}
         </div>
-        {/* O seletor do bloco some com a seção fechada: controle de um conteúdo
-            que não está na tela só confunde. */}
-        {aberto && aside}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* O seletor do bloco some com a seção fechada: controle de um
+              conteúdo que não está na tela só confunde. */}
+          {aberto && aside}
+          {aberto && (
+            <button
+              type="button"
+              onClick={() => setAmpliado(true)}
+              title="Ampliar"
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
       {aberto && children}
+
+      {/* Ampliar: o conteúdo só é montado ao abrir. Deixá-lo montado o tempo
+          todo desenharia cada gráfico duas vezes, e são sete blocos. */}
+      {ampliado && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setAmpliado(false)}
+        >
+          <div
+            className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-6xl flex flex-col"
+            style={{ height: '88vh' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between px-6 pt-5 pb-3 border-b border-border shrink-0">
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+                  {n}. {titulo}
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">{ferramenta}</p>
+              </div>
+              <button
+                onClick={() => setAmpliado(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            {/* Rola por dentro: tabela de vinte linhas não pode empurrar a
+                janela para fora da tela. */}
+            <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
+              {children}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };
@@ -345,6 +394,31 @@ const DinheiroEditavel = ({ valor, manual, classe, podeEditar, aoSalvar }: {
             ? fmtDinheiro(valor)
             : <span className="text-muted-foreground font-normal">não lançado</span>}
         </button>
+      )}
+    </td>
+  );
+};
+
+/**
+ * Aderência da medição do mês: realizado ÷ previsto.
+ *
+ * Sem previsto lançado a conta não existe — e mostrar 0% ali seria dizer que a
+ * obra não mediu nada, quando o que falta é o alvo contra o qual comparar.
+ */
+const Aderencia = ({ realizado, previsto, classe }: {
+  realizado: number; previsto: number; classe: string;
+}) => {
+  const pode = previsto > 0;
+  const valor = pode ? (realizado / previsto) * 100 : 0;
+
+  return (
+    <td className={cn(classe, 'text-right tabular-nums whitespace-nowrap font-semibold')}>
+      {pode ? (
+        <span className={valor >= 100 ? 'text-success' : valor >= 80 ? 'text-amber-600 dark:text-amber-500' : 'text-destructive'}>
+          {valor.toFixed(1).replace('.', ',')}%
+        </span>
+      ) : (
+        <span className="text-muted-foreground font-normal">—</span>
       )}
     </td>
   );
@@ -562,6 +636,7 @@ const Consolidado = () => {
         delta: p.delta,
         previsto: p.previsto,
         realizado: p.realizado,
+        id: p.id,
         tipo: 'obra' as const,
         cor: corDaObra(i),
       };
@@ -929,6 +1004,7 @@ const Consolidado = () => {
                         {canEdit && <th className={cn(th, 'text-right')}>Medição acumulada</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Previsto no mês</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
+                        {canEdit && <th className={cn(th, 'text-right')}>% avanço financeiro</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -996,6 +1072,10 @@ const Consolidado = () => {
                                 aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
                               />
                             )}
+                            {/* Calculada, não digitada: é o realizado sobre o
+                                previsto do mês, e um campo à parte só criaria
+                                a chance de contradizer as duas colunas ao lado. */}
+                            {canEdit && <Aderencia classe={td} realizado={o.realizadoMes} previsto={o.previstoMes} />}
                           </tr>
                         );
                       })}
@@ -1015,6 +1095,15 @@ const Consolidado = () => {
                           <Dinheiro classe={td} valor={dadosCliente.acumulado} />
                           <Dinheiro classe={td} valor={dadosCliente.previstoMes} />
                           <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />
+                          {/* Total realizado ÷ total previsto, e não a média
+                              das aderências: obra de R$ 5 milhões e obra de
+                              R$ 50 mil não têm o mesmo peso na medição do
+                              cliente. */}
+                          <Aderencia
+                            classe={td}
+                            realizado={dadosCliente.realizadoMes}
+                            previsto={dadosCliente.previstoMes}
+                          />
                         </tr>
                       )}
                     </tbody>
@@ -1074,7 +1163,18 @@ const Consolidado = () => {
 
                     <div className="h-[280px]">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={cascata.barras} margin={{ top: 20, right: 8, left: 4, bottom: 4 }}>
+                        <BarChart
+                          data={cascata.barras}
+                          margin={{ top: 20, right: 8, left: 4, bottom: 4 }}
+                          style={{ cursor: 'pointer' }}
+                          onClick={(e: any) => {
+                            // Clicar num degrau recorta a página naquela obra:
+                            // é a mesma ação da linha do item 1, feita de onde
+                            // a pergunta nasceu.
+                            const id = e?.activePayload?.[0]?.payload?.id;
+                            if (id) setObraFocada((atual) => (atual === id ? null : id));
+                          }}
+                        >
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                           <XAxis
                             dataKey="nome" tick={{ fontSize: 10 }} interval={0}
@@ -1425,7 +1525,12 @@ const Consolidado = () => {
                           </thead>
                           <tbody>
                             {resultado.dados.porObra.map((r) => (
-                              <tr key={r.id} className={cn(r.incompleto && 'opacity-50')}>
+                              <tr
+                                key={r.id}
+                                onClick={() => setObraFocada((atual) => (atual === r.id ? null : r.id))}
+                                title={`Analisar só ${r.nome}`}
+                                className={cn('cursor-pointer hover:bg-muted/40 transition-colors', r.incompleto && 'opacity-50')}
+                              >
                                 <td className={cn(td, 'font-medium text-foreground')}>{r.nome}</td>
                                 <DinheiroEditavel
                                   classe={td} valor={r.contrato} manual={false} podeEditar={canEdit}
@@ -1520,7 +1625,14 @@ const Consolidado = () => {
                             formatter={(v: number, n: string) => [`${v.toFixed(0)}%`, n]}
                             labelFormatter={() => ''}
                           />
-                          <Scatter data={analise.riscos}>
+                          <Scatter
+                            data={analise.riscos}
+                            style={{ cursor: 'pointer' }}
+                            onClick={(p: any) => {
+                              const id = p?.payload?.id ?? p?.id;
+                              if (id) setObraFocada((atual) => (atual === id ? null : id));
+                            }}
+                          >
                             <LabelList dataKey="nome" position="top" fontSize={10} />
                             {analise.riscos.map((r) => (
                               <Cell
