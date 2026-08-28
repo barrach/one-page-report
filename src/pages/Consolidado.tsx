@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  Building2, ArrowRight, AlertTriangle, X, ChevronRight,
+  Building2, ArrowRight, AlertTriangle, X, ChevronRight, Pencil,
   MoreVertical, Presentation, Moon, Sun, Smartphone,
 } from 'lucide-react';
 import {
@@ -61,27 +61,94 @@ const COR_GRAFICO = {
 const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
 
 
-/** Cada bloco é uma pergunta numerada — a numeração é o roteiro da reunião. */
-const Bloco = ({ n, pergunta, ferramenta, children, aside }: {
-  n: number; pergunta: string; ferramenta: string;
-  children: ReactNode; aside?: ReactNode;
-}) => (
-  <section className="rounded-xl border border-border bg-card card-shadow p-4 min-w-0">
-    <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-      <div className="flex items-start gap-2.5 min-w-0">
-        <span className="shrink-0 h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-          {n}
-        </span>
-        <div className="min-w-0">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">{pergunta}</h2>
-          <p className="text-[11px] text-muted-foreground">{ferramenta}</p>
+/**
+ * Cada bloco é uma pergunta numerada — a numeração é o roteiro da reunião.
+ *
+ * O título se edita: a pergunta é o roteiro da SUA reunião, e o texto que veio
+ * de fábrica é um palpite. Recolhe e abre pelo cabeçalho, como as seções do
+ * relatório, para a tela caber no assunto da hora.
+ */
+const Bloco = ({ n, titulo, ferramenta, aberto, aoAlternar, podeEditar, aoRenomear, children, aside }: {
+  n: number;
+  titulo: string;
+  ferramenta: string;
+  aberto: boolean;
+  aoAlternar: () => void;
+  podeEditar: boolean;
+  aoRenomear: (texto: string) => void;
+  children: ReactNode;
+  aside?: ReactNode;
+}) => {
+  const [editando, setEditando] = useState(false);
+  const [rascunho, setRascunho] = useState(titulo);
+
+  const salvar = () => {
+    const limpo = rascunho.trim();
+    if (limpo) aoRenomear(limpo);
+    setEditando(false);
+  };
+
+  return (
+    <section className="rounded-xl border border-border bg-card card-shadow p-4 min-w-0">
+      <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
+        <div className="flex items-start gap-2.5 min-w-0 flex-1">
+          {/* O chevron abre e fecha; clicar no cabeçalho inteiro também. */}
+          <button
+            type="button"
+            onClick={aoAlternar}
+            className="shrink-0 mt-0.5 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            title={aberto ? 'Recolher seção' : 'Abrir seção'}
+          >
+            <ChevronRight className={cn('h-4 w-4 transition-transform', aberto && 'rotate-90')} />
+          </button>
+          <span className="shrink-0 h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+            {n}
+          </span>
+
+          {editando ? (
+            <input
+              autoFocus
+              value={rascunho}
+              onChange={(e) => setRascunho(e.target.value)}
+              onBlur={salvar}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') salvar();
+                if (e.key === 'Escape') { setRascunho(titulo); setEditando(false); }
+              }}
+              className="min-w-0 flex-1 text-sm font-bold uppercase tracking-wider bg-background rounded px-1.5 py-0.5 outline-none ring-1 ring-primary/50"
+            />
+          ) : (
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h2
+                  onClick={aoAlternar}
+                  className="text-sm font-bold text-foreground uppercase tracking-wider cursor-pointer"
+                >
+                  {titulo}
+                </h2>
+                {podeEditar && (
+                  <button
+                    type="button"
+                    onClick={() => { setRascunho(titulo); setEditando(true); }}
+                    className="p-0.5 rounded text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                    title="Renomear a pergunta"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">{ferramenta}</p>
+            </div>
+          )}
         </div>
+        {/* O seletor do bloco some com a seção fechada: controle de um conteúdo
+            que não está na tela só confunde. */}
+        {aberto && aside}
       </div>
-      {aside}
-    </div>
-    {children}
-  </section>
-);
+      {aberto && children}
+    </section>
+  );
+};
 
 const Vazio = ({ children }: { children: ReactNode }) => (
   <p className="text-xs text-muted-foreground py-6 text-center">{children}</p>
@@ -231,7 +298,7 @@ const TooltipResultado = ({ active, payload }: any) => {
 };
 
 const Consolidado = () => {
-  const { projects, selectProject, acessoRestrito, setInfoDoProjeto } = useProjectStore();
+  const { projects, selectProject, acessoRestrito, setInfoDoProjeto, setTituloConsolidado } = useProjectStore();
   const { canEdit } = useAuth();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -405,6 +472,46 @@ const Consolidado = () => {
     };
   }, [analise.medicao]);
 
+  /**
+   * Seções recolhidas.
+   *
+   * Fica no navegador de cada um: é conveniência de leitura, e recolher uma
+   * seção para caber a tela na sua reunião não pode fechá-la para os outros.
+   */
+  const [secoesFechadas, setSecoesFechadas] = useState<Set<number>>(() => {
+    try {
+      const bruto = localStorage.getItem('opr_consolidado_fechados');
+      return new Set(bruto ? (JSON.parse(bruto) as number[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const alternarSecao = (n: number) => setSecoesFechadas((atual) => {
+    const proximo = new Set(atual);
+    if (proximo.has(n)) proximo.delete(n); else proximo.add(n);
+    try { localStorage.setItem('opr_consolidado_fechados', JSON.stringify([...proximo])); } catch { /* quota */ }
+    return proximo;
+  });
+
+  /**
+   * Título da pergunta.
+   *
+   * O renomeado vale para todos, como o layout do relatório: é a mesma tela
+   * para qualquer cliente, e um título por obra faria a pergunta mudar ao
+   * trocar de cliente no seletor.
+   */
+  const titulos = projects.find((p) => p.titulosConsolidado)?.titulosConsolidado ?? {};
+  const tituloDoBloco = (n: number, padrao: string) => titulos[`b${n}`]?.trim() || padrao;
+
+  /** As props de cabeçalho que todo bloco recebe igual. */
+  const cabecalho = (n: number) => ({
+    aberto: !secoesFechadas.has(n),
+    aoAlternar: () => alternarSecao(n),
+    podeEditar: canEdit,
+    aoRenomear: (texto: string) => setTituloConsolidado(`b${n}`, texto),
+  });
+
   /** Semanas abertas no item 3. Fechadas por padrão: aberto tudo, ninguém lê. */
   const [semanasAbertas, setSemanasAbertas] = useState<Set<string>>(new Set());
   const alternarSemana = (chave: string) => setSemanasAbertas((atual) => {
@@ -525,7 +632,9 @@ const Consolidado = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {/* Sem flex-wrap: com ela o menu caía para uma segunda linha, embaixo
+              do seletor, em vez de ficar ao lado dele. O seletor encolhe. */}
+          <div className="flex items-center gap-2 shrink-0 flex-nowrap justify-end">
             {/* Com foco ativo, o escopo precisa estar visível o tempo todo: um
                 número recortado lido como se fosse o do cliente é o erro mais
                 caro que esta tela pode causar. */}
@@ -598,10 +707,11 @@ const Consolidado = () => {
             {/* ── 1. O QUE ACONTECEU ─────────────────────────────────── */}
             <Bloco
               n={1}
-              pergunta="O que aconteceu?"
+              titulo={tituloDoBloco(1, "O que aconteceu?")}
               ferramenta={foco
                 ? `Analisando ${nomeFocado} — clique de novo na linha para voltar ao cliente`
                 : 'Clique numa obra para recortar a página inteira nela'}
+              {...cabecalho(1)}
             >
               {/* Sem cartões de resumo: a linha "Consolidado" ao pé da tabela
                   traz os mesmos números, e ali eles aparecem ao lado das
@@ -744,8 +854,9 @@ const Consolidado = () => {
               {/* ── 2. POR QUÊ ───────────────────────────────────────── */}
               <Bloco
                 n={2}
-                pergunta="Por quê?"
+                titulo={tituloDoBloco(2, "Por quê?")}
                 ferramenta="Cascata da medição do mês: previsto → realizado, obra a obra"
+                {...cabecalho(2)}
                 aside={analise.semana.texto ? (
                   <span className={cn(
                     'shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-semibold whitespace-nowrap',
@@ -833,7 +944,12 @@ const Consolidado = () => {
               </Bloco>
 
               {/* ── 3. ONDE ESTÁ O PROBLEMA ──────────────────────────── */}
-              <Bloco n={3} pergunta="Onde está o problema?" ferramenta="Semana a semana — clique para abrir o que não fechou">
+              <Bloco
+                n={3}
+                titulo={tituloDoBloco(3, "Onde está o problema?")}
+                ferramenta="Semana a semana — clique para abrir o que não fechou"
+                {...cabecalho(3)}
+              >
                 <div className="space-y-3">
                   {analise.problemas.map((obra) => {
                     const resumo = analise.matriz.find((m) => m.id === obra.id);
@@ -962,8 +1078,9 @@ const Consolidado = () => {
               {/* ── 4. TENDÊNCIA DE PRAZO ────────────────────────────── */}
               <Bloco
                 n={4}
-                pergunta="Qual a tendência do prazo?"
+                titulo={tituloDoBloco(4, "Qual a tendência do prazo?")}
                 ferramenta="Término da linha de base × término projetado, mês a mês"
+                {...cabecalho(4)}
                 aside={!foco && doCliente.length > 1 ? (
                   // Datas de término não se somam entre obras — este gráfico é
                   // sempre de uma só, e a escolha precisa estar à mão.
@@ -1041,8 +1158,9 @@ const Consolidado = () => {
               {/* ── 5. QUANTO VAI SOBRAR ─────────────────────────────── */}
               <Bloco
                 n={5}
-                pergunta="Quanto vai sobrar?"
+                titulo={tituloDoBloco(5, "Quanto vai sobrar?")}
                 ferramenta="Contrato − impostos − custo = resultado líquido projetado"
+                {...cabecalho(5)}
                 aside={!foco && doCliente.length > 1 ? (
                   // "Quanto a UNIPAR deixa" e "quanto o SPCI deixa" são duas
                   // conversas. Obrigar a recortar a página inteira para trocar
@@ -1167,7 +1285,12 @@ const Consolidado = () => {
 
             <div className="grid gap-4 lg:grid-cols-2">
               {/* ── 6. QUAL O RISCO ──────────────────────────────────── */}
-              <Bloco n={6} pergunta="Qual o risco?" ferramenta="Impacto × probabilidade, por obra">
+              <Bloco
+                n={6}
+                titulo={tituloDoBloco(6, "Qual o risco?")}
+                ferramenta="Impacto × probabilidade, por obra"
+                {...cabecalho(6)}
+              >
                 {analise.riscos.length === 0 ? (
                   <Vazio>Sem avanço lançado para medir risco.</Vazio>
                 ) : (
@@ -1231,7 +1354,12 @@ const Consolidado = () => {
               </Bloco>
 
               {/* ── 7. O QUE DEVEMOS FAZER ───────────────────────────── */}
-              <Bloco n={7} pergunta="O que devemos fazer?" ferramenta="Prioridades da semana, do maior risco para baixo">
+              <Bloco
+                n={7}
+                titulo={tituloDoBloco(7, "O que devemos fazer?")}
+                ferramenta="Prioridades da semana, do maior risco para baixo"
+                {...cabecalho(7)}
+              >
                 {analise.acoes.length === 0 ? (
                   <Vazio>Sem obra em risco para priorizar.</Vazio>
                 ) : (

@@ -275,6 +275,8 @@ export interface Project {
   desvioAnalise?: DesvioAnalise;
   /** Análise de risco do consolidado do cliente — a mesma em todas as obras dele. */
   riscoConsolidado?: RiscoConsolidado;
+  /** Títulos das perguntas do consolidado, quando renomeadas. Iguais para todos. */
+  titulosConsolidado?: Record<string, string>;
   /** Motivos do desvio do mês, anotados à mão no consolidado. */
   motivosDesvio?: MotivoDesvio[];
   /** @deprecated campo único anterior — a lista acima o absorve na leitura. */
@@ -447,6 +449,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     riscoConsolidado: (d.riscoConsolidado as RiscoConsolidado) ?? undefined,
     notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
     motivosDesvio: (d.motivosDesvio as MotivoDesvio[]) ?? undefined,
+    titulosConsolidado: (d.titulosConsolidado as Record<string, string>) ?? undefined,
   };
 };
 
@@ -478,6 +481,7 @@ const projectToDb = (p: Project): any => ({
     riscoConsolidado: p.riscoConsolidado || null,
     notaProblemas: p.notaProblemas || null,
     motivosDesvio: p.motivosDesvio || null,
+    titulosConsolidado: p.titulosConsolidado || null,
   },
 });
 
@@ -546,6 +550,8 @@ interface ProjectStoreState {
   setRiscoConsolidado: (idsDoCliente: string[], texto: string, porIa: boolean, autor?: string) => void;
   /** Motivos do desvio do mes anotados numa obra. */
   setMotivosDesvio: (projectId: string, motivos: MotivoDesvio[]) => void;
+  /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
+  setTituloConsolidado: (chave: string, texto: string) => void;
   /** Anota num card do relatório, carimbando a data. */
   addObservacaoCard: (card: string, texto: string, autor?: string) => void;
   removeObservacaoCard: (card: string, id: string) => void;
@@ -927,6 +933,22 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
    * Existe porque nem toda obra importa a Programação Semanal, e a reunião tem
    * problema para registrar do mesmo jeito. Fica na obra, não no cliente.
    */
+  /**
+   * Renomeia uma pergunta do consolidado.
+   *
+   * Vale para TODAS as obras, como o layout do relatório: o consolidado é a
+   * mesma tela para qualquer cliente, e um título diferente por obra faria a
+   * pergunta mudar ao trocar de cliente no seletor.
+   */
+  setTituloConsolidado: (chave, texto) => set((s) => {
+    const updated = s.projects.map((p) => ({
+      ...p,
+      titulosConsolidado: { ...(p.titulosConsolidado ?? {}), [chave]: texto },
+    }));
+    updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
   setMotivosDesvio: (projectId, motivos) => set((s) => {
     const updated = s.projects.map((p) => (p.id === projectId
       // O campo único antigo sai junto: ele já foi absorvido pela lista na
