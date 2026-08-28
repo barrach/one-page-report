@@ -102,7 +102,7 @@ export interface MonthWeekData {
   real: number;
 }
 
-export type ActionStatus = 'EM ANDAMENTO' | 'CONCLUÍDO' | 'CANCELADO' | 'ATRASADO' | '';
+export type ActionStatus = 'NÃO INICIADO' | 'EM ANDAMENTO' | 'CONCLUÍDO' | 'CANCELADO' | 'ATRASADO' | '';
 
 export interface ActionItem {
   id: number;
@@ -556,6 +556,8 @@ interface ProjectStoreState {
   setRiscoConsolidado: (idsDoCliente: string[], texto: string, porIa: boolean, autor?: string) => void;
   /** Motivos do desvio do mes anotados numa obra. */
   setMotivosDesvio: (projectId: string, motivos: MotivoDesvio[]) => void;
+  /** Plano de ação de UMA obra pelo id, sem trocar a seleção. */
+  setActionsDoProjeto: (projectId: string, actions: ActionItem[]) => void;
   /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
   setTituloConsolidado: (chave: string, texto: string) => void;
   /** Anota num card do relatório, carimbando a data. */
@@ -958,6 +960,13 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
       titulosConsolidado: { ...(p.titulosConsolidado ?? {}), [chave]: texto },
     }));
     updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
+  setActionsDoProjeto: (projectId, actions) => set((s) => {
+    const updated = s.projects.map((p) => (p.id === projectId ? { ...p, actions } : p));
+    const alvo = updated.find((p) => p.id === projectId);
+    if (alvo) debouncedSave(alvo);
     return { projects: updated };
   }),
 

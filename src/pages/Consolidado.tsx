@@ -31,6 +31,7 @@ import {
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
 import MotivosDoDesvio from '@/components/MotivosDoDesvio';
+import TabelaPcs from '@/components/TabelaPcs';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -1520,23 +1521,15 @@ const Consolidado = () => {
                           </Link>
                         </div>
 
-                        {/* Obra crítica sem ação lançada não é obra tranquila —
-                            é obra sem plano, e essa é a informação acionável. */}
-                        {a.semAcao ? (
-                          <p className="mt-2 text-xs flex items-start gap-1.5 text-destructive">
-                            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                            Nenhuma ação aberta lançada nesta obra.
-                          </p>
-                        ) : (
-                          <ul className="mt-2 space-y-1">
-                            {a.acoes.map((texto, j) => (
-                              <li key={j} className="text-xs text-muted-foreground flex items-start gap-1.5">
-                                <span className="text-primary mt-0.5">•</span>
-                                <span className="min-w-0">{texto}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                        {/* O plano de ação da obra, em PCS. Substitui a lista
+                            solta de atividades: sem responsável e sem prazo,
+                            "liberar frente 3" é uma frase, não um compromisso. */}
+                        <div className="mt-3">
+                          <TabelaPcs
+                            projeto={doCliente.find((p) => p.id === a.id)!}
+                            dataCorte={analise.status}
+                          />
+                        </div>
                       </li>
                     ))}
                   </ol>
