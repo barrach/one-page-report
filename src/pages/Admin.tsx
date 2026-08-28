@@ -26,6 +26,34 @@ interface RespostaAcesso {
   emailErro?: string | null;
 }
 
+/**
+ * A mensagem que a função realmente devolveu.
+ *
+ * O supabase-js só diz "Edge Function returned a non-2xx status code" e joga a
+ * resposta inteira em `error.context` — então o motivo ("Unknown action",
+ * "Usuário não encontrado", o erro do Supabase Auth) ficava invisível, e todo
+ * problema diferente aparecia com o mesmo texto na tela.
+ */
+const detalharErro = async (erro: unknown): Promise<string> => {
+  const generica = erro instanceof Error ? erro.message : 'Erro na função de administração';
+  const contexto = (erro as { context?: Response })?.context;
+  if (!contexto || typeof contexto.text !== 'function') return generica;
+
+  try {
+    const corpo = await contexto.text();
+    if (!corpo) return generica;
+    try {
+      const json = JSON.parse(corpo) as { error?: string };
+      return json.error || corpo.slice(0, 300);
+    } catch {
+      return corpo.slice(0, 300);
+    }
+  } catch {
+    // Corpo já consumido ou ilegível — a genérica ainda é melhor que nada.
+    return generica;
+  }
+};
+
 const roleLabels: Record<AppRole, string> = {
   admin: 'Administrador',
   planejador: 'Planejador',
@@ -54,7 +82,7 @@ const Admin = () => {
       body,
       headers: { Authorization: `Bearer ${session?.access_token}` },
     });
-    if (res.error) throw new Error(res.error.message);
+    if (res.error) throw new Error(await detalharErro(res.error));
     return res.data;
   }, []);
 
