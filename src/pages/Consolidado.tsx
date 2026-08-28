@@ -1,7 +1,8 @@
-import { useMemo, useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, ArrowRight, AlertTriangle, X, ChevronRight,
+  MoreVertical, Presentation, Moon, Sun, Smartphone,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
@@ -24,6 +25,10 @@ import AnaliseDeRisco from '@/components/AnaliseDeRisco';
 import NotaEditavel from '@/components/NotaEditavel';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useThemeStore } from '@/hooks/use-theme';
 
 /**
  * One Page Consolidado do cliente, nas sete perguntas.
@@ -161,6 +166,28 @@ const TooltipResultado = ({ active, payload }: any) => {
 const Consolidado = () => {
   const { projects, selectProject, acessoRestrito, setNotaProblemas } = useProjectStore();
   const { canEdit, user } = useAuth();
+  const { theme, toggleTheme } = useThemeStore();
+  const navigate = useNavigate();
+
+  /**
+   * Tela cheia para a reunião.
+   *
+   * Sai do modo quando a pessoa aperta Esc — o navegador devolve o fullscreen
+   * sem avisar a aplicação, e sem este ouvinte a barra ficaria escondida com a
+   * tela já normal.
+   */
+  const [apresentando, setApresentando] = useState(false);
+  const alternarApresentacao = () => {
+    if (apresentando) document.exitFullscreen?.().catch(() => {});
+    else document.documentElement.requestFullscreen?.().catch(() => {});
+    setApresentando((v) => !v);
+  };
+
+  useEffect(() => {
+    const aoSair = () => { if (!document.fullscreenElement) setApresentando(false); };
+    document.addEventListener('fullscreenchange', aoSair);
+    return () => document.removeEventListener('fullscreenchange', aoSair);
+  }, []);
 
   // `projects` já vem recortado pelo papel: um cliente cujo nome aparece no
   // seletor entrega que ele existe, então a lista sai das obras visíveis.
@@ -412,7 +439,8 @@ const Consolidado = () => {
 
   return (
     <div className="min-h-screen flex bg-background">
-      <AppSidebar />
+      {/* Em apresentação a tela é o painel: o menu lateral só rouba espaço. */}
+      {!apresentando && <AppSidebar />}
 
       <div className="flex-1 min-w-0 p-3 sm:p-5 space-y-4">
 
@@ -452,6 +480,32 @@ const Consolidado = () => {
                 ))}
               </SelectContent>
             </Select>
+
+            {/* O mesmo menu do relatório, com o que faz sentido aqui. Ficaram
+                de fora "Modo TV" e "Arrumar relatório": um gira entre obras e o
+                outro move cards que esta página não tem. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="flex items-center justify-center h-9 w-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  title="Mais opções"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={alternarApresentacao}>
+                  <Presentation className="h-4 w-4 mr-2" /> Modo apresentação
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={toggleTheme}>
+                  {theme === 'dark' ? <Sun className="h-4 w-4 mr-2" /> : <Moon className="h-4 w-4 mr-2" />}
+                  {theme === 'dark' ? 'Modo claro' : 'Modo escuro'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/install')}>
+                  <Smartphone className="h-4 w-4 mr-2" /> Instalar no celular
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
