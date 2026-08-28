@@ -133,6 +133,31 @@ const TooltipCascata = ({ active, payload }: any) => {
   );
 };
 
+/**
+ * Tooltip da cascata do resultado.
+ *
+ * Separado do da medição: lá cada degrau tem previsto e realizado, aqui tem só
+ * o valor do corte. Reaproveitar aquele fazia Impostos e Custo aparecerem como
+ * "Previsto R$ 0,00 · Realizado R$ 0,00".
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const TooltipResultado = ({ active, payload }: any) => {
+  const ponto = active ? payload?.[0]?.payload : null;
+  if (!ponto) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs card-shadow">
+      <div className="font-semibold text-foreground">{ponto.nome}</div>
+      <div className={cn(
+        'tabular-nums',
+        ponto.tipo === 'corte' ? 'text-destructive' : 'text-muted-foreground',
+      )}>
+        {ponto.delta < 0 ? '−' : ''}{fmtDinheiro(Math.abs(ponto.delta))}
+      </div>
+    </div>
+  );
+};
+
 const Consolidado = () => {
   const { projects, selectProject, acessoRestrito, setNotaProblemas } = useProjectStore();
   const { canEdit, user } = useAuth();
@@ -329,8 +354,30 @@ const Consolidado = () => {
    * É a mesma mecânica da cascata da medição, e funciona pelo mesmo motivo:
    * tudo em dinheiro, então corte e total têm tamanho comparável.
    */
+  /**
+   * Escopo do resultado: o cliente inteiro ou uma obra.
+   *
+   * Seletor próprio porque a pergunta se faz nos dois níveis e em momentos
+   * diferentes — "quanto a UNIPAR deixa" e "quanto o SPCI deixa" são duas
+   * conversas, e obrigar a recortar a página toda para trocar entre elas
+   * levaria junto os outros seis blocos.
+   */
+  const [obraDoResultado, setObraDoResultado] = useState<string>('todos');
+  const idDoResultado = foco
+    ?? (obraDoResultado !== 'todos' && doCliente.some((p) => p.id === obraDoResultado)
+      ? obraDoResultado
+      : null);
+
+  /** O nome do que está sendo somado — a frase de leitura precisa dizer qual é. */
+  const nomeDoResultado = idDoResultado
+    ? (doCliente.find((p) => p.id === idDoResultado)?.name ?? clienteAtivo)
+    : clienteAtivo;
+
   const resultado = useMemo(() => {
-    const r = resultadoProjetado(dados.obras);
+    const obras = idDoResultado
+      ? dadosCliente.obras.filter((o) => o.id === idDoResultado)
+      : dadosCliente.obras;
+    const r = resultadoProjetado(obras);
     if (!r) return null;
 
     const aposImpostos = r.contrato - r.impostos;
@@ -349,7 +396,7 @@ const Consolidado = () => {
         },
       ],
     };
-  }, [dados.obras]);
+  }, [dadosCliente.obras, idDoResultado]);
 
   /** Quem está sem valor — é por elas que a ponderação por contrato não liga. */
   const semValor = useMemo(
@@ -859,6 +906,22 @@ const Consolidado = () => {
                 n={5}
                 pergunta="Quanto vai sobrar?"
                 ferramenta="Contrato − impostos − custo = resultado líquido projetado"
+                aside={!foco && doCliente.length > 1 ? (
+                  // "Quanto a UNIPAR deixa" e "quanto o SPCI deixa" são duas
+                  // conversas. Obrigar a recortar a página inteira para trocar
+                  // entre elas levaria junto os outros seis blocos.
+                  <Select value={obraDoResultado} onValueChange={setObraDoResultado}>
+                    <SelectTrigger className="h-8 min-w-[160px] max-w-[240px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Cliente inteiro</SelectItem>
+                      {doCliente.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : undefined}
               >
                 {!resultado ? (
                   <Vazio>
@@ -880,7 +943,7 @@ const Consolidado = () => {
                             tickFormatter={fmtDinheiroCurto}
                             stroke="hsl(var(--muted-foreground))" width={72}
                           />
-                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipCascata} />
+                          <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.4)' }} content={TooltipResultado} />
                           {/* Base transparente: faz o degrau descer do contrato
                               até o líquido em vez de nascer do zero. */}
                           <Bar dataKey="de" stackId="r" fill="transparent" isAnimationActive={false} />
@@ -900,7 +963,7 @@ const Consolidado = () => {
                         ? 'border-success/40 bg-success/5 text-foreground'
                         : 'border-destructive/40 bg-destructive/5 text-foreground',
                     )}>
-                      {foco ? <strong>{nomeFocado}</strong> : <strong>{clienteAtivo}</strong>}:{' '}
+                      <strong>{nomeDoResultado}</strong>:{' '}
                       de {fmtDinheiro(resultado.dados.contrato)} contratados sobram{' '}
                       <strong>{fmtDinheiro(resultado.dados.liquido)}</strong>{' '}
                       ({resultado.dados.margem.toFixed(1).replace('.', ',')}% de margem).
@@ -911,7 +974,7 @@ const Consolidado = () => {
                         precisa de decisão. */}
                     {resultado.dados.porObra.length > 1 && (
                       <div className="overflow-x-auto mt-2">
-                        <table className="w-full border-collapse min-w-[34rem]">
+                        <table className="w-full border-collapse min-w-[44rem]">
                           <thead>
                             <tr className="bg-table-header text-table-header-foreground">
                               <th className={cn(th, 'text-left')}>Obra</th>
