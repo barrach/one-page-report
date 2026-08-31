@@ -122,6 +122,65 @@ export const semanaDeAnalise = (projetos: Project[]): { texto: string; divergent
   };
 };
 
+// ─── VISÃO UNIFICADA — todos os clientes ────────────────────────────────
+
+export interface LinhaCliente {
+  cliente: string;
+  obras: number;
+  avancoPrev: number;
+  avancoReal: number;
+  desvio: number;
+  valorContrato: number;
+  previstoMes: number;
+  realizadoMes: number;
+  acumulado: number;
+  /** Obras com IDP abaixo de 80. */
+  atrasadas: number;
+  ponderacao: Consolidado['ponderacao'];
+}
+
+/**
+ * Uma linha por cliente, para a entrada do consolidado.
+ *
+ * O avanço de cada cliente sai do mesmo `consolidarObras` que a página usa
+ * quando ele está selecionado — inclusive a ponderação. Recalcular aqui de
+ * outro jeito faria a linha do resumo discordar da tela em que ela clica, e é
+ * a discordância que destrói a confiança num painel.
+ *
+ * Não existe "avanço de todos os clientes": somar percentual entre contratos
+ * diferentes não significa nada. Por isso o total desta tabela é só o dinheiro.
+ */
+export const porCliente = (
+  projetos: Project[],
+  nomeDoCliente: (p: Project) => string,
+  consolidar: (ps: Project[]) => Consolidado,
+): LinhaCliente[] => {
+  const grupos = new Map<string, Project[]>();
+  projetos.forEach((p) => {
+    const nome = nomeDoCliente(p);
+    grupos.set(nome, [...(grupos.get(nome) ?? []), p]);
+  });
+
+  return [...grupos.entries()]
+    .map(([cliente, ps]) => {
+      const c = consolidar(ps);
+      return {
+        cliente,
+        obras: ps.length,
+        avancoPrev: c.avancoPrev,
+        avancoReal: c.avancoReal,
+        desvio: c.desvio,
+        valorContrato: c.valorContrato,
+        previstoMes: c.previstoMes,
+        realizadoMes: c.realizadoMes,
+        acumulado: c.acumulado,
+        atrasadas: c.atrasadas,
+        ponderacao: c.ponderacao,
+      };
+    })
+    .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR', { sensitivity: 'base' }));
+};
+
 // ─── 3. ONDE ESTÁ O PROBLEMA — matriz de variação ───────────────────────
 
 export type Severidade = 'ok' | 'atencao' | 'ruim' | 'sem_dado';

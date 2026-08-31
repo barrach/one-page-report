@@ -26,7 +26,7 @@ import {
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
   prioridades, riscoDasObras, cascataDaMedicao, semanaDeAnalise,
-  problemasPorSemana, tendenciaDeDatas, resultadoProjetado, MAX_SEMANAS,
+  problemasPorSemana, tendenciaDeDatas, resultadoProjetado, porCliente, MAX_SEMANAS,
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
@@ -86,6 +86,9 @@ const CORES_OBRA = [
 ];
 
 const corDaObra = (i: number) => CORES_OBRA[i % CORES_OBRA.length];
+
+/** O seletor de cliente abre em "todos": a carteira antes do cliente. */
+const TODOS = '__todos__';
 
 const pct = (n: number) => `${n.toFixed(2).replace('.', ',')}%`;
 
@@ -515,12 +518,28 @@ const Consolidado = () => {
   // seletor entrega que ele existe, então a lista sai das obras visíveis.
   const clientes = useMemo(() => clientesVisiveis(projects), [projects]);
 
-  const [cliente, setCliente] = useState<string>(() => clientes[0] ?? '');
-  const clienteAtivo = clientes.includes(cliente) ? cliente : (clientes[0] ?? '');
+  /**
+   * A tela abre em TODOS os clientes.
+   *
+   * Quem entra no consolidado quer saber como está a carteira, não um cliente
+   * específico — esse é o segundo passo, depois de ver onde o problema está.
+   * Abrir num cliente escolhido pelo alfabeto seria escolher o assunto por ele.
+   */
+  const [cliente, setCliente] = useState<string>(TODOS);
+  const clienteAtivo = cliente === TODOS || clientes.includes(cliente) ? cliente : TODOS;
+  const todosOsClientes = clienteAtivo === TODOS;
 
   const doCliente = useMemo(
-    () => projects.filter((p) => clienteDaObra(p) === clienteAtivo),
-    [projects, clienteAtivo],
+    () => (todosOsClientes ? projects : projects.filter((p) => clienteDaObra(p) === clienteAtivo)),
+    [projects, clienteAtivo, todosOsClientes],
+  );
+
+  /** Uma linha por cliente — só faz sentido na visão de todos. */
+  const linhasDeCliente = useMemo(
+    () => (todosOsClientes && clientes.length > 1
+      ? porCliente(projects, clienteDaObra, consolidarObras)
+      : []),
+    [projects, todosOsClientes, clientes.length],
   );
 
   /**
@@ -605,7 +624,7 @@ const Consolidado = () => {
       acoesAbertas: acoesAbertas(doCliente),
     },
     projectInfo: {
-      cliente: clienteAtivo,
+      cliente: todosOsClientes ? 'todos os clientes' : clienteAtivo,
       atualizadoEm: analise.status,
       avancoPrev: dadosCliente.avancoPrev,
       avancoReal: dadosCliente.avancoReal,
@@ -832,7 +851,7 @@ const Consolidado = () => {
   /** O nome do que está sendo somado — a frase de leitura precisa dizer qual é. */
   const nomeDoResultado = idDoResultado
     ? (doCliente.find((p) => p.id === idDoResultado)?.name ?? clienteAtivo)
-    : clienteAtivo;
+    : (todosOsClientes ? 'Carteira' : clienteAtivo);
 
   const resultado = useMemo(() => {
     const obras = idDoResultado
@@ -891,7 +910,9 @@ const Consolidado = () => {
             </h1>
             <p className="text-[11px] text-primary-foreground/70">
               Resultado → Driver → Risco → Ação ·{' '}
-              {foco ? 'recortado numa obra' : 'todas as obras do cliente numa leitura só'}
+              {foco ? 'recortado numa obra'
+                : todosOsClientes ? 'todas as obras de todos os clientes'
+                  : 'todas as obras do cliente numa leitura só'}
             </p>
           </div>
 
@@ -918,6 +939,7 @@ const Consolidado = () => {
                 <SelectValue placeholder="Cliente" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={TODOS}>Todos os clientes</SelectItem>
                 {clientes.map((c) => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
@@ -983,17 +1005,93 @@ const Consolidado = () => {
               titulo={tituloDoBloco(1, "O que aconteceu?")}
               ferramenta={foco
                 ? `Analisando ${nomeFocado} — clique de novo na linha para voltar ao cliente`
-                : 'Clique numa obra para recortar a página inteira nela'}
+                : todosOsClientes
+                  ? 'Toda a carteira. Clique num cliente para entrar nele, ou numa obra para recortar a página'
+                  : 'Clique numa obra para recortar a página inteira nela'}
               {...cabecalho(1)}
             >
               {/* Sem cartões de resumo: a linha "Consolidado" ao pé da tabela
                   traz os mesmos números, e ali eles aparecem ao lado das
                   parcelas que os formam — que é o que prova a conta. */}
+              {/* Resumo por cliente: a porta de entrada do consolidado. Uma
+                  linha por cliente, e o clique leva para dentro dele. Não há
+                  total de avanço aqui — somar percentual entre contratos
+                  diferentes não significa nada; só o dinheiro soma. */}
+              {linhasDeCliente.length > 0 && (
+                <div className="overflow-x-auto mb-4">
+                  <table className="w-full border-collapse min-w-[46rem]">
+                    <thead>
+                      <tr className="bg-table-header text-table-header-foreground">
+                        <th className={cn(th, 'text-left')}>Cliente</th>
+                        <th className={cn(th, 'text-right')}>Obras</th>
+                        <th className={cn(th, 'text-right')}>Avanço previsto</th>
+                        <th className={cn(th, 'text-right')}>Avanço real</th>
+                        <th className={cn(th, 'text-right')}>Desvio</th>
+                        {canEdit && <th className={cn(th, 'text-right')}>Contratado</th>}
+                        {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
+                        <th />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {linhasDeCliente.map((c) => (
+                        <tr
+                          key={c.cliente}
+                          onClick={() => setCliente(c.cliente)}
+                          title={`Ver só ${c.cliente}`}
+                          className="cursor-pointer hover:bg-muted/40 transition-colors"
+                        >
+                          <td className={cn(td, 'font-semibold text-foreground')}>{c.cliente}</td>
+                          <td className={cn(td, 'text-right tabular-nums')}>
+                            {c.obras}
+                            {c.atrasadas > 0 && (
+                              <span className="ml-1.5 text-[11px] text-destructive font-semibold">
+                                {c.atrasadas} atrasada{c.atrasadas > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </td>
+                          <td className={cn(td, 'text-right tabular-nums')}>{pct(c.avancoPrev)}</td>
+                          <td className={cn(td, 'text-right tabular-nums')}>{pct(c.avancoReal)}</td>
+                          <td className={cn(
+                            td, 'text-right tabular-nums font-semibold',
+                            c.desvio < 0 ? 'text-destructive' : c.desvio > 0 ? 'text-success' : '',
+                          )}>
+                            {pct(c.desvio)}
+                          </td>
+                          {canEdit && <Dinheiro classe={td} valor={c.valorContrato} />}
+                          {canEdit && <Dinheiro classe={td} valor={c.realizadoMes} />}
+                          <td className={cn(td, 'text-right')}>
+                            <span className="inline-flex items-center gap-1 text-xs text-primary whitespace-nowrap">
+                              Abrir <ArrowRight className="h-3 w-3" />
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      <tr className="bg-muted/50 font-semibold">
+                        <td className={cn(td, 'text-foreground')}>Carteira</td>
+                        <td className={cn(td, 'text-right tabular-nums')}>
+                          {linhasDeCliente.reduce((s, c) => s + c.obras, 0)}
+                        </td>
+                        <td className={td} />
+                        <td className={td} />
+                        <td className={td} />
+                        {canEdit && <Dinheiro classe={td} valor={dadosCliente.valorContrato} />}
+                        {canEdit && <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />}
+                        <td className={td} />
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
               <div className="overflow-x-auto">
                   <table className="w-full border-collapse min-w-[52rem]">
                     <thead>
                       <tr className="bg-table-header text-table-header-foreground">
                         <th className={cn(th, 'text-left')}>Obra</th>
+                        {/* De quem é a obra só importa quando há mais de um
+                            cliente na tela; dentro de um, repetir o nome em
+                            toda linha é ruído. */}
+                        {todosOsClientes && <th className={cn(th, 'text-left')}>Cliente</th>}
                         <th className={cn(th, 'text-right')}>Avanço previsto</th>
                         <th className={cn(th, 'text-right')}>Avanço real</th>
                         <th className={cn(th, 'text-right')}>Desvio</th>
@@ -1030,6 +1128,21 @@ const Consolidado = () => {
                               <span className={cn('inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle', ativa ? 'bg-primary' : 'bg-transparent')} />
                               {o.nome}
                             </td>
+                            {/* Clicar no cliente entra nele — é o caminho da
+                                visão de todos para a de um. Para o clique da
+                                LINHA, que foca a obra, não disparar junto. */}
+                            {todosOsClientes && (
+                              <td className={cn(td, 'text-muted-foreground')}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); setCliente(clienteDaObra(doCliente.find((p) => p.id === o.id)!)); }}
+                                  className="hover:text-primary hover:underline"
+                                  title="Ver só este cliente"
+                                >
+                                  {clienteDaObra(doCliente.find((p) => p.id === o.id)!)}
+                                </button>
+                              </td>
+                            )}
                             <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
                             <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
                             <td className={cn(
@@ -1088,6 +1201,7 @@ const Consolidado = () => {
                       {canEdit && dadosCliente.obras.length > 1 && (
                         <tr className="bg-muted/50 font-semibold">
                           <td className={cn(td, 'text-foreground')}>Total</td>
+                          {todosOsClientes && <td className={td} />}
                           <td className={td} />
                           <td className={td} />
                           <td className={td} />
@@ -1655,13 +1769,22 @@ const Consolidado = () => {
                 )}
 
                 {/* A análise escrita é o que o gráfico não diz: risco que se
-                    soma entre obras, causa conhecida, decisão da semana. */}
-                <AnaliseDeRisco
-                  cliente={clienteAtivo}
-                  idsDoCliente={doCliente.map((p) => p.id)}
-                  salvo={riscoSalvo}
-                  dadosParaIa={dadosParaIa}
-                />
+                    soma entre obras, causa conhecida, decisão da semana.
+                    Ela é POR CLIENTE — escrevê-la na visão de todos gravaria o
+                    mesmo texto em cima da análise de cada um. */}
+                {todosOsClientes ? (
+                  <p className="mt-4 pt-3 border-t border-border text-xs text-muted-foreground">
+                    A análise de risco é escrita por cliente. Escolha um cliente no topo para
+                    ler ou escrever a dele.
+                  </p>
+                ) : (
+                  <AnaliseDeRisco
+                    cliente={clienteAtivo}
+                    idsDoCliente={doCliente.map((p) => p.id)}
+                    salvo={riscoSalvo}
+                    dadosParaIa={dadosParaIa}
+                  />
+                )}
               </Bloco>
 
               {/* ── 7. O QUE DEVEMOS FAZER ───────────────────────────── */}
