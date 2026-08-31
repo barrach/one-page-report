@@ -840,6 +840,24 @@ const Consolidado = () => {
     };
   };
 
+  /**
+   * O cliente que o item 3 mostra.
+   *
+   * Seletor próprio porque a pergunta se faz nos dois níveis: o desvio da
+   * carteira e o desvio de um cliente são conversas diferentes, e trocar entre
+   * elas não pode arrastar os outros seis blocos junto.
+   */
+  const [clienteDosProblemas, setClienteDosProblemas] = useState<string>(TODOS);
+
+  /** As obras que o item 3 lista, conforme o cliente escolhido no bloco. */
+  const problemasFiltrados = useMemo(() => {
+    if (clienteDosProblemas === TODOS) return analise.problemas;
+    const ids = new Set(
+      doCliente.filter((p) => clienteDaObra(p) === clienteDosProblemas).map((p) => p.id),
+    );
+    return analise.problemas.filter((o) => ids.has(o.id));
+  }, [analise.problemas, clienteDosProblemas, doCliente]);
+
   /** Semanas abertas no item 3. Fechadas por padrão: aberto tudo, ninguém lê. */
   const [semanasAbertas, setSemanasAbertas] = useState<Set<string>>(new Set());
   const alternarSemana = (chave: string) => setSemanasAbertas((atual) => {
@@ -1431,9 +1449,26 @@ const Consolidado = () => {
                 titulo={tituloDoBloco(3, "Onde está o problema?")}
                 ferramenta="Semana a semana — clique para abrir o que não fechou"
                 {...cabecalho(3)}
+                aside={clientes.length > 1 ? (
+                  // Seletor proprio: "onde esta o desvio da UNIPAR" e uma
+                  // pergunta; "onde esta o desvio da carteira" e outra, e
+                  // recortar a pagina inteira para trocar levaria os outros
+                  // seis blocos junto.
+                  <Select value={clienteDosProblemas} onValueChange={setClienteDosProblemas}>
+                    <SelectTrigger className="h-8 min-w-[160px] max-w-[240px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TODOS}>Todos os clientes</SelectItem>
+                      {clientes.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : undefined}
               >
                 <div className="space-y-3">
-                  {analise.problemas.map((obra) => {
+                  {problemasFiltrados.map((obra) => {
                     const resumo = analise.matriz.find((m) => m.id === obra.id);
                     return (
                       <div key={obra.id} className="rounded-lg border border-border overflow-hidden">
