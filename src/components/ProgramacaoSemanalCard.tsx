@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useState, Fragment } from "react";
 import { useCurrentProject } from "@/store/projectStore";
 import { Link } from "react-router-dom";
@@ -172,7 +173,7 @@ export default function ProgramacaoSemanalCard({ data }: Props) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
-            Programação Semanal
+            <TituloCard id="progsemanal" padrao="Programação Semanal" />
           </h3>
           <p className="text-xs text-muted-foreground">
             Tarefas programadas × concluídas (PPC)

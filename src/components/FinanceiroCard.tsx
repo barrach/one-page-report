@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useMemo, useState } from 'react';
 import { useCurrentProject } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
@@ -94,7 +95,7 @@ const FinanceiroCard = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Financeiro</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='financeiro' padrao='Financeiro' /></h3>
           <p className="text-xs text-muted-foreground">
             EAP do contrato · visível apenas para administrador, gestor e planejador
           </p>

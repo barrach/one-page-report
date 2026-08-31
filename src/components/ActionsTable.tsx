@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useState } from 'react';
 import { useProjectStore, useCurrentProject, ActionStatus } from '@/store/projectStore';
 import { Trash2, Plus, ClipboardList, AlertTriangle, ChevronDown, ChevronRight, CalendarClock } from 'lucide-react';
@@ -122,7 +123,7 @@ const Leitura = ({ label, valor }: { label: string; valor: string }) => (
  */
 const PontosParaImpressao = ({ actions }: { actions: ReturnType<typeof useCurrentProject>['actions'] }) => (
   <div className="bg-card rounded-xl p-4 card-shadow border">
-    <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
+    <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='actions' padrao='Pontos de Atenção' /></h3>
     <p className="text-xs text-muted-foreground mb-3">Restrições e ações corretivas</p>
 
     {actions.length === 0 ? (
@@ -195,7 +196,7 @@ const ActionsTable = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col min-h-[440px] sm:min-h-[560px]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Pontos de Atenção</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='actions' padrao='Pontos de Atenção' /></h3>
           <p className="text-xs text-muted-foreground">Restrições e ações corretivas</p>
         </div>
         {canEdit && (

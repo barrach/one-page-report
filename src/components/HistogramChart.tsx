@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import SeloDeFrescor from '@/components/SeloDeFrescor';
 import { useMemo } from 'react';
 import { useCurrentProject, useProjectStore } from '@/store/projectStore';
@@ -123,7 +124,7 @@ const HistogramChart = () => {
   if (data.length === 0) {
     return (
       <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
-        <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Histograma MOD</h3>
+        <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider"><TituloCard id='histogram' padrao='Histograma MOD' /></h3>
         <p className="text-xs text-muted-foreground">Nenhum dado de histograma. Adicione dados na aba Dados.</p>
       </div>
     );
@@ -260,7 +261,7 @@ const HistogramChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-1">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">{titulo}</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id="histogram" padrao={titulo} /></h3>
           <SeloDeFrescor secao="histogram" />
         </div>
         <div className="flex items-center gap-2 shrink-0">

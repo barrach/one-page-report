@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useMemo } from 'react';
 import { useCurrentProject, type WeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
@@ -144,7 +145,7 @@ const FiveWeekChart = () => {
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between gap-2 mb-1">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Visão de 5 Semanas</h3>
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='fiveweek' padrao='Visão de 5 Semanas' /></h3>
         <ChartExpandModal title="Visão de 5 Semanas" subtitle={subtitulo} expandedHeight="h-full">
           {chartContent('h-full min-h-0')}
         </ChartExpandModal>

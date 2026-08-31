@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useMemo } from 'react';
 import { useCurrentProject, useProjectStore, type MonthWeekData } from '@/store/projectStore';
 import { useReportInteraction } from '@/store/reportInteraction';
@@ -199,7 +200,7 @@ const MonthChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="min-w-0">
-          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Prev. × Realizado Mês</h3>
+          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider"><TituloCard id='month' padrao='Prev. × Realizado Mês' /></h3>
           <p className="text-xs text-muted-foreground">
             Semanas de {mesRotulo} · previsto pela {ROTULO_BASE_MENSAL[baseMensal].toLowerCase()}
           </p>

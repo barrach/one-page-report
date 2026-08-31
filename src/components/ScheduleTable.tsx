@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import SeloDeFrescor from '@/components/SeloDeFrescor';
 import { useState, useMemo } from 'react';
 import { Search, ChevronDown, ChevronRight } from 'lucide-react';
@@ -97,7 +98,7 @@ const CronogramaParaImpressao = ({
 
   return (
     <div className="bg-card rounded-xl p-4 card-shadow border">
-      <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Cronograma</h3>
+      <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='schedule' padrao='Cronograma' /></h3>
       <p className="text-xs text-muted-foreground mb-2">
         Status das atividades planejadas · até nível {nivel === 99 ? 'todos' : nivel}
       </p>
@@ -384,7 +385,7 @@ const ScheduleTable = () => {
   if (all.length === 0) {
     return (
       <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
-        <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
+        <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider"><TituloCard id='schedule' padrao='Cronograma' /></h3>
         <p className="text-xs text-muted-foreground text-center py-8">
           Nenhum dado de cronograma. Adicione dados na aba Dados.
         </p>
@@ -396,7 +397,7 @@ const ScheduleTable = () => {
     <div className="bg-card rounded-xl p-3 sm:p-6 card-shadow border">
       <div className="flex items-start justify-between mb-1 gap-2 flex-wrap">
         <div>
-          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider">Cronograma</h3>
+          <h3 className="text-sm font-bold text-foreground mb-1 uppercase tracking-wider"><TituloCard id='schedule' padrao='Cronograma' /></h3>
           <p className="text-xs text-muted-foreground">Status das atividades planejadas</p>
           <SeloDeFrescor secao="schedule" />
         </div>

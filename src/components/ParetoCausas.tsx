@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useMemo } from 'react';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -42,7 +43,7 @@ const ParetoCausas = () => {
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
         <div>
           <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
-            Pareto de Causas — 6M
+            <TituloCard id='pareto' padrao='Pareto de Causas — 6M' />
           </h3>
           <p className="text-xs text-muted-foreground">
             Por que a programação semanal não foi cumprida

@@ -1,10 +1,11 @@
-import { type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import {
   ArrowUp, ArrowDown, Maximize2, Minimize2, ChevronsUpDown, Eye, EyeOff, GripVertical,
   ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { nomeDoCard, type ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
+import { useProjectStore } from '@/store/projectStore';
 
 /**
  * Um card do relatório em modo de arrumação.
@@ -43,6 +44,21 @@ const CardArrumavel = ({
   item, editando, primeiro, ultimo, fechado, alternarFechado, children,
   onMover, onLargura, onAltura, onOculto, onArrastarInicio, onSoltarSobre,
 }: CardArrumavelProps) => {
+  const setTituloRelatorio = useProjectStore((s) => s.setTituloRelatorio);
+  const nomeSalvo = useProjectStore(
+    (s) => s.projects.find((p) => p.titulosRelatorio)?.titulosRelatorio?.[item.id]?.trim(),
+  );
+  const nomeAtual = nomeSalvo || nomeDoCard(item.id);
+
+  const [nome, setNome] = useState(nomeAtual);
+  // Ressincroniza ao trocar de card ou quando outro salvou o nome.
+  useEffect(() => { setNome(nomeAtual); }, [nomeAtual]);
+
+  const salvarNome = () => {
+    const limpo = nome.trim();
+    if (limpo && limpo !== nomeAtual) setTituloRelatorio(item.id, limpo);
+    else setNome(nomeAtual);
+  };
   const colSpan = item.largura === 'inteira' ? 'lg:col-span-2' : 'lg:col-span-1';
   const estilo = item.altura ? { minHeight: `${item.altura}px` } : undefined;
 
@@ -83,7 +99,7 @@ const CardArrumavel = ({
           >
             <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="text-sm font-bold text-foreground uppercase tracking-wider truncate">
-              {nomeDoCard(item.id)}
+              {nomeAtual}
             </span>
           </button>
         ) : null}
@@ -121,9 +137,20 @@ const CardArrumavel = ({
     >
       <div className="flex items-center gap-1 flex-wrap rounded-t-xl bg-primary/10 border border-primary/30 px-2 py-1">
         <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab shrink-0" />
-        <span className="text-[11px] font-semibold text-foreground mr-auto truncate">
-          {nomeDoCard(item.id)}
-        </span>
+        {/* O nome do card se edita aqui, e não no card: arrumar o relatório é
+            quando se decide como ele vai ser lido, e o nome é parte disso.
+            Renomear vale para todas as obras, como a arrumação. */}
+        <input
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          onBlur={salvarNome}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            if (e.key === 'Escape') { setNome(nomeAtual); (e.target as HTMLInputElement).blur(); }
+          }}
+          title="Renomear o card"
+          className="text-[11px] font-semibold text-foreground mr-auto min-w-0 flex-1 bg-transparent rounded px-1 py-0.5 outline-none hover:bg-background/60 focus:bg-background focus:ring-1 focus:ring-primary/40"
+        />
 
         <button className={botao} onClick={() => onMover(-1)} disabled={primeiro} title="Subir">
           <ArrowUp className="h-3.5 w-3.5" />

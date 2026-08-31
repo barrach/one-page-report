@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useEffect, useRef, useState } from 'react';
 import { Camera, Trash2, X, Loader2, ImageOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -169,7 +170,7 @@ const EvidenciasCard = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Evidências</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='evidencias' padrao='Evidências' /></h3>
           <p className="text-xs text-muted-foreground">
             Fotos da obra na semana{canEdit || fotos.length > 0 ? ` · ${fotos.length} de ${MAX_FOTOS}` : ''}
           </p>

@@ -277,6 +277,8 @@ export interface Project {
   desvioAnalise?: DesvioAnalise;
   /** Análise de risco do consolidado do cliente — a mesma em todas as obras dele. */
   riscoConsolidado?: RiscoConsolidado;
+  /** Nomes dos cards do relatório, quando renomeados. Iguais para todas as obras. */
+  titulosRelatorio?: Record<string, string>;
   /** Títulos das perguntas do consolidado, quando renomeadas. Iguais para todos. */
   titulosConsolidado?: Record<string, string>;
   /** Numeração das perguntas, quando renumeradas. Iguais para todas as obras. */
@@ -457,6 +459,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
     motivosDesvio: (d.motivosDesvio as MotivoDesvio[]) ?? undefined,
     ocultoNoConsolidado: Boolean(d.ocultoNoConsolidado),
+    titulosRelatorio: (d.titulosRelatorio as Record<string, string>) ?? undefined,
     titulosConsolidado: (d.titulosConsolidado as Record<string, string>) ?? undefined,
     numerosConsolidado: (d.numerosConsolidado as Record<string, string>) ?? undefined,
   };
@@ -492,6 +495,7 @@ const projectToDb = (p: Project): any => ({
     notaProblemas: p.notaProblemas || null,
     motivosDesvio: p.motivosDesvio || null,
     ocultoNoConsolidado: p.ocultoNoConsolidado || false,
+    titulosRelatorio: p.titulosRelatorio || null,
     titulosConsolidado: p.titulosConsolidado || null,
     numerosConsolidado: p.numerosConsolidado || null,
   },
@@ -569,6 +573,8 @@ interface ProjectStoreState {
   /** Tira (ou devolve) uma obra da visão do consolidado. */
   setObraOcultaNoConsolidado: (projectId: string, oculta: boolean) => void;
   /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
+  /** Renomeia um card do relatório — vale para todas as obras. */
+  setTituloRelatorio: (id: string, texto: string) => void;
   setTituloConsolidado: (chave: string, texto: string) => void;
   /** Renumera uma pergunta do consolidado — vale para todas as obras. */
   setNumeroConsolidado: (chave: string, numero: string) => void;
@@ -966,6 +972,15 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
    * mesma tela para qualquer cliente, e um título diferente por obra faria a
    * pergunta mudar ao trocar de cliente no seletor.
    */
+  setTituloRelatorio: (id, texto) => set((s) => {
+    const updated = s.projects.map((p) => ({
+      ...p,
+      titulosRelatorio: { ...(p.titulosRelatorio ?? {}), [id]: texto },
+    }));
+    updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
   setTituloConsolidado: (chave, texto) => set((s) => {
     const updated = s.projects.map((p) => ({
       ...p,

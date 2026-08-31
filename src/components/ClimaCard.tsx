@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import { useEffect, useState } from 'react';
 import {
   Sun, CloudSun, Cloud, CloudFog, CloudDrizzle, CloudRain, CloudSnow,
@@ -264,7 +265,7 @@ const ClimaCard = () => {
   return (
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border">
       <div className="flex items-start justify-between gap-3 mb-1">
-        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Clima na Obra</h3>
+        <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id='clima' padrao='Clima na Obra' /></h3>
         <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
           <MapPin className="h-3.5 w-3.5" />
           {info?.climaLocal || 'Local definido'}

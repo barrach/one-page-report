@@ -1,3 +1,4 @@
+import TituloCard from '@/components/TituloCard';
 import SeloDeFrescor from '@/components/SeloDeFrescor';
 import { useCurrentProject } from '@/store/projectStore';
 import { useTvMode } from '@/hooks/use-tv-mode';
@@ -235,7 +236,7 @@ const SCurveChart = () => {
     <div className="bg-card rounded-xl p-4 sm:p-6 card-shadow border h-full flex flex-col">
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
-          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">Curva "S"</h3>
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider"><TituloCard id="scurve" padrao={String.raw`Curva "S"`} /></h3>
           <SeloDeFrescor secao="sCurve" />
         </div>
         <ChartExpandModal
