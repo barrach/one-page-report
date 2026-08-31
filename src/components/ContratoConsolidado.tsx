@@ -6,8 +6,9 @@ import { formatDateBR } from '@/lib/dateUtils';
 import { fmtDinheiro, lerValor } from '@/lib/eapFinanceira';
 import { projetarTermino } from '@/lib/previsaoTermino';
 import {
-  CONTRATO_VAZIO, aditivoVazio, custoVazio, exposicaoDeMulta, medicaoVazia,
-  pleitoVazio, resumoDoContrato, STATUS_PLEITO,
+  CONTRATO_VAZIO, aditivoVazio, custoVazio, diaDoFaturamento, exposicaoDeMulta,
+  janelaDeMedicao, medicaoVazia, pleitoVazio, resumoDoContrato, STATUS_PLEITO,
+  vigenciaDoContrato,
   type Aditivo, type CompetenciaMedicao, type CustoMes, type DadosContrato,
   type Pleito, type StatusPleito,
 } from '@/lib/contrato';
@@ -58,8 +59,25 @@ const posicaoDaObra = (p: Project) => {
     resumo.valorVigente,
     p.contratoDados?.tetoMultaPercentual,
   );
-  return { id: p.id, nome: p.name, resumo, multa };
+  const vigencia = vigenciaDoContrato(p.info?.inicio ?? '', resumo.terminoVigente);
+  return { id: p.id, nome: p.name, info: p.info, dados: p.contratoDados, resumo, multa, vigencia };
 };
+
+type Posicao = ReturnType<typeof posicaoDaObra>;
+
+const somarPosicoes = (posicoes: Posicao[]) => posicoes.reduce((t, p) => ({
+  original: t.original + p.resumo.valorOriginal,
+  aditivos: t.aditivos + p.resumo.valorAditivos,
+  vigente: t.vigente + p.resumo.valorVigente,
+  pleitos: t.pleitos + p.resumo.pleitosAbertos.valor,
+  travado: t.travado + p.resumo.medicao.travadoNaAprovacao,
+  aReceber: t.aReceber + p.resumo.medicao.aReceber,
+  desvioCusto: t.desvioCusto + p.resumo.custo.desvio,
+  multa: t.multa + (p.multa?.exposicao ?? 0),
+}), {
+  original: 0, aditivos: 0, vigente: 0, pleitos: 0,
+  travado: 0, aReceber: 0, desvioCusto: 0, multa: 0,
+});
 
 const Numero = ({ rotulo, valor, detalhe, cor }: {
   rotulo: string; valor: string; detalhe?: string; cor?: string;
@@ -70,6 +88,34 @@ const Numero = ({ rotulo, valor, detalhe, cor }: {
     {detalhe && <div className="text-[10px] text-muted-foreground truncate">{detalhe}</div>}
   </div>
 );
+
+/**
+ * A posição de caixa da carteira, em quatro números.
+ *
+ * Ela abre o consolidado, e não a seção de contrato, porque é a resposta mais
+ * curta para "o que aconteceu?": o avanço diz que a obra andou, estes cartões
+ * dizem se o dinheiro veio junto. Quem lê o resto da tela já leu isso.
+ */
+export const CartoesDoContrato = ({ obras }: { obras: Project[] }) => {
+  const total = useMemo(() => somarPosicoes(obras.map(posicaoDaObra)), [obras]);
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+      <Numero rotulo="Carteira vigente" valor={fmtDinheiro(total.vigente)}
+        detalhe={total.aditivos !== 0 ? `${fmtDinheiro(total.aditivos)} em aditivos` : 'sem aditivos'}
+        cor="text-primary" />
+      <Numero rotulo="Travado na aprovação" valor={fmtDinheiro(total.travado)}
+        detalhe="medido, enviado, sem resposta"
+        cor={total.travado > 0 ? 'text-amber-600 dark:text-amber-500' : undefined} />
+      <Numero rotulo="A receber" valor={fmtDinheiro(total.aReceber)}
+        detalhe="faturado e sem entrada"
+        cor={total.aReceber > 0 ? 'text-destructive' : undefined} />
+      <Numero rotulo="Exposição a multa" valor={fmtDinheiro(total.multa)}
+        detalhe="no ritmo atual de cada obra"
+        cor={total.multa > 0 ? 'text-destructive' : undefined} />
+    </div>
+  );
+};
 
 const Grupo = ({ titulo, explicacao, indicadores, children, aoAdicionar, rotuloAdicionar, podeEditar }: {
   titulo: string;
@@ -122,7 +168,7 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
   const dados: DadosContrato = projeto.contratoDados ?? CONTRATO_VAZIO;
   const info = projeto.info;
 
-  const { resumo, multa } = useMemo(() => posicaoDaObra(projeto), [projeto]);
+  const { resumo, multa, vigencia } = useMemo(() => posicaoDaObra(projeto), [projeto]);
 
   const gravar = (patch: Partial<DadosContrato>) =>
     setContratoDados(projeto.id, { ...dados, ...patch });
@@ -190,6 +236,61 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
               className={cn(campo, 'text-sm border border-border py-1.5')}
             />
           </div>
+          {/* A cadência: dias do mês, não datas. Ela se repete todo mês —
+              lançá-la como data obrigaria a reescrever a mesma coisa doze
+              vezes por ano. */}
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Medição abre (dia)</label>
+            <input
+              inputMode="numeric" disabled={!podeEditar}
+              value={dados.medicaoDiaInicio || ''}
+              onChange={(e) => gravar({ medicaoDiaInicio: num(e.target.value) })}
+              placeholder="21"
+              className={cn(campo, 'text-sm border border-border py-1.5')}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Corte da medição (dia)</label>
+            <input
+              inputMode="numeric" disabled={!podeEditar}
+              value={dados.medicaoDiaFim || ''}
+              onChange={(e) => gravar({ medicaoDiaFim: num(e.target.value) })}
+              placeholder="20"
+              className={cn(campo, 'text-sm border border-border py-1.5')}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] font-medium text-muted-foreground mb-1 block">Faturamento (dia)</label>
+            <input
+              inputMode="numeric" disabled={!podeEditar}
+              value={dados.diaFaturamento || ''}
+              onChange={(e) => gravar({ diaFaturamento: num(e.target.value) })}
+              placeholder="30"
+              className={cn(campo, 'text-sm border border-border py-1.5')}
+            />
+          </div>
+        </div>
+
+        {/* A ficha do contrato em uma linha: é o que se pergunta primeiro na
+            reunião, antes de qualquer valor. */}
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted-foreground">
+          <span>
+            Vigência:{' '}
+            {vigencia ? (
+              <strong className={cn(
+                vigencia.vencida ? 'text-destructive'
+                  : vigencia.restantes <= 30 ? 'text-destructive'
+                  : vigencia.restantes <= 90 ? 'text-amber-600 dark:text-amber-500'
+                  : 'text-foreground',
+              )}>
+                {vigencia.vencida
+                  ? `vencido há ${Math.abs(vigencia.restantes)} dias`
+                  : `${vigencia.restantes} dias restantes`}
+              </strong>
+            ) : <strong className="text-foreground">—</strong>}
+          </span>
+          <span>Período de medição: <strong className="text-foreground">{janelaDeMedicao(dados)}</strong></span>
+          <span>Faturamento: <strong className="text-foreground">{diaDoFaturamento(dados)}</strong></span>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
@@ -516,6 +617,99 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
   );
 };
 
+// ─── Resumo por contrato ──────────────────────────────────────────────────
+
+/**
+ * A ficha de cada contrato: vigência e cadência, sem valores.
+ *
+ * É a tabela que a reunião pede antes de qualquer número — "esse contrato vai
+ * até quando mesmo, e quando fecha a medição?". Hoje essa resposta mora na
+ * cabeça de quem administra o contrato, e some junto com a pessoa nas férias.
+ *
+ * A cadência fica ao lado da vigência de propósito: é a distância entre o
+ * corte da medição e o faturamento que explica por que uma obra adiantada
+ * ainda não virou caixa.
+ */
+const ResumoDosContratos = ({ posicoes, aoFocar }: {
+  posicoes: Posicao[];
+  aoFocar: (id: string) => void;
+}) => {
+  const td = 'px-2 py-1.5 text-xs whitespace-nowrap';
+
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-2">
+      <div>
+        <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Resumo dos contratos</h4>
+        <p className="text-xs text-muted-foreground max-w-[80ch]">
+          Vigência e cadência de cada contrato. A vigência corre no calendário — fim de semana e
+          parada de fim de ano contam igual.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[52rem]">
+          <thead>
+            <tr className="bg-table-header text-table-header-foreground">
+              <th className={cn(cabecalho, 'text-left')}>Obra</th>
+              <th className={cabecalho}>Início</th>
+              <th className={cabecalho}>Término previsto</th>
+              <th className={cabecalho}>Término contratual</th>
+              <th className={cabecalho}>Vigência</th>
+              <th className={cabecalho}>Período de medição</th>
+              <th className={cabecalho}>Faturamento</th>
+            </tr>
+          </thead>
+          <tbody>
+            {posicoes.map((p) => (
+              <tr key={p.id} onClick={() => aoFocar(p.id)}
+                className="border-b border-border cursor-pointer hover:bg-muted/40 transition-colors">
+                <td className={cn(td, 'font-medium text-foreground')}>{p.nome}</td>
+                <td className={cn(td, 'text-muted-foreground')}>{formatDateBR(p.info?.inicio ?? '') || '—'}</td>
+                <td className={cn(td, 'text-muted-foreground')}>{formatDateBR(p.info?.terminoPrev ?? '') || '—'}</td>
+                {/* O vigente, não o assinado: com prorrogação lançada, é ele
+                    que vale — e é contra ele que a multa corre. */}
+                <td className={cn(td, 'font-medium text-foreground')}>
+                  {formatDateBR(p.resumo.terminoVigente) || '—'}
+                  {p.resumo.diasAditados !== 0 && (
+                    <span className="ml-1 text-[10px] text-muted-foreground">
+                      ({p.resumo.diasAditados > 0 ? '+' : ''}{p.resumo.diasAditados}d)
+                    </span>
+                  )}
+                </td>
+                <td className={td}>
+                  {!p.vigencia ? (
+                    <span className="text-muted-foreground">—</span>
+                  ) : p.vigencia.vencida ? (
+                    <span className="text-destructive font-semibold">
+                      vencido há {Math.abs(p.vigencia.restantes)} dias
+                    </span>
+                  ) : (
+                    <span className={cn(
+                      'font-medium',
+                      p.vigencia.restantes <= 30 ? 'text-destructive'
+                        : p.vigencia.restantes <= 90 ? 'text-amber-600 dark:text-amber-500'
+                        : 'text-foreground',
+                    )}>
+                      {p.vigencia.restantes} dias
+                      {p.vigencia.total > 0 && (
+                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                          de {p.vigencia.total}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </td>
+                <td className={cn(td, 'text-muted-foreground')}>{janelaDeMedicao(p.dados)}</td>
+                <td className={cn(td, 'text-muted-foreground')}>{diaDoFaturamento(p.dados)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 // ─── A carteira inteira ───────────────────────────────────────────────────
 
 /**
@@ -534,20 +728,7 @@ const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar }: {
   aoFocar: (id: string) => void;
 }) => {
   const posicoes = useMemo(() => obras.map(posicaoDaObra), [obras]);
-
-  const total = useMemo(() => posicoes.reduce((t, p) => ({
-    original: t.original + p.resumo.valorOriginal,
-    aditivos: t.aditivos + p.resumo.valorAditivos,
-    vigente: t.vigente + p.resumo.valorVigente,
-    pleitos: t.pleitos + p.resumo.pleitosAbertos.valor,
-    travado: t.travado + p.resumo.medicao.travadoNaAprovacao,
-    aReceber: t.aReceber + p.resumo.medicao.aReceber,
-    desvioCusto: t.desvioCusto + p.resumo.custo.desvio,
-    multa: t.multa + (p.multa?.exposicao ?? 0),
-  }), {
-    original: 0, aditivos: 0, vigente: 0, pleitos: 0,
-    travado: 0, aReceber: 0, desvioCusto: 0, multa: 0,
-  }), [posicoes]);
+  const total = useMemo(() => somarPosicoes(posicoes), [posicoes]);
 
   const obraEmFoco = foco ? obras.find((o) => o.id === foco) : null;
 
@@ -564,21 +745,11 @@ const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar }: {
   const td = 'px-2 py-1.5 text-xs tabular-nums text-right whitespace-nowrap';
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-        <Numero rotulo="Carteira vigente" valor={fmtDinheiro(total.vigente)}
-          detalhe={total.aditivos !== 0 ? `${fmtDinheiro(total.aditivos)} em aditivos` : 'sem aditivos'}
-          cor="text-primary" />
-        <Numero rotulo="Travado na aprovação" valor={fmtDinheiro(total.travado)}
-          detalhe="medido, enviado, sem resposta"
-          cor={total.travado > 0 ? 'text-amber-600 dark:text-amber-500' : undefined} />
-        <Numero rotulo="A receber" valor={fmtDinheiro(total.aReceber)}
-          detalhe="faturado e sem entrada"
-          cor={total.aReceber > 0 ? 'text-destructive' : undefined} />
-        <Numero rotulo="Exposição a multa" valor={fmtDinheiro(total.multa)}
-          detalhe="no ritmo atual de cada obra"
-          cor={total.multa > 0 ? 'text-destructive' : undefined} />
-      </div>
+    <div className="space-y-4">
+      {/* Os cartões de posição da carteira saíram daqui para o bloco 1: eles
+          são a resposta curta a "o que aconteceu?", e ali é onde se lê. */}
+
+      <ResumoDosContratos posicoes={posicoes} aoFocar={aoFocar} />
 
       <div className="overflow-x-auto">
         <table className="w-full min-w-[56rem]">

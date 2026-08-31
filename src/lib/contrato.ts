@@ -85,6 +85,17 @@ export interface DadosContrato {
   multaDiaria?: number;
   /** Teto de multa em % do contrato — quase todo contrato tem um. */
   tetoMultaPercentual?: number;
+  /**
+   * A cadência do contrato: dia em que a janela de medição abre, dia em que
+   * ela fecha e dia do faturamento.
+   *
+   * Parecem detalhe de rotina e não são: é o corte da medição que define o que
+   * entra no mês, e é a distância entre o corte e o faturamento que explica
+   * por que uma obra adiantada ainda não gerou caixa.
+   */
+  medicaoDiaInicio?: number;
+  medicaoDiaFim?: number;
+  diaFaturamento?: number;
   aditivos: Aditivo[];
   pleitos: Pleito[];
   medicoes: CompetenciaMedicao[];
@@ -256,6 +267,69 @@ export const exposicaoDeMulta = (
     teto,
     exposicao: teto != null ? Math.min(bruta, teto) : bruta,
     noTeto: teto != null && bruta >= teto,
+  };
+};
+
+// ─── A cadência do contrato ─────────────────────────────────────────────
+
+const diaDoMes = (n: number) =>
+  String(Math.min(31, Math.max(1, Math.round(n)))).padStart(2, '0');
+
+/**
+ * A janela de medição, escrita como se lê no contrato: "21 a 20".
+ *
+ * Com só um dos dois lançado, o que sobra é o corte — que é o dado que
+ * realmente decide o que entra na competência.
+ */
+export const janelaDeMedicao = (d: DadosContrato | undefined): string => {
+  const i = Number(d?.medicaoDiaInicio) || 0;
+  const f = Number(d?.medicaoDiaFim) || 0;
+  if (i && f) return `${diaDoMes(i)} a ${diaDoMes(f)}`;
+  if (f || i) return `corte dia ${diaDoMes(f || i)}`;
+  return '—';
+};
+
+export const diaDoFaturamento = (d: DadosContrato | undefined): string => {
+  const n = Number(d?.diaFaturamento) || 0;
+  return n ? `dia ${diaDoMes(n)}` : '—';
+};
+
+export interface Vigencia {
+  /** Dias entre hoje e o término vigente. Negativo quando já venceu. */
+  restantes: number;
+  vencida: boolean;
+  /** Duração total contratada, em dias. */
+  total: number;
+  /** Quanto da vigência já correu, de 0 a 100. */
+  percorrido: number;
+}
+
+/**
+ * Quanto ainda resta do contrato.
+ *
+ * Vigência é calendário, não cadência de relatório: ela corre nos fins de
+ * semana e na parada de fim de ano igual. Por isso conta contra HOJE, e não
+ * contra a data de corte da semana.
+ */
+export const vigenciaDoContrato = (
+  inicioISO: string,
+  terminoVigenteISO: string,
+  hoje: Date = new Date(),
+): Vigencia | null => {
+  const inicio = parseISOLocal(inicioISO);
+  const fim = parseISOLocal(terminoVigenteISO);
+  if (!fim) return null;
+
+  const dia = 86_400_000;
+  const restantes = Math.round((fim.getTime() - hoje.getTime()) / dia);
+  const total = inicio ? Math.round((fim.getTime() - inicio.getTime()) / dia) : 0;
+  const corrido = inicio ? Math.round((hoje.getTime() - inicio.getTime()) / dia) : 0;
+
+  return {
+    restantes,
+    vencida: restantes < 0,
+    total,
+    percorrido: total > 0 ? Math.max(0, Math.min(100, (corrido / total) * 100)) : 0,
   };
 };
 

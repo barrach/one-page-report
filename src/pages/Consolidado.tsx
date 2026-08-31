@@ -32,7 +32,7 @@ import {
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
 import MotivosDoDesvio from '@/components/MotivosDoDesvio';
 import TabelaPcs from '@/components/TabelaPcs';
-import ContratoConsolidado from '@/components/ContratoConsolidado';
+import ContratoConsolidado, { CartoesDoContrato } from '@/components/ContratoConsolidado';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -1147,9 +1147,15 @@ const Consolidado = () => {
                   : 'Clique numa obra para recortar a página inteira nela'}
               {...cabecalho(1)}
             >
-              {/* Sem cartões de resumo: a linha "Consolidado" ao pé da tabela
-                  traz os mesmos números, e ali eles aparecem ao lado das
-                  parcelas que os formam — que é o que prova a conta. */}
+              {/* A posição de caixa da carteira abre o bloco: o avanço da
+                  tabela diz que a obra andou, estes quatro números dizem se o
+                  dinheiro veio junto — e é a pergunta seguinte na reunião.
+                  Só quem já vê as colunas de dinheiro na tabela vê estes. */}
+              {canEdit && (
+                <div className="mb-3">
+                  <CartoesDoContrato obras={emAnalise} />
+                </div>
+              )}
               <div className="overflow-x-auto">
                   <table className="w-full border-collapse min-w-[52rem]">
                     <thead>
