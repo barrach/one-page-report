@@ -402,6 +402,31 @@ const DinheiroEditavel = ({ valor, manual, classe, podeEditar, aoSalvar }: {
   );
 };
 
+/**
+ * % realizado: realizado ÷ previsto do mês.
+ *
+ * Sem previsto lançado a conta não existe — e mostrar 0% ali seria dizer que a
+ * obra não mediu nada, quando o que falta é o alvo contra o qual comparar.
+ */
+const Aderencia = ({ realizado, previsto, classe }: {
+  realizado: number; previsto: number; classe: string;
+}) => {
+  const pode = previsto > 0;
+  const valor = pode ? (realizado / previsto) * 100 : 0;
+
+  return (
+    <td className={cn(classe, 'text-right tabular-nums whitespace-nowrap font-semibold')}>
+      {pode ? (
+        <span className={valor >= 100 ? 'text-success' : valor >= 80 ? 'text-amber-600 dark:text-amber-500' : 'text-destructive'}>
+          {valor.toFixed(1).replace('.', ',')}%
+        </span>
+      ) : (
+        <span className="text-muted-foreground font-normal">—</span>
+      )}
+    </td>
+  );
+};
+
 const ESTILO_TOOLTIP = {
   background: 'hsl(var(--card))',
   border: '1px solid hsl(var(--border))',
@@ -896,7 +921,10 @@ const Consolidado = () => {
 
 
   const th = 'px-3 py-2 text-xs font-semibold uppercase tracking-wider whitespace-nowrap';
-  const td = 'px-3 py-2 text-sm border-t border-border';
+  // `text-left` explícito e `align-middle`: sem eles as colunas de texto
+  // herdavam o alinhamento do container e o nome da obra ficava boiando no
+  // meio da célula, desalinhado do próprio cabeçalho.
+  const td = 'px-3 py-2 text-sm text-left align-middle border-t border-border';
 
   const semObras = dados.obras.length === 0;
 
@@ -1039,6 +1067,7 @@ const Consolidado = () => {
                         {canEdit && <th className={cn(th, 'text-right')}>Medição acumulada</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Previsto no mês</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
+                        {canEdit && <th className={cn(th, 'text-right')}>% realizado</th>}
                         {canEdit && <th className="w-10" />}
                       </tr>
                     </thead>
@@ -1062,9 +1091,18 @@ const Consolidado = () => {
                               foco && !ativa && 'opacity-45',
                             )}
                           >
-                            <td className={cn(td, 'font-medium text-foreground')}>
-                              <span className={cn('inline-block w-1.5 h-1.5 rounded-full mr-2 align-middle', ativa ? 'bg-primary' : 'bg-transparent')} />
-                              {o.nome}
+                            {/* O ponto de seleção fica num slot de largura fixa,
+                                fora do fluxo do nome: como marcador inline ele
+                                empurrava cada obra alguns pixels para a direita
+                                e desalinhava a coluna do próprio cabeçalho. */}
+                            <td className={cn(td, 'font-medium text-foreground whitespace-nowrap')}>
+                              <span className="flex items-center gap-2">
+                                <span className={cn(
+                                  'w-1.5 h-1.5 rounded-full shrink-0',
+                                  ativa ? 'bg-primary' : 'bg-transparent',
+                                )} />
+                                {o.nome}
+                              </span>
                             </td>
                             {/* Clicar no cliente entra nele — é o caminho da
                                 visão de todos para a de um. Para o clique da
@@ -1074,7 +1112,10 @@ const Consolidado = () => {
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); setCliente(clienteDaObra(doCliente.find((p) => p.id === o.id)!)); }}
-                                  className="hover:text-primary hover:underline"
+                                  // `text-left` no botão: sem ele o nome longo
+                                  // que quebra em duas linhas saía centralizado
+                                  // e desalinhava a coluna inteira.
+                                  className="text-left hover:text-primary hover:underline"
                                   title="Ver só este cliente"
                                 >
                                   {clienteDaObra(doCliente.find((p) => p.id === o.id)!)}
@@ -1123,6 +1164,10 @@ const Consolidado = () => {
                                 aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
                               />
                             )}
+                            {/* Calculada, nunca digitada: um campo à parte só
+                                criaria a chance de contradizer as duas colunas
+                                ao lado. */}
+                            {canEdit && <Aderencia classe={td} realizado={o.realizadoMes} previsto={o.previstoMes} />}
                             {/* Tirar a obra da visão. stopPropagation porque a
                                 linha inteira é o seletor de foco. */}
                             {canEdit && (
@@ -1160,6 +1205,14 @@ const Consolidado = () => {
                           <Dinheiro classe={td} valor={dadosCliente.acumulado} />
                           <Dinheiro classe={td} valor={dadosCliente.previstoMes} />
                           <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />
+                          {/* Razão dos totais, e não média das aderências: obra
+                              de R$ 5 milhões e de R$ 50 mil não pesam igual na
+                              medição do cliente. */}
+                          <Aderencia
+                            classe={td}
+                            realizado={dadosCliente.realizadoMes}
+                            previsto={dadosCliente.previstoMes}
+                          />
                           {canEdit && <td className={td} />}
                         </tr>
                       )}
