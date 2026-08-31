@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, ArrowRight, AlertTriangle, X, ChevronRight, Pencil,
-  ArrowUp, ArrowDown, ChevronUp, ChevronDown, Expand, Shrink, Eye, EyeOff, LayoutGrid, Maximize2,
+  ArrowUp, ArrowDown, ArrowLeft, ChevronUp, ChevronDown, Expand, Shrink, Eye, EyeOff, LayoutGrid, Maximize2,
   MoreVertical, Presentation, Moon, Sun, Smartphone,
 } from 'lucide-react';
 import {
@@ -1039,6 +1039,20 @@ const Consolidado = () => {
               >
                 Só {nomeFocado}
                 <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+            {/* Voltar para a carteira. Entrar num cliente é um clique no nome
+                dele, dentro da tabela; sair só existia no seletor, e quem
+                entrou pela tabela procura o caminho de volta no mesmo lugar —
+                não num campo do cabeçalho. */}
+            {!todosOsClientes && (
+              <button
+                onClick={() => { setCliente(TODOS); setObraFocada(null); }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-primary-foreground/30 bg-primary-foreground/10 px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary-foreground/20 transition-colors"
+                title="Voltar a todos os clientes"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Todos os clientes
               </button>
             )}
             <Building2 className="h-4 w-4 text-primary-foreground/70 shrink-0" />
