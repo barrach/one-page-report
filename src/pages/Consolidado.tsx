@@ -32,6 +32,7 @@ import {
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
 import MotivosDoDesvio from '@/components/MotivosDoDesvio';
 import TabelaPcs from '@/components/TabelaPcs';
+import ContratoConsolidado from '@/components/ContratoConsolidado';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -2011,6 +2012,23 @@ const Consolidado = () => {
                   </ol>
                 )}
               </Bloco>
+              {/* ── 8. DADOS DO CONTRATO ─────────────────────────────── */}
+              <Bloco
+                titulo={tituloDoBloco(8, "Dados do contrato")}
+                ferramenta="Aditivos, pleitos, ciclo da medição e custo incorrido"
+                {...cabecalho(8)}
+              >
+                {/* Recebe `doCliente`, e não `emAnalise`: o bloco decide
+                    sozinho entre o quadro da carteira e o detalhe da obra, e
+                    precisa da lista inteira para somar o que está travado. */}
+                <ContratoConsolidado
+                  obras={doCliente}
+                  foco={foco}
+                  podeEditar={canEdit}
+                  aoFocar={(id) => setObraFocada((atual) => (atual === id ? null : id))}
+                />
+              </Bloco>
+
             </>
             </div>
 

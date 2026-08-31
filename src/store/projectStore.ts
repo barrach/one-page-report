@@ -578,7 +578,8 @@ interface ProjectStoreState {
   /** Tira (ou devolve) uma obra da visão do consolidado. */
   setObraOcultaNoConsolidado: (projectId: string, oculta: boolean) => void;
   /** Dados de contrato da obra selecionada. */
-  setContratoDados: (dados: DadosContrato) => void;
+  /** Por obra: no consolidado a obra em foco nao e a selecionada no relatorio. */
+  setContratoDados: (projectId: string, dados: DadosContrato) => void;
   /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
   /** Renomeia um card do relatório — vale para todas as obras. */
   setTituloRelatorio: (id: string, texto: string) => void;
@@ -997,10 +998,10 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
     return { projects: updated };
   }),
 
-  setContratoDados: (dados) => set((s) => {
-    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ contratoDados: dados }));
-    const proj = updated.find((p) => p.id === s.selectedProjectId);
-    if (proj) debouncedSave(proj);
+  setContratoDados: (projectId, dados) => set((s) => {
+    const updated = s.projects.map((p) => (p.id === projectId ? { ...p, contratoDados: dados } : p));
+    const alvo = updated.find((p) => p.id === projectId);
+    if (alvo) debouncedSave(alvo);
     return { projects: updated };
   }),
 

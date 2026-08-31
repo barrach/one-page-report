@@ -18,7 +18,6 @@ import ScheduleSpreadsheet from '@/components/ScheduleSpreadsheet';
 import SecaoRecolhivel from '@/components/SecaoRecolhivel';
 import ClimaConfig from '@/components/ClimaConfig';
 import EapFinanceiraInput from '@/components/EapFinanceiraInput';
-import DadosContratoInput from '@/components/DadosContratoInput';
 import { avancoDaCurva, indiceDoStatus } from '@/lib/avancoCurva';
 import { useAuth, type AppRole } from '@/context/AuthContext';
 import { visaoMensal } from '@/lib/visaoMensal';
@@ -363,8 +362,6 @@ const DataInputPage = () => {
 
       <ClimaConfig />
 
-      {/* Contrato antes da EAP: a EAP detalha o que o contrato define. */}
-      <DadosContratoInput />
       <EapFinanceiraInput />
 
       <div>

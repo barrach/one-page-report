@@ -22,6 +22,9 @@ export const BLOCOS_CONSOLIDADO: { id: string; nome: string; larguraPadrao: Larg
   { id: 'b5', nome: '5 · Quanto vai sobrar', larguraPadrao: 'meia' },
   { id: 'b6', nome: '6 · Qual o risco', larguraPadrao: 'meia' },
   { id: 'b7', nome: '7 · O que devemos fazer', larguraPadrao: 'meia' },
+  // Fora do roteiro das sete perguntas: elas respondem "a obra anda?", e esta
+  // responde "a obra paga?". Por isso vem depois, e nao no meio delas.
+  { id: 'b8', nome: '8 · Dados do contrato', larguraPadrao: 'inteira' },
 ];
 
 export const layoutConsolidadoPadrao = (): ItemLayoutRelatorio[] =>
