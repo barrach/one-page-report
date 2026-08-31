@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, ArrowRight, AlertTriangle, X, ChevronRight, Pencil,
@@ -10,7 +10,7 @@ import {
   CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList,
 } from 'recharts';
 import AppSidebar from '@/components/AppSidebar';
-import { useProjectStore } from '@/store/projectStore';
+import { useProjectStore, type Project } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 import { formatDateBR, formatDateShort } from '@/lib/dateUtils';
@@ -568,6 +568,46 @@ const Consolidado = () => {
     [doCliente, foco],
   );
 
+  /**
+   * A árvore do item 1: um grupo por cliente, com as obras dele dentro.
+   *
+   * O total de cada cliente sai do mesmo `consolidarObras` que a página usa
+   * quando ele está selecionado, ponderação inclusa — recalcular aqui de outro
+   * jeito faria a linha-mãe discordar da tela em que ela clica.
+   */
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, Project[]>();
+    doCliente.forEach((p) => {
+      const nome = clienteDaObra(p);
+      mapa.set(nome, [...(mapa.get(nome) ?? []), p]);
+    });
+
+    return [...mapa.entries()]
+      .map(([cliente, ps]) => {
+        const totais = consolidarObras(ps);
+        return { cliente, obras: totais.obras, totais };
+      })
+      .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR', { sensitivity: 'base' }));
+  }, [doCliente]);
+
+  /**
+   * Clientes abertos na árvore.
+   *
+   * Com um cliente só a árvore não tem o que esconder — ele abre sempre. Com
+   * vários, começam fechados: a linha do cliente já carrega os números, e a
+   * carteira inteira aberta de uma vez é a lista que a árvore veio substituir.
+   */
+  const [abertosManual, setAbertosManual] = useState<Set<string>>(new Set());
+  const clientesAbertos = grupos.length === 1
+    ? new Set(grupos.map((g) => g.cliente))
+    : abertosManual;
+
+  const alternarCliente = (nome: string) => setAbertosManual((atual) => {
+    const proximo = new Set(atual);
+    if (proximo.has(nome)) proximo.delete(nome); else proximo.add(nome);
+    return proximo;
+  });
+
   /** O cliente inteiro — é o que a tabela do item 1 lista, com foco ou sem. */
   const dadosCliente = useMemo(() => consolidarObras(doCliente), [doCliente]);
   const dados = useMemo(
@@ -1052,11 +1092,10 @@ const Consolidado = () => {
                   <table className="w-full border-collapse min-w-[52rem]">
                     <thead>
                       <tr className="bg-table-header text-table-header-foreground">
+                        {/* Cliente primeiro, obra depois: a arvore le de cima
+                            para baixo, do total para a parcela. */}
+                        <th className={cn(th, 'text-left')}>Cliente</th>
                         <th className={cn(th, 'text-left')}>Obra</th>
-                        {/* De quem é a obra só importa quando há mais de um
-                            cliente na tela; dentro de um, repetir o nome em
-                            toda linha é ruído. */}
-                        {todosOsClientes && <th className={cn(th, 'text-left')}>Cliente</th>}
                         <th className={cn(th, 'text-right')}>Avanço previsto</th>
                         <th className={cn(th, 'text-right')}>Avanço real</th>
                         <th className={cn(th, 'text-right')}>Desvio</th>
@@ -1072,147 +1111,177 @@ const Consolidado = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {/* A tabela lista SEMPRE o cliente inteiro, mesmo com foco
-                          numa obra — é ela o seletor, e sumir com as outras
-                          linhas tiraria o caminho de volta. */}
-                      {dadosCliente.obras.map((o) => {
-                        const ativa = o.id === foco;
-                        const ocultaAqui = Boolean(doCliente.find((p) => p.id === o.id)?.ocultoNoConsolidado);
+                      {/* Árvore cliente → obras, no formato de uma EAP.
+                          A linha do cliente TOTALIZA: é ela que se lê primeiro,
+                          e as obras são o detalhe de quem quer abrir. Sem isso,
+                          uma carteira com vinte obras obriga a somar de cabeça
+                          para responder "e a UNIPAR, como está?". */}
+                      {grupos.map((g) => {
+                        const aberto = clientesAbertos.has(g.cliente);
                         return (
-                          <tr
-                            key={o.id}
-                            onClick={() => setObraFocada(ativa ? null : o.id)}
-                            title={ativa ? 'Voltar ao cliente inteiro' : `Analisar só ${o.nome}`}
-                            className={cn(
-                              'cursor-pointer transition-colors',
-                              ativa ? 'bg-primary/10' : 'hover:bg-muted/40',
-                              // Com foco, as outras obras ficam apagadas: o que
-                              // está na tela abaixo não fala mais delas.
-                              foco && !ativa && 'opacity-45',
-                            )}
-                          >
-                            {/* O ponto de seleção fica num slot de largura fixa,
-                                fora do fluxo do nome: como marcador inline ele
-                                empurrava cada obra alguns pixels para a direita
-                                e desalinhava a coluna do próprio cabeçalho. */}
-                            <td className={cn(td, 'font-medium text-foreground whitespace-nowrap')}>
-                              <span className="flex items-center gap-2">
-                                <span className={cn(
-                                  'w-1.5 h-1.5 rounded-full shrink-0',
-                                  ativa ? 'bg-primary' : 'bg-transparent',
-                                )} />
-                                {o.nome}
-                              </span>
-                            </td>
-                            {/* Clicar no cliente entra nele — é o caminho da
-                                visão de todos para a de um. Para o clique da
-                                LINHA, que foca a obra, não disparar junto. */}
-                            {todosOsClientes && (
-                              <td className={cn(td, 'text-muted-foreground')}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setCliente(clienteDaObra(doCliente.find((p) => p.id === o.id)!)); }}
-                                  // `text-left` no botão: sem ele o nome longo
-                                  // que quebra em duas linhas saía centralizado
-                                  // e desalinhava a coluna inteira.
-                                  className="text-left hover:text-primary hover:underline"
-                                  title="Ver só este cliente"
-                                >
-                                  {clienteDaObra(doCliente.find((p) => p.id === o.id)!)}
-                                </button>
+                          <Fragment key={g.cliente}>
+                            <tr className="bg-muted/40 font-semibold hover:bg-muted/60 transition-colors">
+                              <td className={cn(td, 'text-foreground whitespace-nowrap')}>
+                                <span className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => alternarCliente(g.cliente)}
+                                    title={aberto ? 'Recolher as obras' : 'Ver as obras'}
+                                    className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                                  >
+                                    <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', aberto && 'rotate-90')} />
+                                  </button>
+                                  {/* O nome entra no cliente; a seta só abre a
+                                      lista. São duas intenções diferentes, e
+                                      juntá-las num clique só perderia uma. */}
+                                  <button
+                                    type="button"
+                                    onClick={() => setCliente(g.cliente)}
+                                    title={`Ver só ${g.cliente}`}
+                                    className="text-left hover:text-primary hover:underline"
+                                  >
+                                    {g.cliente}
+                                  </button>
+                                  <span className="text-[10px] font-normal text-muted-foreground">
+                                    {g.obras.length} obra{g.obras.length > 1 ? 's' : ''}
+                                  </span>
+                                </span>
                               </td>
-                            )}
-                            <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
-                            <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
-                            <td className={cn(
-                              td, 'text-right tabular-nums font-semibold',
-                              o.desvio < 0 ? 'text-destructive' : o.desvio > 0 ? 'text-success' : '',
-                            )}>
-                              {pct(o.desvio)}
-                            </td>
-                            {canEdit && (
-                              <DinheiroEditavel
-                                classe={td} valor={o.valorContrato} manual={o.manuais.valorContrato}
-                                podeEditar={canEdit}
-                                aoSalvar={(n) => setInfoDoProjeto(o.id, { valorContrato: n })}
-                              />
-                            )}
-                            {canEdit && (
-                              <DinheiroEditavel
-                                classe={td} valor={o.acumulado} manual={o.manuais.acumulado}
-                                podeEditar={canEdit}
-                                aoSalvar={(n) => setInfoDoProjeto(o.id, { acumuladoManual: n })}
-                              />
-                            )}
-                            {canEdit && (
-                              <DinheiroEditavel
-                                classe={td} valor={o.previstoMes} manual={o.manuais.previstoMes}
-                                podeEditar={canEdit}
-                                aoSalvar={(n) => setInfoDoProjeto(o.id, { previstoMesManual: n })}
-                              />
-                            )}
-                            {canEdit && (
-                              // Realizado abaixo do previsto no mês é medição que
-                              // não saiu — o número já diz, a cor faz enxergar.
-                              <DinheiroEditavel
-                                classe={cn(
-                                  td,
-                                  o.previstoMes > 0 && o.realizadoMes < o.previstoMes && 'text-destructive',
-                                )}
-                                valor={o.realizadoMes} manual={o.manuais.realizadoMes}
-                                podeEditar={canEdit}
-                                aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
-                              />
-                            )}
-                            {/* Calculada, nunca digitada: um campo à parte só
-                                criaria a chance de contradizer as duas colunas
-                                ao lado. */}
-                            {canEdit && <Aderencia classe={td} realizado={o.realizadoMes} previsto={o.previstoMes} />}
-                            {/* Tirar a obra da visão. stopPropagation porque a
-                                linha inteira é o seletor de foco. */}
-                            {canEdit && (
-                              <td className={cn(td, 'text-right w-10')}>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setObraOcultaNoConsolidado(o.id, !ocultaAqui);
-                                  }}
-                                  title={ocultaAqui ? 'Trazer de volta' : 'Tirar da visão'}
-                                  className="p-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
-                                >
-                                  {ocultaAqui ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
-                                </button>
+                              <td className={td} />
+                              <td className={cn(td, 'text-right tabular-nums')}>{pct(g.totais.avancoPrev)}</td>
+                              <td className={cn(td, 'text-right tabular-nums')}>{pct(g.totais.avancoReal)}</td>
+                              <td className={cn(
+                                td, 'text-right tabular-nums',
+                                g.totais.desvio < 0 ? 'text-destructive' : g.totais.desvio > 0 ? 'text-success' : '',
+                              )}>
+                                {pct(g.totais.desvio)}
                               </td>
-                            )}
-                          </tr>
+                              {canEdit && <Dinheiro classe={td} valor={g.totais.valorContrato} />}
+                              {canEdit && <Dinheiro classe={td} valor={g.totais.acumulado} />}
+                              {canEdit && <Dinheiro classe={td} valor={g.totais.previstoMes} />}
+                              {canEdit && <Dinheiro classe={td} valor={g.totais.realizadoMes} />}
+                              {canEdit && (
+                                <Aderencia classe={td} realizado={g.totais.realizadoMes} previsto={g.totais.previstoMes} />
+                              )}
+                              {canEdit && <td className={td} />}
+                            </tr>
+
+                            {aberto && g.obras.map((o) => {
+                              const ativa = o.id === foco;
+                              const projeto = doCliente.find((p) => p.id === o.id);
+                              const ocultaAqui = Boolean(projeto?.ocultoNoConsolidado);
+                              return (
+                                <tr
+                                  key={o.id}
+                                  onClick={() => setObraFocada(ativa ? null : o.id)}
+                                  title={ativa ? 'Voltar ao cliente inteiro' : `Analisar só ${o.nome}`}
+                                  className={cn(
+                                    'cursor-pointer transition-colors',
+                                    ativa ? 'bg-primary/10' : 'hover:bg-muted/40',
+                                    foco && !ativa && 'opacity-45',
+                                  )}
+                                >
+                                  {/* A coluna do cliente fica vazia na obra: o
+                                      recuo já diz de quem ela é, e repetir o
+                                      nome em toda linha é o ruído que a árvore
+                                      existe para tirar. */}
+                                  <td className={td} />
+                                  <td className={cn(td, 'font-medium text-foreground whitespace-nowrap')}>
+                                    <span className="flex items-center gap-2 pl-4">
+                                      <span className={cn(
+                                        'w-1.5 h-1.5 rounded-full shrink-0',
+                                        ativa ? 'bg-primary' : 'bg-transparent',
+                                      )} />
+                                      {o.nome}
+                                    </span>
+                                  </td>
+                                  <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoPrev)}</td>
+                                  <td className={cn(td, 'text-right tabular-nums')}>{pct(o.avancoReal)}</td>
+                                  <td className={cn(
+                                    td, 'text-right tabular-nums font-semibold',
+                                    o.desvio < 0 ? 'text-destructive' : o.desvio > 0 ? 'text-success' : '',
+                                  )}>
+                                    {pct(o.desvio)}
+                                  </td>
+                                  {canEdit && (
+                                    <DinheiroEditavel
+                                      classe={td} valor={o.valorContrato} manual={o.manuais.valorContrato}
+                                      podeEditar={canEdit}
+                                      aoSalvar={(n) => setInfoDoProjeto(o.id, { valorContrato: n })}
+                                    />
+                                  )}
+                                  {canEdit && (
+                                    <DinheiroEditavel
+                                      classe={td} valor={o.acumulado} manual={o.manuais.acumulado}
+                                      podeEditar={canEdit}
+                                      aoSalvar={(n) => setInfoDoProjeto(o.id, { acumuladoManual: n })}
+                                    />
+                                  )}
+                                  {canEdit && (
+                                    <DinheiroEditavel
+                                      classe={td} valor={o.previstoMes} manual={o.manuais.previstoMes}
+                                      podeEditar={canEdit}
+                                      aoSalvar={(n) => setInfoDoProjeto(o.id, { previstoMesManual: n })}
+                                    />
+                                  )}
+                                  {canEdit && (
+                                    <DinheiroEditavel
+                                      classe={cn(
+                                        td,
+                                        o.previstoMes > 0 && o.realizadoMes < o.previstoMes && 'text-destructive',
+                                      )}
+                                      valor={o.realizadoMes} manual={o.manuais.realizadoMes}
+                                      podeEditar={canEdit}
+                                      aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
+                                    />
+                                  )}
+                                  {canEdit && (
+                                    <Aderencia classe={td} realizado={o.realizadoMes} previsto={o.previstoMes} />
+                                  )}
+                                  {canEdit && (
+                                    <td className={cn(td, 'text-right w-10')}>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setObraOcultaNoConsolidado(o.id, !ocultaAqui);
+                                        }}
+                                        title={ocultaAqui ? 'Trazer de volta' : 'Tirar da visão'}
+                                        className="p-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                                      >
+                                        {ocultaAqui ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                                      </button>
+                                    </td>
+                                  )}
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
                         );
                       })}
 
                       {/* Só as colunas de dinheiro somam. Percentual de avanço
-                          não se soma nem se faz média simples entre obras — é
-                          para isso que existe a ponderação, e o número dela já
-                          está no bloco 2. Uma célula vazia diz isso melhor que
-                          um número que ninguém saberia interpretar. */}
-                      {canEdit && dadosCliente.obras.length > 1 && (
-                        <tr className="bg-muted/50 font-semibold">
-                          <td className={cn(td, 'text-foreground')}>Total</td>
-                          {todosOsClientes && <td className={td} />}
+                          não se soma entre clientes — contratos diferentes não
+                          se misturam —, e a célula vazia diz isso melhor que um
+                          número que ninguém saberia interpretar. */}
+                      {grupos.length > 1 && (
+                        <tr className="bg-muted/60 font-semibold border-t-2 border-border">
+                          <td className={cn(td, 'text-foreground')}>Carteira</td>
                           <td className={td} />
                           <td className={td} />
                           <td className={td} />
-                          <Dinheiro classe={td} valor={dadosCliente.valorContrato} />
-                          <Dinheiro classe={td} valor={dadosCliente.acumulado} />
-                          <Dinheiro classe={td} valor={dadosCliente.previstoMes} />
-                          <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />
-                          {/* Razão dos totais, e não média das aderências: obra
-                              de R$ 5 milhões e de R$ 50 mil não pesam igual na
-                              medição do cliente. */}
-                          <Aderencia
-                            classe={td}
-                            realizado={dadosCliente.realizadoMes}
-                            previsto={dadosCliente.previstoMes}
-                          />
+                          <td className={td} />
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.valorContrato} />}
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.acumulado} />}
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.previstoMes} />}
+                          {canEdit && <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />}
+                          {canEdit && (
+                            <Aderencia
+                              classe={td}
+                              realizado={dadosCliente.realizadoMes}
+                              previsto={dadosCliente.previstoMes}
+                            />
+                          )}
                           {canEdit && <td className={td} />}
                         </tr>
                       )}
