@@ -849,6 +849,9 @@ const Consolidado = () => {
    */
   const [clienteDosProblemas, setClienteDosProblemas] = useState<string>(TODOS);
 
+  /** O cliente que o item 7 mostra — mesma ideia do item 3. */
+  const [clienteDasAcoes, setClienteDasAcoes] = useState<string>(TODOS);
+
   /** As obras que o item 3 lista, conforme o cliente escolhido no bloco. */
   const problemasFiltrados = useMemo(() => {
     if (clienteDosProblemas === TODOS) return analise.problemas;
@@ -857,6 +860,15 @@ const Consolidado = () => {
     );
     return analise.problemas.filter((o) => ids.has(o.id));
   }, [analise.problemas, clienteDosProblemas, doCliente]);
+
+  /** As prioridades que o item 7 lista, conforme o cliente escolhido nele. */
+  const acoesFiltradas = useMemo(() => {
+    if (clienteDasAcoes === TODOS) return analise.acoes;
+    const ids = new Set(
+      doCliente.filter((p) => clienteDaObra(p) === clienteDasAcoes).map((p) => p.id),
+    );
+    return analise.acoes.filter((a) => ids.has(a.id));
+  }, [analise.acoes, clienteDasAcoes, doCliente]);
 
   /**
    * Trocar de cliente no topo arrasta a página inteira junto.
@@ -869,6 +881,7 @@ const Consolidado = () => {
    */
   useEffect(() => {
     setClienteDosProblemas(TODOS);
+    setClienteDasAcoes(TODOS);
     setObraDoResultado('todos');
     setObraDoPrazo(null);
     setObraFocada(null);
@@ -1947,12 +1960,27 @@ const Consolidado = () => {
                 titulo={tituloDoBloco(7, "O que devemos fazer?")}
                 ferramenta="Prioridades da semana, do maior risco para baixo"
                 {...cabecalho(7)}
+                aside={todosOsClientes && clientes.length > 1 ? (
+                  // Mesma razao do item 3: "o que a UNIPAR precisa esta semana"
+                  // e uma pergunta; "o que a carteira precisa" e outra.
+                  <Select value={clienteDasAcoes} onValueChange={setClienteDasAcoes}>
+                    <SelectTrigger className="h-8 min-w-[160px] max-w-[240px] text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TODOS}>Todos os clientes</SelectItem>
+                      {clientes.map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : undefined}
               >
-                {analise.acoes.length === 0 ? (
+                {acoesFiltradas.length === 0 ? (
                   <Vazio>Sem obra em risco para priorizar.</Vazio>
                 ) : (
                   <ol className="space-y-2.5">
-                    {analise.acoes.map((a, i) => (
+                    {acoesFiltradas.map((a, i) => (
                       <li key={a.id} className="rounded-lg border border-border p-3">
                         <div className="flex items-start justify-between gap-2 flex-wrap">
                           <div className="min-w-0">
