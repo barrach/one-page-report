@@ -1,10 +1,11 @@
-import { useMemo, type ReactNode } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useProjectStore, type Project } from '@/store/projectStore';
 import { cn } from '@/lib/utils';
 import { formatDateBR } from '@/lib/dateUtils';
 import { fmtDinheiro, lerValor } from '@/lib/eapFinanceira';
 import { projetarTermino } from '@/lib/previsaoTermino';
+import { clienteDaObra } from '@/lib/acesso';
 import {
   CONTRATO_VAZIO, aditivoVazio, custoVazio, diaDoFaturamento, exposicaoDeMulta,
   janelaDeMedicao, medicaoVazia, pleitoVazio, resumoDoContrato, STATUS_PLEITO,
@@ -60,7 +61,7 @@ const posicaoDaObra = (p: Project) => {
     p.contratoDados?.tetoMultaPercentual,
   );
   const vigencia = vigenciaDoContrato(p.info?.inicio ?? '', resumo.terminoVigente);
-  return { id: p.id, nome: p.name, info: p.info, dados: p.contratoDados, resumo, multa, vigencia };
+  return { id: p.id, nome: p.name, cliente: clienteDaObra(p), info: p.info, dados: p.contratoDados, resumo, multa, vigencia };
 };
 
 type Posicao = ReturnType<typeof posicaoDaObra>;
@@ -617,109 +618,227 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
   );
 };
 
-// ─── Resumo por contrato ──────────────────────────────────────────────────
+
+// ─── A ficha de um contrato ───────────────────────────────────────────────
+
+/** Um dado da ficha: rótulo em cima, valor embaixo. */
+const Item = ({ rotulo, valor, cor }: { rotulo: string; valor: ReactNode; cor?: string }) => (
+  <div className="min-w-0">
+    <div className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{rotulo}</div>
+    <div className={cn('text-xs font-semibold tabular-nums truncate', cor ?? 'text-foreground')}>{valor}</div>
+  </div>
+);
+
+const corDaVigencia = (v: Posicao['vigencia']) => {
+  if (!v) return undefined;
+  if (v.vencida || v.restantes <= 30) return 'text-destructive';
+  if (v.restantes <= 90) return 'text-amber-600 dark:text-amber-500';
+  return undefined;
+};
+
+const textoDaVigencia = (v: Posicao['vigencia']) => {
+  if (!v) return '—';
+  if (v.vencida) return `vencido há ${Math.abs(v.restantes)} dias`;
+  return v.total > 0 ? `${v.restantes} de ${v.total} dias` : `${v.restantes} dias`;
+};
 
 /**
- * A ficha de cada contrato: vigência e cadência, sem valores.
+ * A ficha de um contrato: tudo o que se pergunta sobre ele, de uma vez.
  *
- * É a tabela que a reunião pede antes de qualquer número — "esse contrato vai
- * até quando mesmo, e quando fecha a medição?". Hoje essa resposta mora na
- * cabeça de quem administra o contrato, e some junto com a pessoa nas férias.
+ * Em duas faixas, porque são duas conversas: em cima o contrato — até quando
+ * vale, quando fecha a medição, quando fatura. Embaixo o dinheiro — quanto
+ * vale, quanto está preso e quanto o atraso custa.
  *
- * A cadência fica ao lado da vigência de propósito: é a distância entre o
- * corte da medição e o faturamento que explica por que uma obra adiantada
- * ainda não virou caixa.
+ * Ficha e não linha de tabela: são treze dados por contrato, e numa tabela
+ * eles viram treze colunas que só cabem rolando de lado — leitura que ninguém
+ * faz numa reunião.
  */
-const ResumoDosContratos = ({ posicoes, aoFocar }: {
+const FichaDoContrato = ({ p, aoAbrir }: { p: Posicao; aoAbrir: () => void }) => (
+  <div className="rounded-lg border border-border bg-card p-3 space-y-3">
+    <div className="flex items-center justify-between gap-2 flex-wrap">
+      <span className="text-sm font-bold text-foreground">{p.nome}</span>
+      <button
+        onClick={aoAbrir}
+        className="text-xs text-primary hover:underline whitespace-nowrap"
+      >
+        Abrir contrato
+      </button>
+    </div>
+
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-4 gap-y-2">
+      <Item rotulo="Início" valor={formatDateBR(p.info?.inicio ?? '') || '—'} />
+      <Item rotulo="Término previsto" valor={formatDateBR(p.info?.terminoPrev ?? '') || '—'} />
+      {/* O vigente, não o assinado: com prorrogação lançada, é ele que vale —
+          e é contra ele que a multa corre. */}
+      <Item
+        rotulo="Término contratual"
+        valor={
+          <>
+            {formatDateBR(p.resumo.terminoVigente) || '—'}
+            {p.resumo.diasAditados !== 0 && (
+              <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                ({p.resumo.diasAditados > 0 ? '+' : ''}{p.resumo.diasAditados}d)
+              </span>
+            )}
+          </>
+        }
+      />
+      <Item rotulo="Vigência" valor={textoDaVigencia(p.vigencia)} cor={corDaVigencia(p.vigencia)} />
+      <Item rotulo="Período de medição" valor={janelaDeMedicao(p.dados)} />
+      <Item rotulo="Faturamento" valor={diaDoFaturamento(p.dados)} />
+    </div>
+
+    <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-x-4 gap-y-2 pt-3 border-t border-border">
+      <Item rotulo="Original" valor={fmtDinheiro(p.resumo.valorOriginal)} />
+      <Item
+        rotulo="Aditivos"
+        valor={p.resumo.valorAditivos ? fmtDinheiro(p.resumo.valorAditivos) : '—'}
+        cor={p.resumo.valorAditivos < 0 ? 'text-destructive' : undefined}
+      />
+      <Item rotulo="Vigente" valor={fmtDinheiro(p.resumo.valorVigente)} cor="text-primary" />
+      <Item
+        rotulo="Pleitos abertos"
+        valor={p.resumo.pleitosAbertos.valor ? fmtDinheiro(p.resumo.pleitosAbertos.valor) : '—'}
+        cor={p.resumo.pleitosAbertos.valor > 0 ? 'text-amber-600 dark:text-amber-500' : undefined}
+      />
+      <Item
+        rotulo="Travado"
+        valor={p.resumo.medicao.travadoNaAprovacao ? fmtDinheiro(p.resumo.medicao.travadoNaAprovacao) : '—'}
+        cor={p.resumo.medicao.travadoNaAprovacao > 0 ? 'text-amber-600 dark:text-amber-500' : undefined}
+      />
+      <Item
+        rotulo="A receber"
+        valor={p.resumo.medicao.aReceber ? fmtDinheiro(p.resumo.medicao.aReceber) : '—'}
+        cor={p.resumo.medicao.aReceber > 0 ? 'text-destructive' : undefined}
+      />
+      <Item
+        rotulo="Desvio de custo"
+        valor={p.resumo.custo.desvio ? fmtDinheiro(p.resumo.custo.desvio) : '—'}
+        cor={p.resumo.custo.desvio > 0 ? 'text-destructive' : p.resumo.custo.desvio < 0 ? 'text-success' : undefined}
+      />
+      <Item
+        rotulo="Multa projetada"
+        valor={p.multa ? fmtDinheiro(p.multa.exposicao) : '—'}
+        cor={p.multa ? 'text-destructive' : undefined}
+      />
+    </div>
+  </div>
+);
+
+// ─── A carteira, por cliente ──────────────────────────────────────────────
+
+/**
+ * A carteira agrupada por cliente.
+ *
+ * Duas tabelas planas com todas as obras juntas obrigavam a caçar as linhas de
+ * um cliente no meio das dos outros. Aqui o cliente é a unidade: a barra dele
+ * já responde quanto vale e quanto está preso, e abrir mostra os contratos —
+ * porque a conversa "e a UNIPAR?" vem antes de "e a FRIGO?".
+ */
+const CarteiraPorCliente = ({ posicoes, aoFocar }: {
   posicoes: Posicao[];
   aoFocar: (id: string) => void;
 }) => {
-  const td = 'px-2 py-1.5 text-xs whitespace-nowrap';
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, Posicao[]>();
+    posicoes.forEach((p) => {
+      const c = p.cliente;
+      if (!mapa.has(c)) mapa.set(c, []);
+      mapa.get(c)!.push(p);
+    });
+    return [...mapa.entries()]
+      .map(([cliente, lista]) => ({ cliente, lista, total: somarPosicoes(lista) }))
+      .sort((a, b) => a.cliente.localeCompare(b.cliente, 'pt-BR', { sensitivity: 'base' }));
+  }, [posicoes]);
+
+  // Cliente único: a barra seria um clique a mais para chegar no óbvio.
+  const [abertos, setAbertos] = useState<Set<string>>(
+    () => new Set(grupos.length === 1 ? [grupos[0].cliente] : []),
+  );
+
+  const alternar = (c: string) => setAbertos((atual) => {
+    const proximo = new Set(atual);
+    if (proximo.has(c)) proximo.delete(c); else proximo.add(c);
+    return proximo;
+  });
+
+  const total = useMemo(() => somarPosicoes(posicoes), [posicoes]);
 
   return (
-    <div className="rounded-lg border border-border p-3 space-y-2">
-      <div>
-        <h4 className="text-sm font-bold text-foreground uppercase tracking-wider">Resumo dos contratos</h4>
-        <p className="text-xs text-muted-foreground max-w-[80ch]">
-          Vigência e cadência de cada contrato. A vigência corre no calendário — fim de semana e
-          parada de fim de ano contam igual.
-        </p>
-      </div>
+    <div className="space-y-2">
+      {grupos.map((g) => {
+        const aberto = abertos.has(g.cliente);
+        return (
+          <div key={g.cliente} className="rounded-lg border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => alternar(g.cliente)}
+              className="w-full flex items-center gap-2 px-3 py-2.5 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+            >
+              <ChevronRight className={cn('h-4 w-4 shrink-0 text-muted-foreground transition-transform', aberto && 'rotate-90')} />
+              <span className="text-sm font-bold text-foreground truncate">{g.cliente}</span>
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                {g.lista.length} contrato{g.lista.length > 1 ? 's' : ''}
+              </span>
+              {/* O resumo do cliente fica na barra: fechado, ele ainda
+                  responde a pergunta que traz alguém até aqui. */}
+              <span className="ml-auto flex items-center gap-4 text-xs tabular-nums whitespace-nowrap">
+                <span className="text-muted-foreground hidden sm:inline">
+                  Vigente <strong className="text-primary">{fmtDinheiro(g.total.vigente)}</strong>
+                </span>
+                {g.total.travado > 0 && (
+                  <span className="text-muted-foreground hidden md:inline">
+                    Travado <strong className="text-amber-600 dark:text-amber-500">{fmtDinheiro(g.total.travado)}</strong>
+                  </span>
+                )}
+                {g.total.aReceber > 0 && (
+                  <span className="text-muted-foreground hidden md:inline">
+                    A receber <strong className="text-destructive">{fmtDinheiro(g.total.aReceber)}</strong>
+                  </span>
+                )}
+              </span>
+            </button>
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[52rem]">
-          <thead>
-            <tr className="bg-table-header text-table-header-foreground">
-              <th className={cn(cabecalho, 'text-left')}>Obra</th>
-              <th className={cabecalho}>Início</th>
-              <th className={cabecalho}>Término previsto</th>
-              <th className={cabecalho}>Término contratual</th>
-              <th className={cabecalho}>Vigência</th>
-              <th className={cabecalho}>Período de medição</th>
-              <th className={cabecalho}>Faturamento</th>
-            </tr>
-          </thead>
-          <tbody>
-            {posicoes.map((p) => (
-              <tr key={p.id} onClick={() => aoFocar(p.id)}
-                className="border-b border-border cursor-pointer hover:bg-muted/40 transition-colors">
-                <td className={cn(td, 'font-medium text-foreground')}>{p.nome}</td>
-                <td className={cn(td, 'text-muted-foreground')}>{formatDateBR(p.info?.inicio ?? '') || '—'}</td>
-                <td className={cn(td, 'text-muted-foreground')}>{formatDateBR(p.info?.terminoPrev ?? '') || '—'}</td>
-                {/* O vigente, não o assinado: com prorrogação lançada, é ele
-                    que vale — e é contra ele que a multa corre. */}
-                <td className={cn(td, 'font-medium text-foreground')}>
-                  {formatDateBR(p.resumo.terminoVigente) || '—'}
-                  {p.resumo.diasAditados !== 0 && (
-                    <span className="ml-1 text-[10px] text-muted-foreground">
-                      ({p.resumo.diasAditados > 0 ? '+' : ''}{p.resumo.diasAditados}d)
-                    </span>
-                  )}
-                </td>
-                <td className={td}>
-                  {!p.vigencia ? (
-                    <span className="text-muted-foreground">—</span>
-                  ) : p.vigencia.vencida ? (
-                    <span className="text-destructive font-semibold">
-                      vencido há {Math.abs(p.vigencia.restantes)} dias
-                    </span>
-                  ) : (
-                    <span className={cn(
-                      'font-medium',
-                      p.vigencia.restantes <= 30 ? 'text-destructive'
-                        : p.vigencia.restantes <= 90 ? 'text-amber-600 dark:text-amber-500'
-                        : 'text-foreground',
-                    )}>
-                      {p.vigencia.restantes} dias
-                      {p.vigencia.total > 0 && (
-                        <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                          de {p.vigencia.total}
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </td>
-                <td className={cn(td, 'text-muted-foreground')}>{janelaDeMedicao(p.dados)}</td>
-                <td className={cn(td, 'text-muted-foreground')}>{diaDoFaturamento(p.dados)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            {aberto && (
+              <div className="p-2 space-y-2 bg-background">
+                {g.lista.map((p) => (
+                  <FichaDoContrato key={p.id} p={p} aoAbrir={() => aoFocar(p.id)} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {grupos.length > 1 && (
+        <div className="rounded-lg border border-border px-3 py-2.5 flex items-center gap-4 flex-wrap text-xs tabular-nums">
+          <span className="text-sm font-bold text-foreground">Carteira</span>
+          <span className="text-muted-foreground">
+            Vigente <strong className="text-primary">{fmtDinheiro(total.vigente)}</strong>
+          </span>
+          <span className="text-muted-foreground">
+            Travado <strong className={cn(total.travado > 0 && 'text-amber-600 dark:text-amber-500')}>
+              {fmtDinheiro(total.travado)}
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            A receber <strong className={cn(total.aReceber > 0 && 'text-destructive')}>
+              {fmtDinheiro(total.aReceber)}
+            </strong>
+          </span>
+          <span className="text-muted-foreground">
+            Multa projetada <strong className={cn(total.multa > 0 && 'text-destructive')}>
+              {fmtDinheiro(total.multa)}
+            </strong>
+          </span>
+        </div>
+      )}
     </div>
   );
 };
 
-// ─── A carteira inteira ───────────────────────────────────────────────────
+// ─── O bloco ──────────────────────────────────────────────────────────────
 
-/**
- * O quadro somado das obras em tela.
- *
- * As colunas são propositalmente as que doem: o que já foi medido e ainda não
- * entrou, o que o custo estourou, o que o atraso vai custar em multa. É a
- * leitura que não existe olhando obra por obra — nenhuma delas parece grave
- * sozinha, e a soma paga a folha do mês.
- */
 const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar }: {
   obras: Project[];
   /** Obra em foco no consolidado; quando há uma, ela abre para lançamento. */
@@ -728,93 +847,24 @@ const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar }: {
   aoFocar: (id: string) => void;
 }) => {
   const posicoes = useMemo(() => obras.map(posicaoDaObra), [obras]);
-  const total = useMemo(() => somarPosicoes(posicoes), [posicoes]);
-
   const obraEmFoco = foco ? obras.find((o) => o.id === foco) : null;
 
   if (obras.length === 0) {
     return <p className="text-sm text-muted-foreground">Nenhuma obra na visão.</p>;
   }
 
-  // Uma obra só: o quadro somado seria a própria linha dela repetida.
+  // Uma obra só: a árvore seria uma casca em volta de um item.
   if (obraEmFoco || obras.length === 1) {
     return <DetalheDoContrato projeto={obraEmFoco ?? obras[0]} podeEditar={podeEditar} />;
   }
 
-  const th = cn(cabecalho, 'text-right');
-  const td = 'px-2 py-1.5 text-xs tabular-nums text-right whitespace-nowrap';
-
   return (
-    <div className="space-y-4">
-      {/* Os cartões de posição da carteira saíram daqui para o bloco 1: eles
-          são a resposta curta a "o que aconteceu?", e ali é onde se lê. */}
-
-      <ResumoDosContratos posicoes={posicoes} aoFocar={aoFocar} />
-
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[56rem]">
-          <thead>
-            <tr className="bg-table-header text-table-header-foreground">
-              <th className={cn(cabecalho, 'text-left')}>Obra</th>
-              <th className={th}>Original</th>
-              <th className={th}>Aditivos</th>
-              <th className={th}>Vigente</th>
-              <th className={th}>Pleitos abertos</th>
-              <th className={th}>Travado</th>
-              <th className={th}>A receber</th>
-              <th className={th}>Desvio de custo</th>
-              <th className={th}>Multa projetada</th>
-            </tr>
-          </thead>
-          <tbody>
-            {posicoes.map((p) => (
-              // Clicar recorta a página para a obra — e é ali que se lança.
-              <tr key={p.id} onClick={() => aoFocar(p.id)}
-                className="border-b border-border cursor-pointer hover:bg-muted/40 transition-colors">
-                <td className="px-2 py-1.5 text-xs font-medium text-foreground whitespace-nowrap">{p.nome}</td>
-                <td className={td}>{fmtDinheiro(p.resumo.valorOriginal)}</td>
-                <td className={cn(td, p.resumo.valorAditivos < 0 && 'text-destructive')}>
-                  {p.resumo.valorAditivos ? fmtDinheiro(p.resumo.valorAditivos) : '—'}
-                </td>
-                <td className={cn(td, 'font-semibold')}>{fmtDinheiro(p.resumo.valorVigente)}</td>
-                <td className={cn(td, p.resumo.pleitosAbertos.valor > 0 && 'text-amber-600 dark:text-amber-500')}>
-                  {p.resumo.pleitosAbertos.valor ? fmtDinheiro(p.resumo.pleitosAbertos.valor) : '—'}
-                </td>
-                <td className={cn(td, p.resumo.medicao.travadoNaAprovacao > 0 && 'text-amber-600 dark:text-amber-500')}>
-                  {p.resumo.medicao.travadoNaAprovacao ? fmtDinheiro(p.resumo.medicao.travadoNaAprovacao) : '—'}
-                </td>
-                <td className={cn(td, p.resumo.medicao.aReceber > 0 && 'text-destructive')}>
-                  {p.resumo.medicao.aReceber ? fmtDinheiro(p.resumo.medicao.aReceber) : '—'}
-                </td>
-                <td className={cn(td, p.resumo.custo.desvio > 0 ? 'text-destructive' : p.resumo.custo.desvio < 0 ? 'text-success' : '')}>
-                  {p.resumo.custo.desvio ? fmtDinheiro(p.resumo.custo.desvio) : '—'}
-                </td>
-                <td className={cn(td, (p.multa?.exposicao ?? 0) > 0 && 'text-destructive font-semibold')}>
-                  {p.multa ? fmtDinheiro(p.multa.exposicao) : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-border font-bold">
-              <td className="px-2 py-2 text-xs text-foreground">Total</td>
-              <td className={cn(td, 'py-2')}>{fmtDinheiro(total.original)}</td>
-              <td className={cn(td, 'py-2')}>{fmtDinheiro(total.aditivos)}</td>
-              <td className={cn(td, 'py-2 text-primary')}>{fmtDinheiro(total.vigente)}</td>
-              <td className={cn(td, 'py-2')}>{fmtDinheiro(total.pleitos)}</td>
-              <td className={cn(td, 'py-2')}>{fmtDinheiro(total.travado)}</td>
-              <td className={cn(td, 'py-2')}>{fmtDinheiro(total.aReceber)}</td>
-              <td className={cn(td, 'py-2', total.desvioCusto > 0 && 'text-destructive')}>{fmtDinheiro(total.desvioCusto)}</td>
-              <td className={cn(td, 'py-2', total.multa > 0 && 'text-destructive')}>{fmtDinheiro(total.multa)}</td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
-
+    <div className="space-y-3">
+      <CarteiraPorCliente posicoes={posicoes} aoFocar={aoFocar} />
       <p className="text-[11px] text-muted-foreground max-w-[80ch]">
-        Clique numa obra para abrir o contrato dela e lançar aditivos, pleitos, medições e custo.
-        A multa projetada usa o mesmo IDP que projeta o término no relatório, para não haver dois
-        atrasos diferentes para a mesma obra.
+        Abra um cliente para ver os contratos dele. Em "abrir contrato" entram aditivos, pleitos,
+        medições e custo. A multa projetada usa o mesmo IDP que projeta o término no relatório,
+        para não haver dois atrasos diferentes para a mesma obra.
       </p>
     </div>
   );
