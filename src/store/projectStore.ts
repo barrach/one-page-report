@@ -6,6 +6,7 @@ import type { ItemLayoutRelatorio } from '@/lib/layoutRelatorio';
 import type { ColunaCronograma } from '@/lib/parseCronogramaColado';
 import type { Evidencia } from '@/lib/evidencias';
 import type { ItemEapFinanceira, ColunaEap } from '@/lib/eapFinanceira';
+import type { DadosContrato } from '@/lib/contrato';
 import { acessoRestrito, melhorPapel, obrasVisiveis, type AppRole } from '@/lib/acesso';
 import type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M } from '../lib/parseProgramacaoSemanal';
 export type { ProgramacaoSemanal, AtividadeProgSemanal, Causa6M };
@@ -283,6 +284,8 @@ export interface Project {
   titulosConsolidado?: Record<string, string>;
   /** Numeração das perguntas, quando renumeradas. Iguais para todas as obras. */
   numerosConsolidado?: Record<string, string>;
+  /** Dados de contrato: aditivos, pleitos, ciclo da medição e custo incorrido. */
+  contratoDados?: DadosContrato;
   /** Obra tirada da visão do consolidado — some da lista E dos totais. */
   ocultoNoConsolidado?: boolean;
   /** Motivos do desvio do mês, anotados à mão no consolidado. */
@@ -459,6 +462,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
     motivosDesvio: (d.motivosDesvio as MotivoDesvio[]) ?? undefined,
     ocultoNoConsolidado: Boolean(d.ocultoNoConsolidado),
+    contratoDados: (d.contratoDados as DadosContrato) ?? undefined,
     titulosRelatorio: (d.titulosRelatorio as Record<string, string>) ?? undefined,
     titulosConsolidado: (d.titulosConsolidado as Record<string, string>) ?? undefined,
     numerosConsolidado: (d.numerosConsolidado as Record<string, string>) ?? undefined,
@@ -495,6 +499,7 @@ const projectToDb = (p: Project): any => ({
     notaProblemas: p.notaProblemas || null,
     motivosDesvio: p.motivosDesvio || null,
     ocultoNoConsolidado: p.ocultoNoConsolidado || false,
+    contratoDados: p.contratoDados || null,
     titulosRelatorio: p.titulosRelatorio || null,
     titulosConsolidado: p.titulosConsolidado || null,
     numerosConsolidado: p.numerosConsolidado || null,
@@ -572,6 +577,8 @@ interface ProjectStoreState {
   setActionsDoProjeto: (projectId: string, actions: ActionItem[]) => void;
   /** Tira (ou devolve) uma obra da visão do consolidado. */
   setObraOcultaNoConsolidado: (projectId: string, oculta: boolean) => void;
+  /** Dados de contrato da obra selecionada. */
+  setContratoDados: (dados: DadosContrato) => void;
   /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
   /** Renomeia um card do relatório — vale para todas as obras. */
   setTituloRelatorio: (id: string, texto: string) => void;
@@ -987,6 +994,13 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
       titulosConsolidado: { ...(p.titulosConsolidado ?? {}), [chave]: texto },
     }));
     updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
+  setContratoDados: (dados) => set((s) => {
+    const updated = updateSelectedProject(s.projects, s.selectedProjectId, () => ({ contratoDados: dados }));
+    const proj = updated.find((p) => p.id === s.selectedProjectId);
+    if (proj) debouncedSave(proj);
     return { projects: updated };
   }),
 
