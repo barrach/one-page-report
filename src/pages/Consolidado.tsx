@@ -402,31 +402,6 @@ const DinheiroEditavel = ({ valor, manual, classe, podeEditar, aoSalvar }: {
   );
 };
 
-/**
- * Aderência da medição do mês: realizado ÷ previsto.
- *
- * Sem previsto lançado a conta não existe — e mostrar 0% ali seria dizer que a
- * obra não mediu nada, quando o que falta é o alvo contra o qual comparar.
- */
-const Aderencia = ({ realizado, previsto, classe }: {
-  realizado: number; previsto: number; classe: string;
-}) => {
-  const pode = previsto > 0;
-  const valor = pode ? (realizado / previsto) * 100 : 0;
-
-  return (
-    <td className={cn(classe, 'text-right tabular-nums whitespace-nowrap font-semibold')}>
-      {pode ? (
-        <span className={valor >= 100 ? 'text-success' : valor >= 80 ? 'text-amber-600 dark:text-amber-500' : 'text-destructive'}>
-          {valor.toFixed(1).replace('.', ',')}%
-        </span>
-      ) : (
-        <span className="text-muted-foreground font-normal">—</span>
-      )}
-    </td>
-  );
-};
-
 const ESTILO_TOOLTIP = {
   background: 'hsl(var(--card))',
   border: '1px solid hsl(var(--border))',
@@ -1102,7 +1077,6 @@ const Consolidado = () => {
                         {canEdit && <th className={cn(th, 'text-right')}>Medição acumulada</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Previsto no mês</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
-                        {canEdit && <th className={cn(th, 'text-right')}>% avanço financeiro</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -1185,10 +1159,6 @@ const Consolidado = () => {
                                 aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
                               />
                             )}
-                            {/* Calculada, não digitada: é o realizado sobre o
-                                previsto do mês, e um campo à parte só criaria
-                                a chance de contradizer as duas colunas ao lado. */}
-                            {canEdit && <Aderencia classe={td} realizado={o.realizadoMes} previsto={o.previstoMes} />}
                           </tr>
                         );
                       })}
@@ -1209,15 +1179,6 @@ const Consolidado = () => {
                           <Dinheiro classe={td} valor={dadosCliente.acumulado} />
                           <Dinheiro classe={td} valor={dadosCliente.previstoMes} />
                           <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />
-                          {/* Total realizado ÷ total previsto, e não a média
-                              das aderências: obra de R$ 5 milhões e obra de
-                              R$ 50 mil não têm o mesmo peso na medição do
-                              cliente. */}
-                          <Aderencia
-                            classe={td}
-                            realizado={dadosCliente.realizadoMes}
-                            previsto={dadosCliente.previstoMes}
-                          />
                         </tr>
                       )}
                     </tbody>
