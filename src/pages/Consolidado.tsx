@@ -32,7 +32,7 @@ import {
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
 import MotivosDoDesvio from '@/components/MotivosDoDesvio';
 import TabelaPcs from '@/components/TabelaPcs';
-import ContratoConsolidado, { CartoesDoContrato } from '@/components/ContratoConsolidado';
+import ContratoConsolidado from '@/components/ContratoConsolidado';
 import { clienteDaObra, clientesVisiveis } from '@/lib/acesso';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
@@ -328,6 +328,25 @@ const BotaoArrumar = ({ titulo, onClick, children }: {
  * são opostas — uma é a obra que não mediu nada, a outra é o dado que ninguém
  * preencheu, e só a segunda é problema de cadastro.
  */
+/**
+ * Cartão de total.
+ *
+ * Mesma regra da célula: zero é "não lançado". Um cartão grande dizendo
+ * R$ 0,00 no topo da tela afirma que a carteira não mediu nada — quando o que
+ * houve foi ninguém preencher.
+ */
+const Cartao = ({ rotulo, valor, detalhe, cor }: {
+  rotulo: string; valor: number; detalhe?: string; cor?: string;
+}) => (
+  <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 min-w-0">
+    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{rotulo}</div>
+    <div className={cn('text-base font-bold tabular-nums truncate', valor > 0 ? (cor ?? 'text-foreground') : 'text-muted-foreground')}>
+      {valor > 0 ? fmtDinheiro(valor) : 'não lançado'}
+    </div>
+    {valor > 0 && detalhe && <div className="text-[10px] text-muted-foreground truncate">{detalhe}</div>}
+  </div>
+);
+
 const Dinheiro = ({ valor, classe }: { valor: number; classe: string }) => (
   <td className={cn(classe, 'text-right tabular-nums whitespace-nowrap')}>
     {valor > 0
@@ -1147,13 +1166,33 @@ const Consolidado = () => {
                   : 'Clique numa obra para recortar a página inteira nela'}
               {...cabecalho(1)}
             >
-              {/* A posição de caixa da carteira abre o bloco: o avanço da
-                  tabela diz que a obra andou, estes quatro números dizem se o
-                  dinheiro veio junto — e é a pergunta seguinte na reunião.
-                  Só quem já vê as colunas de dinheiro na tabela vê estes. */}
+              {/* Os cartões são a linha de total da tabela, em tamanho de
+                  leitura: as MESMAS quatro colunas de dinheiro, na mesma
+                  ordem. Números de outra origem aqui em cima diriam uma coisa
+                  enquanto a tabela logo abaixo diz outra. */}
               {canEdit && (
-                <div className="mb-3">
-                  <CartoesDoContrato obras={emAnalise} />
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+                  <Cartao rotulo="Valor da carteira" valor={dados.valorContrato} cor="text-primary" />
+                  <Cartao
+                    rotulo="Medição acumulada"
+                    valor={dados.acumulado}
+                    detalhe={dados.valorContrato > 0
+                      ? `${((dados.acumulado / dados.valorContrato) * 100).toFixed(1).replace('.', ',')}% do contrato`
+                      : undefined}
+                  />
+                  <Cartao rotulo="Previsto no mês" valor={dados.previstoMes} />
+                  <Cartao
+                    rotulo="Realizado no mês"
+                    valor={dados.realizadoMes}
+                    detalhe={dados.previstoMes > 0
+                      ? `${((dados.realizadoMes / dados.previstoMes) * 100).toFixed(1).replace('.', ',')}% do previsto`
+                      : undefined}
+                    cor={dados.previstoMes > 0
+                      ? (dados.realizadoMes >= dados.previstoMes ? 'text-success'
+                        : dados.realizadoMes >= dados.previstoMes * 0.8 ? 'text-amber-600 dark:text-amber-500'
+                        : 'text-destructive')
+                      : undefined}
+                  />
                 </div>
               )}
               <div className="overflow-x-auto">

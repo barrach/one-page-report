@@ -90,34 +90,6 @@ const Numero = ({ rotulo, valor, detalhe, cor }: {
   </div>
 );
 
-/**
- * A posição de caixa da carteira, em quatro números.
- *
- * Ela abre o consolidado, e não a seção de contrato, porque é a resposta mais
- * curta para "o que aconteceu?": o avanço diz que a obra andou, estes cartões
- * dizem se o dinheiro veio junto. Quem lê o resto da tela já leu isso.
- */
-export const CartoesDoContrato = ({ obras }: { obras: Project[] }) => {
-  const total = useMemo(() => somarPosicoes(obras.map(posicaoDaObra)), [obras]);
-
-  return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-      <Numero rotulo="Carteira vigente" valor={fmtDinheiro(total.vigente)}
-        detalhe={total.aditivos !== 0 ? `${fmtDinheiro(total.aditivos)} em aditivos` : 'sem aditivos'}
-        cor="text-primary" />
-      <Numero rotulo="Travado na aprovação" valor={fmtDinheiro(total.travado)}
-        detalhe="medido, enviado, sem resposta"
-        cor={total.travado > 0 ? 'text-amber-600 dark:text-amber-500' : undefined} />
-      <Numero rotulo="A receber" valor={fmtDinheiro(total.aReceber)}
-        detalhe="faturado e sem entrada"
-        cor={total.aReceber > 0 ? 'text-destructive' : undefined} />
-      <Numero rotulo="Exposição a multa" valor={fmtDinheiro(total.multa)}
-        detalhe="no ritmo atual de cada obra"
-        cor={total.multa > 0 ? 'text-destructive' : undefined} />
-    </div>
-  );
-};
-
 const Grupo = ({ titulo, explicacao, indicadores, children, aoAdicionar, rotuloAdicionar, podeEditar }: {
   titulo: string;
   explicacao: string;
