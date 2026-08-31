@@ -858,6 +858,22 @@ const Consolidado = () => {
     return analise.problemas.filter((o) => ids.has(o.id));
   }, [analise.problemas, clienteDosProblemas, doCliente]);
 
+  /**
+   * Trocar de cliente no topo arrasta a página inteira junto.
+   *
+   * Os blocos 3, 4 e 5 têm seletor próprio, e sem isto eles ficavam presos na
+   * escolha anterior: clicar em UNIPAR levava o item 1 para a UNIPAR e deixava
+   * o resultado mostrando a carteira, com a tela dizendo duas coisas ao mesmo
+   * tempo. Escolha de bloco é um recorte DENTRO do que está na tela; quando o
+   * que está na tela muda, ela recomeça.
+   */
+  useEffect(() => {
+    setClienteDosProblemas(TODOS);
+    setObraDoResultado('todos');
+    setObraDoPrazo(null);
+    setObraFocada(null);
+  }, [clienteAtivo]);
+
   /** Semanas abertas no item 3. Fechadas por padrão: aberto tudo, ninguém lê. */
   const [semanasAbertas, setSemanasAbertas] = useState<Set<string>>(new Set());
   const alternarSemana = (chave: string) => setSemanasAbertas((atual) => {
@@ -1449,7 +1465,7 @@ const Consolidado = () => {
                 titulo={tituloDoBloco(3, "Onde está o problema?")}
                 ferramenta="Semana a semana — clique para abrir o que não fechou"
                 {...cabecalho(3)}
-                aside={clientes.length > 1 ? (
+                aside={todosOsClientes && clientes.length > 1 ? (
                   // Seletor proprio: "onde esta o desvio da UNIPAR" e uma
                   // pergunta; "onde esta o desvio da carteira" e outra, e
                   // recortar a pagina inteira para trocar levaria os outros
