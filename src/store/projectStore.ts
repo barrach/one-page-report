@@ -281,6 +281,8 @@ export interface Project {
   titulosConsolidado?: Record<string, string>;
   /** Numeração das perguntas, quando renumeradas. Iguais para todas as obras. */
   numerosConsolidado?: Record<string, string>;
+  /** Obra tirada da visão do consolidado — some da lista E dos totais. */
+  ocultoNoConsolidado?: boolean;
   /** Motivos do desvio do mês, anotados à mão no consolidado. */
   motivosDesvio?: MotivoDesvio[];
   /** @deprecated campo único anterior — a lista acima o absorve na leitura. */
@@ -454,6 +456,7 @@ const dbToProject = (row: { id: string; name: string; data: Record<string, unkno
     riscoConsolidado: (d.riscoConsolidado as RiscoConsolidado) ?? undefined,
     notaProblemas: (d.notaProblemas as NotaDeTexto) ?? undefined,
     motivosDesvio: (d.motivosDesvio as MotivoDesvio[]) ?? undefined,
+    ocultoNoConsolidado: Boolean(d.ocultoNoConsolidado),
     titulosConsolidado: (d.titulosConsolidado as Record<string, string>) ?? undefined,
     numerosConsolidado: (d.numerosConsolidado as Record<string, string>) ?? undefined,
   };
@@ -488,6 +491,7 @@ const projectToDb = (p: Project): any => ({
     riscoConsolidado: p.riscoConsolidado || null,
     notaProblemas: p.notaProblemas || null,
     motivosDesvio: p.motivosDesvio || null,
+    ocultoNoConsolidado: p.ocultoNoConsolidado || false,
     titulosConsolidado: p.titulosConsolidado || null,
     numerosConsolidado: p.numerosConsolidado || null,
   },
@@ -562,6 +566,8 @@ interface ProjectStoreState {
   setMotivosDesvio: (projectId: string, motivos: MotivoDesvio[]) => void;
   /** Plano de ação de UMA obra pelo id, sem trocar a seleção. */
   setActionsDoProjeto: (projectId: string, actions: ActionItem[]) => void;
+  /** Tira (ou devolve) uma obra da visão do consolidado. */
+  setObraOcultaNoConsolidado: (projectId: string, oculta: boolean) => void;
   /** Renomeia uma pergunta do consolidado — vale para todas as obras. */
   setTituloConsolidado: (chave: string, texto: string) => void;
   /** Renumera uma pergunta do consolidado — vale para todas as obras. */
@@ -966,6 +972,13 @@ export const useProjectStore = create<ProjectStoreState>()((set, get) => ({
       titulosConsolidado: { ...(p.titulosConsolidado ?? {}), [chave]: texto },
     }));
     updated.forEach((p) => debouncedSave(p));
+    return { projects: updated };
+  }),
+
+  setObraOcultaNoConsolidado: (projectId, oculta) => set((s) => {
+    const updated = s.projects.map((p) => (p.id === projectId ? { ...p, ocultoNoConsolidado: oculta } : p));
+    const alvo = updated.find((p) => p.id === projectId);
+    if (alvo) debouncedSave(alvo);
     return { projects: updated };
   }),
 

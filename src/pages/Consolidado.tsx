@@ -26,7 +26,7 @@ import {
 import {
   acoesAbertas, entregaNoPrazo, matrizDeVariacao, pesosDasObras, pontePorObra,
   prioridades, riscoDasObras, cascataDaMedicao, semanaDeAnalise,
-  problemasPorSemana, tendenciaDeDatas, resultadoProjetado, porCliente, MAX_SEMANAS,
+  problemasPorSemana, tendenciaDeDatas, resultadoProjetado, MAX_SEMANAS,
   COLUNAS_MATRIZ, type Severidade,
 } from '@/lib/consolidadoAnalise';
 import AnaliseDeRisco from '@/components/AnaliseDeRisco';
@@ -464,7 +464,10 @@ const TooltipResultado = ({ active, payload }: any) => {
 };
 
 const Consolidado = () => {
-  const { projects, selectProject, acessoRestrito, setInfoDoProjeto, setTituloConsolidado, setNumeroConsolidado } = useProjectStore();
+  const {
+    projects, selectProject, acessoRestrito, setInfoDoProjeto,
+    setTituloConsolidado, setNumeroConsolidado, setObraOcultaNoConsolidado,
+  } = useProjectStore();
   const { canEdit, isAdmin } = useAuth();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
@@ -504,18 +507,24 @@ const Consolidado = () => {
   const clienteAtivo = cliente === TODOS || clientes.includes(cliente) ? cliente : TODOS;
   const todosOsClientes = clienteAtivo === TODOS;
 
-  const doCliente = useMemo(
-    () => (todosOsClientes ? projects : projects.filter((p) => clienteDaObra(p) === clienteAtivo)),
-    [projects, clienteAtivo, todosOsClientes],
-  );
+  /**
+   * Obras tiradas da visão.
+   *
+   * Elas somem da lista E dos totais — é isso que faz o recurso valer alguma
+   * coisa: esconder a obra e continuar somando ela seria mostrar um total que
+   * não corresponde a nada na tela. Por isso a tela DIZ quantas estão fora e
+   * como trazê-las de volta: total que exclui em silêncio é total errado.
+   */
+  const [mostrarOcultas, setMostrarOcultas] = useState(false);
+  const ocultas = useMemo(() => projects.filter((p) => p.ocultoNoConsolidado), [projects]);
 
-  /** Uma linha por cliente — só faz sentido na visão de todos. */
-  const linhasDeCliente = useMemo(
-    () => (todosOsClientes && clientes.length > 1
-      ? porCliente(projects, clienteDaObra, consolidarObras)
-      : []),
-    [projects, todosOsClientes, clientes.length],
-  );
+  const doCliente = useMemo(() => {
+    const daCarteira = todosOsClientes
+      ? projects
+      : projects.filter((p) => clienteDaObra(p) === clienteAtivo);
+    return mostrarOcultas ? daCarteira : daCarteira.filter((p) => !p.ocultoNoConsolidado);
+  }, [projects, clienteAtivo, todosOsClientes, mostrarOcultas]);
+
 
   /**
    * Foco numa obra.
@@ -823,16 +832,39 @@ const Consolidado = () => {
       ? obraDoResultado
       : null);
 
+  /**
+   * O que o seletor do bloco 5 oferece.
+   *
+   * O nível de baixo do que está na tela: na carteira, os CLIENTES; dentro de
+   * um cliente, as obras dele. Oferecer obra na visão de todos daria uma lista
+   * de dezenas de nomes sem dizer de quem é cada um.
+   */
+  const opcoesDoResultado = useMemo(
+    () => (todosOsClientes
+      ? clientes.map((c) => ({ valor: `cliente:${c}`, rotulo: c }))
+      : doCliente.map((p) => ({ valor: p.id, rotulo: p.name }))),
+    [todosOsClientes, clientes, doCliente],
+  );
+
+  /** As obras que o bloco 5 soma, conforme a escolha do seletor. */
+  const obrasDoResultado = useMemo(() => {
+    if (idDoResultado) return dadosCliente.obras.filter((o) => o.id === idDoResultado);
+    if (obraDoResultado.startsWith('cliente:')) {
+      const alvo = obraDoResultado.slice(8);
+      const ids = new Set(projects.filter((p) => clienteDaObra(p) === alvo).map((p) => p.id));
+      return dadosCliente.obras.filter((o) => ids.has(o.id));
+    }
+    return dadosCliente.obras;
+  }, [idDoResultado, obraDoResultado, dadosCliente.obras, projects]);
+
   /** O nome do que está sendo somado — a frase de leitura precisa dizer qual é. */
   const nomeDoResultado = idDoResultado
     ? (doCliente.find((p) => p.id === idDoResultado)?.name ?? clienteAtivo)
-    : (todosOsClientes ? 'Carteira' : clienteAtivo);
+    : obraDoResultado.startsWith("cliente:") ? obraDoResultado.slice(8)
+      : (todosOsClientes ? "Carteira" : clienteAtivo);
 
   const resultado = useMemo(() => {
-    const obras = idDoResultado
-      ? dadosCliente.obras.filter((o) => o.id === idDoResultado)
-      : dadosCliente.obras;
-    const r = resultadoProjetado(obras);
+    const r = resultadoProjetado(obrasDoResultado);
     if (!r) return null;
 
     const aposImpostos = r.contrato - r.impostos;
@@ -854,7 +886,7 @@ const Consolidado = () => {
         },
       ],
     };
-  }, [dadosCliente.obras, idDoResultado]);
+  }, [obrasDoResultado]);
 
   /** Quem está sem valor — é por elas que a ponderação por contrato não liga. */
   const semValor = useMemo(
@@ -988,76 +1020,6 @@ const Consolidado = () => {
               {/* Sem cartões de resumo: a linha "Consolidado" ao pé da tabela
                   traz os mesmos números, e ali eles aparecem ao lado das
                   parcelas que os formam — que é o que prova a conta. */}
-              {/* Resumo por cliente: a porta de entrada do consolidado. Uma
-                  linha por cliente, e o clique leva para dentro dele. Não há
-                  total de avanço aqui — somar percentual entre contratos
-                  diferentes não significa nada; só o dinheiro soma. */}
-              {linhasDeCliente.length > 0 && (
-                <div className="overflow-x-auto mb-4">
-                  <table className="w-full border-collapse min-w-[46rem]">
-                    <thead>
-                      <tr className="bg-table-header text-table-header-foreground">
-                        <th className={cn(th, 'text-left')}>Cliente</th>
-                        <th className={cn(th, 'text-right')}>Obras</th>
-                        <th className={cn(th, 'text-right')}>Avanço previsto</th>
-                        <th className={cn(th, 'text-right')}>Avanço real</th>
-                        <th className={cn(th, 'text-right')}>Desvio</th>
-                        {canEdit && <th className={cn(th, 'text-right')}>Contratado</th>}
-                        {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
-                        <th />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {linhasDeCliente.map((c) => (
-                        <tr
-                          key={c.cliente}
-                          onClick={() => setCliente(c.cliente)}
-                          title={`Ver só ${c.cliente}`}
-                          className="cursor-pointer hover:bg-muted/40 transition-colors"
-                        >
-                          <td className={cn(td, 'font-semibold text-foreground')}>{c.cliente}</td>
-                          <td className={cn(td, 'text-right tabular-nums')}>
-                            {c.obras}
-                            {c.atrasadas > 0 && (
-                              <span className="ml-1.5 text-[11px] text-destructive font-semibold">
-                                {c.atrasadas} atrasada{c.atrasadas > 1 ? 's' : ''}
-                              </span>
-                            )}
-                          </td>
-                          <td className={cn(td, 'text-right tabular-nums')}>{pct(c.avancoPrev)}</td>
-                          <td className={cn(td, 'text-right tabular-nums')}>{pct(c.avancoReal)}</td>
-                          <td className={cn(
-                            td, 'text-right tabular-nums font-semibold',
-                            c.desvio < 0 ? 'text-destructive' : c.desvio > 0 ? 'text-success' : '',
-                          )}>
-                            {pct(c.desvio)}
-                          </td>
-                          {canEdit && <Dinheiro classe={td} valor={c.valorContrato} />}
-                          {canEdit && <Dinheiro classe={td} valor={c.realizadoMes} />}
-                          <td className={cn(td, 'text-right')}>
-                            <span className="inline-flex items-center gap-1 text-xs text-primary whitespace-nowrap">
-                              Abrir <ArrowRight className="h-3 w-3" />
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      <tr className="bg-muted/50 font-semibold">
-                        <td className={cn(td, 'text-foreground')}>Carteira</td>
-                        <td className={cn(td, 'text-right tabular-nums')}>
-                          {linhasDeCliente.reduce((s, c) => s + c.obras, 0)}
-                        </td>
-                        <td className={td} />
-                        <td className={td} />
-                        <td className={td} />
-                        {canEdit && <Dinheiro classe={td} valor={dadosCliente.valorContrato} />}
-                        {canEdit && <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />}
-                        <td className={td} />
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
               <div className="overflow-x-auto">
                   <table className="w-full border-collapse min-w-[52rem]">
                     <thead>
@@ -1077,6 +1039,7 @@ const Consolidado = () => {
                         {canEdit && <th className={cn(th, 'text-right')}>Medição acumulada</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Previsto no mês</th>}
                         {canEdit && <th className={cn(th, 'text-right')}>Realizado no mês</th>}
+                        {canEdit && <th className="w-10" />}
                       </tr>
                     </thead>
                     <tbody>
@@ -1085,6 +1048,7 @@ const Consolidado = () => {
                           linhas tiraria o caminho de volta. */}
                       {dadosCliente.obras.map((o) => {
                         const ativa = o.id === foco;
+                        const ocultaAqui = Boolean(doCliente.find((p) => p.id === o.id)?.ocultoNoConsolidado);
                         return (
                           <tr
                             key={o.id}
@@ -1159,6 +1123,23 @@ const Consolidado = () => {
                                 aoSalvar={(n) => setInfoDoProjeto(o.id, { realizadoMesManual: n })}
                               />
                             )}
+                            {/* Tirar a obra da visão. stopPropagation porque a
+                                linha inteira é o seletor de foco. */}
+                            {canEdit && (
+                              <td className={cn(td, 'text-right w-10')}>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setObraOcultaNoConsolidado(o.id, !ocultaAqui);
+                                  }}
+                                  title={ocultaAqui ? 'Trazer de volta' : 'Tirar da visão'}
+                                  className="p-1 rounded text-muted-foreground/60 hover:text-foreground hover:bg-muted transition-colors"
+                                >
+                                  {ocultaAqui ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -1179,11 +1160,32 @@ const Consolidado = () => {
                           <Dinheiro classe={td} valor={dadosCliente.acumulado} />
                           <Dinheiro classe={td} valor={dadosCliente.previstoMes} />
                           <Dinheiro classe={td} valor={dadosCliente.realizadoMes} />
+                          {canEdit && <td className={td} />}
                         </tr>
                       )}
                     </tbody>
                   </table>
                 </div>
+
+              {/* Total que exclui em silêncio é total errado: a tela diz
+                  quantas obras estão fora e devolve todas num clique. */}
+              {ocultas.length > 0 && (
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-2 flex-wrap">
+                  <EyeOff className="h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    <strong>{ocultas.length}</strong>{' '}
+                    {ocultas.length > 1 ? 'obras estão fora' : 'obra está fora'} desta visão e dos
+                    totais: {ocultas.map((p) => p.name).join(', ')}.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarOcultas((v) => !v)}
+                    className="text-primary hover:underline font-semibold"
+                  >
+                    {mostrarOcultas ? 'Esconder de novo' : 'Mostrar todas'}
+                  </button>
+                </p>
+              )}
 
               {/* Aviso de ponderação: a diferença entre os dois métodos muda o
                   número, e quem lê precisa saber qual está vendo. Nomear as
@@ -1447,8 +1449,12 @@ const Consolidado = () => {
                       <SelectValue placeholder="Obra" />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* Com vários clientes na tela, a obra sozinha não diz de
+                          quem é: "MONTAGEM" pode ser de três contratos. */}
                       {doCliente.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        <SelectItem key={p.id} value={p.id}>
+                          {todosOsClientes ? `${p.name} · ${clienteDaObra(p)}` : p.name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -1528,9 +1534,9 @@ const Consolidado = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="todos">Cliente inteiro</SelectItem>
-                      {doCliente.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      <SelectItem value="todos">{todosOsClientes ? "Carteira inteira" : "Cliente inteiro"}</SelectItem>
+                      {opcoesDoResultado.map((o) => (
+                        <SelectItem key={o.valor} value={o.valor}>{o.rotulo}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
