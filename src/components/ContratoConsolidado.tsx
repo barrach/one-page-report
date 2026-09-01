@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronRight, Plus, Trash2 } from 'lucide-react';
 import { useProjectStore, type Project } from '@/store/projectStore';
 import { cn } from '@/lib/utils';
 import { formatDateBR } from '@/lib/dateUtils';
@@ -7,10 +7,10 @@ import { fmtDinheiro, lerValor } from '@/lib/eapFinanceira';
 import { projetarTermino } from '@/lib/previsaoTermino';
 import { clienteDaObra } from '@/lib/acesso';
 import {
-  CONTRATO_VAZIO, aditivoVazio, custoVazio, diaDoFaturamento, exposicaoDeMulta,
+  CONTRATO_VAZIO, aditivoVazio, diaDoFaturamento, exposicaoDeMulta,
   janelaDeMedicao, medicaoVazia, pleitoVazio, resumoDoContrato, STATUS_PLEITO,
   vigenciaDoContrato,
-  type Aditivo, type CompetenciaMedicao, type CustoMes, type DadosContrato,
+  type Aditivo, type CompetenciaMedicao, type DadosContrato,
   type Pleito, type StatusPleito,
 } from '@/lib/contrato';
 
@@ -133,9 +133,14 @@ const BotaoRemover = ({ onClick, podeEditar }: { onClick: () => void; podeEditar
 
 // ─── Detalhe de UMA obra ──────────────────────────────────────────────────
 
-export const DetalheDoContrato = ({ projeto, podeEditar }: {
+export const DetalheDoContrato = ({ projeto, podeEditar, aoConcluir }: {
   projeto: Project;
   podeEditar: boolean;
+  /**
+   * Fecha o detalhe e devolve a carteira. Opcional porque com uma obra só na
+   * visão o detalhe é a única tela possível — não há para onde voltar.
+   */
+  aoConcluir?: () => void;
 }) => {
   const setContratoDados = useProjectStore((s) => s.setContratoDados);
   const dados: DadosContrato = projeto.contratoDados ?? CONTRATO_VAZIO;
@@ -147,7 +152,7 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
     setContratoDados(projeto.id, { ...dados, ...patch });
 
   const editarLista = <T extends { id: string }>(
-    chave: 'aditivos' | 'pleitos' | 'medicoes' | 'custos',
+    chave: 'aditivos' | 'pleitos' | 'medicoes',
     lista: T[],
     i: number,
     patch: Partial<T>,
@@ -155,6 +160,24 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
 
   return (
     <div className="space-y-4">
+
+      {/* Quem chega aqui chegou clicando numa obra da carteira, e o detalhe
+          ocupa o bloco inteiro no lugar dela: sem esta faixa não sobra nada
+          dizendo qual obra está aberta, nem por onde se sai. */}
+      {aoConcluir && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-bold text-foreground truncate">{projeto.name}</span>
+          <button
+            type="button"
+            onClick={aoConcluir}
+            className="ml-auto shrink-0 inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            title="Voltar à carteira de contratos"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Concluir
+          </button>
+        </div>
+      )}
 
       {/* ── O contrato em si ────────────────────────────────────────── */}
       <div className="rounded-lg border border-border p-3 space-y-3">
@@ -520,72 +543,25 @@ export const DetalheDoContrato = ({ projeto, podeEditar }: {
         </table>
       </Grupo>
 
-      {/* ── Custo incorrido ─────────────────────────────────────────── */}
-      <Grupo
-        titulo="Custo incorrido"
-        explicacao="O custo que já saiu do caixa, mês a mês, contra o que estava previsto para o mesmo período. Sem ele a margem projetada é uma estimativa antiga repetida: ela só muda quando alguém reescreve o número."
-        podeEditar={podeEditar}
-        aoAdicionar={() => gravar({ custos: [...dados.custos, custoVazio()] })}
-        rotuloAdicionar="Adicionar mês"
-        indicadores={
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-            <Numero rotulo="Custo previsto" valor={fmtDinheiro(resumo.custo.previsto)} />
-            <Numero rotulo="Custo incorrido" valor={fmtDinheiro(resumo.custo.incorrido)} />
-            <Numero
-              rotulo="Desvio"
-              valor={fmtDinheiro(resumo.custo.desvio)}
-              detalhe={resumo.custo.desvio > 0 ? 'gastou mais que o previsto' : 'dentro do previsto'}
-              cor={resumo.custo.desvio > 0 ? 'text-destructive' : 'text-success'}
-            />
-          </div>
-        }
-      >
-        <table className="w-full border-collapse min-w-[32rem]">
-          <thead>
-            <tr className="bg-table-header text-table-header-foreground">
-              <th className={cn(cabecalho, 'w-32')}>Mês</th>
-              <th className={cn(cabecalho, 'text-right')}>Previsto</th>
-              <th className={cn(cabecalho, 'text-right')}>Incorrido</th>
-              <th className={cn(cabecalho, 'text-right w-32')}>Desvio</th>
-              <th className="w-8" />
-            </tr>
-          </thead>
-          <tbody>
-            {dados.custos.map((c, i) => {
-              const desvio = (Number(c.incorrido) || 0) - (Number(c.previsto) || 0);
-              return (
-                <tr key={c.id}>
-                  <td className={celula}>
-                    <input type="month" className={cn(campo, 'text-[11px]')} value={c.mes} disabled={!podeEditar}
-                      onChange={(e) => editarLista<CustoMes>('custos', dados.custos, i, { mes: e.target.value })} />
-                  </td>
-                  <td className={celula}>
-                    <input inputMode="decimal" className={cn(campo, 'text-right tabular-nums')} value={c.previsto || ''} disabled={!podeEditar}
-                      onChange={(e) => editarLista<CustoMes>('custos', dados.custos, i, { previsto: num(e.target.value) })} />
-                  </td>
-                  <td className={celula}>
-                    <input inputMode="decimal" className={cn(campo, 'text-right tabular-nums')} value={c.incorrido || ''} disabled={!podeEditar}
-                      onChange={(e) => editarLista<CustoMes>('custos', dados.custos, i, { incorrido: num(e.target.value) })} />
-                  </td>
-                  {/* Calculado: um campo de desvio digitável só criaria a
-                      chance de contradizer as duas colunas ao lado. */}
-                  <td className={cn(celula, 'text-right tabular-nums text-xs font-semibold px-2',
-                    desvio > 0 ? 'text-destructive' : desvio < 0 ? 'text-success' : 'text-muted-foreground')}>
-                    {c.previsto || c.incorrido ? fmtDinheiro(desvio) : '—'}
-                  </td>
-                  <BotaoRemover podeEditar={podeEditar}
-                    onClick={() => gravar({ custos: dados.custos.filter((_, k) => k !== i) })} />
-                </tr>
-              );
-            })}
-            {dados.custos.length === 0 && (
-              <tr><td colSpan={5} className="px-2 py-3 text-xs text-muted-foreground text-center border border-border">
-                Nenhum mês lançado. Sem custo incorrido, a margem projetada é o orçamento repetido.
-              </td></tr>
-            )}
-          </tbody>
-        </table>
-      </Grupo>
+      {/* O mesmo botão no fim: aditivos, pleitos, medições e custo fazem uma
+          página longa, e sem repeti-lo aqui concluir obriga a subir tudo de
+          volta. */}
+      {aoConcluir && (
+        <div className="flex items-center justify-end gap-3 flex-wrap">
+          <span className="text-[11px] text-muted-foreground">
+            O lançamento salva sozinho a cada campo.
+          </span>
+          <button
+            type="button"
+            onClick={aoConcluir}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+            title="Voltar à carteira de contratos"
+          >
+            <Check className="h-3.5 w-3.5" />
+            Concluir
+          </button>
+        </div>
+      )}
     </div>
   );
 };
@@ -811,12 +787,14 @@ const CarteiraPorCliente = ({ posicoes, aoFocar }: {
 
 // ─── O bloco ──────────────────────────────────────────────────────────────
 
-const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar }: {
+const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar, aoConcluir }: {
   obras: Project[];
   /** Obra em foco no consolidado; quando há uma, ela abre para lançamento. */
   foco: string | null;
   podeEditar: boolean;
   aoFocar: (id: string) => void;
+  /** Fecha o lançamento e devolve o consolidado no topo. */
+  aoConcluir: () => void;
 }) => {
   const posicoes = useMemo(() => obras.map(posicaoDaObra), [obras]);
   const obraEmFoco = foco ? obras.find((o) => o.id === foco) : null;
@@ -826,8 +804,17 @@ const ContratoConsolidado = ({ obras, foco, podeEditar, aoFocar }: {
   }
 
   // Uma obra só: a árvore seria uma casca em volta de um item.
+  //
+  // `aoConcluir` só vai quando há obra em foco: sem foco não se entrou pela
+  // carteira, e não há volta a oferecer.
   if (obraEmFoco || obras.length === 1) {
-    return <DetalheDoContrato projeto={obraEmFoco ?? obras[0]} podeEditar={podeEditar} />;
+    return (
+      <DetalheDoContrato
+        projeto={obraEmFoco ?? obras[0]}
+        podeEditar={podeEditar}
+        aoConcluir={obraEmFoco ? aoConcluir : undefined}
+      />
+    );
   }
 
   return (

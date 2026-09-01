@@ -26,6 +26,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useThemeStore, initTheme } from '@/hooks/use-theme';
 import { useTvMode } from '@/hooks/use-tv-mode';
 import AppSidebar from '@/components/AppSidebar';
+import NavMobile from '@/components/NavMobile';
 import { FileText, Database, Download, Moon, Sun, Shield, Smartphone, Presentation, Tv, Play, Pause, ChevronLeft, ChevronRight, Maximize, X, Menu, MoreVertical, LayoutGrid } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import {
@@ -556,6 +557,10 @@ const Index = () => {
                   <SheetTitle>Menu</SheetTitle>
                 </SheetHeader>
                 <div className="flex flex-col gap-2 mt-6">
+                  {/* Os destinos vêm antes das ações: sem a barra lateral, este
+                      menu é o único caminho para as outras telas do app. */}
+                  <NavMobile aoNavegar={() => setMobileMenuOpen(false)} />
+                  <div className="border-t border-border my-1" />
                   <Button variant="outline" className="justify-start h-11" onClick={() => { setMobileMenuOpen(false); openExportDialog(); }}>
                     <Download className="h-4 w-4 mr-2" /> Exportar PDF
                   </Button>

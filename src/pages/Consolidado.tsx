@@ -3,13 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Building2, ArrowRight, AlertTriangle, X, ChevronRight, Pencil,
   ArrowUp, ArrowDown, ArrowLeft, ChevronUp, ChevronDown, Expand, Shrink, Eye, EyeOff, LayoutGrid, Maximize2,
-  MoreVertical, Presentation, Moon, Sun, Smartphone,
+  MoreVertical, Presentation, Moon, Sun, Smartphone, Menu,
 } from 'lucide-react';
 import {
   BarChart, Bar, LineChart, Line, ScatterChart, Scatter, XAxis, YAxis, ZAxis,
   CartesianGrid, Tooltip, ResponsiveContainer, Cell, ReferenceLine, LabelList,
 } from 'recharts';
 import AppSidebar from '@/components/AppSidebar';
+import NavMobile from '@/components/NavMobile';
+import {
+  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
+} from '@/components/ui/sheet';
 import { useProjectStore, type Project } from '@/store/projectStore';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
@@ -525,6 +529,7 @@ const Consolidado = () => {
    * tela já normal.
    */
   const [apresentando, setApresentando] = useState(false);
+  const [menuMobile, setMenuMobile] = useState(false);
   const alternarApresentacao = () => {
     if (apresentando) document.exitFullscreen?.().catch(() => {});
     else document.documentElement.requestFullscreen?.().catch(() => {});
@@ -582,6 +587,18 @@ const Consolidado = () => {
   const [obraFocada, setObraFocada] = useState<string | null>(null);
   // Trocar de cliente limpa o foco: a obra selecionada não existe no outro.
   const foco = obraFocada && doCliente.some((p) => p.id === obraFocada) ? obraFocada : null;
+
+  /**
+   * Fim do lançamento do contrato: solta a obra e devolve o topo da página.
+   *
+   * Quem acabou de lançar um aditivo está no fim do bloco 8. Soltar só o
+   * foco deixaria a pessoa parada no mesmo ponto da rolagem, sem sinal de
+   * que saiu do lançamento — o consolidado precisa reaparecer inteiro.
+   */
+  const concluirContrato = () => {
+    setObraFocada(null);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const emAnalise = useMemo(
     () => (foco ? doCliente.filter((p) => p.id === foco) : doCliente),
@@ -1041,6 +1058,34 @@ const Consolidado = () => {
       {!apresentando && <AppSidebar />}
 
       <div className="flex-1 min-w-0 p-3 sm:p-5 space-y-4">
+
+        {/* Barra do celular. A lateral é `hidden sm:flex`, então no telefone
+            esta tela não tinha como ser alcançada nem abandonada: quem caía
+            aqui pela URL ficava sem caminho de volta. Em apresentação ela sai
+            junto com o resto dos controles. */}
+        {!apresentando && (
+          <div className="sm:hidden sticky top-0 z-50 -mx-3 -mt-3 mb-1 flex items-center justify-between gap-2 border-b border-border bg-card px-3 py-2">
+            <span className="truncate text-sm font-bold text-foreground">Consolidado</span>
+            <Sheet open={menuMobile} onOpenChange={setMenuMobile}>
+              <SheetTrigger asChild>
+                <button
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted"
+                  aria-label="Abrir menu"
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-[280px]">
+                <SheetHeader>
+                  <SheetTitle>Menu</SheetTitle>
+                </SheetHeader>
+                <div className="mt-6">
+                  <NavMobile aoNavegar={() => setMenuMobile(false)} />
+                </div>
+              </SheetContent>
+            </Sheet>
+          </div>
+        )}
 
         {/* Mesma faixa do relatório: título no topo e os controles logo abaixo
             dele, dentro da barra. Duas telas do mesmo app com cabeçalhos
@@ -2071,6 +2116,7 @@ const Consolidado = () => {
                   foco={foco}
                   podeEditar={canEdit}
                   aoFocar={(id) => setObraFocada((atual) => (atual === id ? null : id))}
+                  aoConcluir={concluirContrato}
                 />
               </Bloco>
 
